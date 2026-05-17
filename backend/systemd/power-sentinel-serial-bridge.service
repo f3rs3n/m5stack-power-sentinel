@@ -6,7 +6,7 @@ Wants=power-sentinel-api.service
 [Service]
 Type=simple
 Environment=POWER_SENTINEL_SERIAL_PORT=/dev/ttyS1
-Environment=POWER_SENTINEL_SERIAL_BAUD=115200
+Environment=POWER_SENTINEL_SERIAL_BAUD=38400
 Environment=POWER_SENTINEL_SUMMARY_URL=http://127.0.0.1:8088/api/v1/summary
 ExecStart=/usr/local/bin/power-sentinel-serial-bridge
 Restart=on-failure

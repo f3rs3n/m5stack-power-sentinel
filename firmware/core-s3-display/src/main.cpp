@@ -22,7 +22,10 @@
 #define POWER_SENTINEL_UART_TX_PIN 17
 #endif
 #ifndef POWER_SENTINEL_UART_BAUD
-#define POWER_SENTINEL_UART_BAUD 115200
+// The internal CoreS3 <-> LLM Module UART path is short, but observed hardware
+// drops/corrupts some commands at 115200. 38400 is still far faster than the
+// small summary payload needs and gives the stacked bus more timing margin.
+#define POWER_SENTINEL_UART_BAUD 38400
 #endif
 #ifndef POWER_SENTINEL_TRANSPORT_SERIAL
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
