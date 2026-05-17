@@ -2,8 +2,9 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <lvgl.h>
-#include <M5Unified.h>
 #include <WiFi.h>
+
+#include "m5_hal.h"
 
 #if __has_include("power_sentinel_config.h")
 #include "power_sentinel_config.h"
@@ -187,20 +188,17 @@ void parseSummary(const String &json, bool fromNetwork) {
 void myDispFlush(lv_display_t *disp, const lv_area_t *area, uint8_t *pxMap) {
   uint32_t w = area->x2 - area->x1 + 1;
   uint32_t h = area->y2 - area->y1 + 1;
-  M5.Display.startWrite();
-  M5.Display.setAddrWindow(area->x1, area->y1, w, h);
-  M5.Display.writePixels(reinterpret_cast<uint16_t *>(pxMap), w * h, true);
-  M5.Display.endWrite();
+  psDisplayWritePixels(area->x1, area->y1, w, h, reinterpret_cast<uint16_t *>(pxMap), true);
   lv_display_flush_ready(disp);
 }
 
 void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
-  M5.update();
-  auto detail = M5.Touch.getDetail();
-  if (detail.isPressed()) {
+  int32_t x = 0;
+  int32_t y = 0;
+  if (psTouchPressed(&x, &y)) {
     data->state = LV_INDEV_STATE_PR;
-    data->point.x = detail.x;
-    data->point.y = detail.y;
+    data->point.x = x;
+    data->point.y = y;
   } else {
     data->state = LV_INDEV_STATE_REL;
   }
@@ -427,7 +425,6 @@ void pollUartProbe(uint32_t now) {
 
 void setup() {
   Serial.begin(115200);
-  auto cfg = M5.config();
   // CoreS3 stacked 5V bus direction is deliberately configurable:
   // - false: accept power from the LLM Mate/Module/base without feeding 5V back.
   // - true:  feed 5V from CoreS3 USB-C to the M-Bus/stack.
@@ -435,14 +432,12 @@ void setup() {
   // exposes this as one explicit output-enable bit, so the Power Sentinel firmware
   // chooses the safe external-input mode by default.
 #if POWER_SENTINEL_STACK_POWER_OUT
-  cfg.output_power = true;
+  psM5Begin(true);
 #else
-  cfg.output_power = false;
+  psM5Begin(false);
 #endif
-  M5.begin(cfg);
-  M5.Power.setChargeCurrent(200);
-  M5.Display.setRotation(1);
-  M5.Display.setBrightness(160);
+  psDisplaySetRotation(1);
+  psDisplaySetBrightness(160);
 
   parseSummary(samplePayload(), false);
   initLvgl();

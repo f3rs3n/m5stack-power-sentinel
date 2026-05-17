@@ -105,16 +105,21 @@ CoreS3 frontend:
 firmware/core-s3-display/
 ```
 
-Important dependencies pinned in `platformio.ini`:
+Current dependency strategy in `platformio.ini`:
 
 ```text
-M5Unified 0.1.14
-M5GFX     0.1.16
-LVGL      9.0.0
+M5Unified latest via PlatformIO registry (verified: 0.2.15)
+M5GFX     transitive dependency of M5Unified (verified: 0.2.21)
+LVGL      ^9.0.0 via PlatformIO registry (verified: 9.5.0)
 ArduinoJson ^7.0.4
 ```
 
-Reason: newer M5GFX 0.2.x changed font/API behavior enough to risk LVGL integration issues.
+Important LVGL/M5GFX integration detail:
+
+- `src/main.cpp` must include the real external `<lvgl.h>` and must not include `<M5Unified.h>` in the same translation unit.
+- M5GFX includes its own internal LVGL-compatible font shim at `lgfx/v1/lvgl.h`; if the same translation unit includes both M5Unified/M5GFX and external LVGL, symbols such as `lv_area_t`, `lv_color_format_t`, and `lv_font_glyph_format_t` collide.
+- The firmware avoids that by isolating M5Unified/M5GFX calls in `src/m5_hal.cpp` and exposing a tiny wrapper declared by `src/m5_hal.h`.
+- Use `-DLV_CONF_INCLUDE_SIMPLE` plus `-I include` for `include/lv_conf.h`; the earlier `LV_CONF_PATH` setup and local `include/lvgl/lvgl.h` shim are no longer needed.
 
 The firmware currently has:
 
