@@ -101,6 +101,7 @@ Questo viene dal parser/static analyzer usato da PlatformIO/cppcheck sulle macro
 ## Caveat tecnici
 
 - LVGL è scelto per esplorazione visuale; se RAM/refresh/touch risultano troppo pesanti su hardware reale, si può mantenere lo stesso modello dati e rifare il rendering con M5GFX manuale.
+- Quando il CoreS3 è alimentato dallo stack/base/LLM Mate, il firmware imposta `cfg.output_power = false` prima di `M5.begin(cfg)`, come raccomandato dai docs CoreS3 per alimentazione esterna/Grove/DC; lasciare il default `true` può confliggere con la rail esterna.
 - Touch/display bridge è volutamente minimale.
 - I dati live sono parsati con ArduinoJson dal contratto `power-sentinel.summary.v1`; campi mancanti usano fallback semplici.
 - La UI è una base reviewable, non una dashboard finale rifinita.
