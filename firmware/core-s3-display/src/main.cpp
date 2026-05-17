@@ -114,7 +114,10 @@ lv_obj_t *m5Tab = nullptr;
 lv_obj_t *offlineTab = nullptr;
 
 #if POWER_SENTINEL_UART_PROBE || POWER_SENTINEL_TRANSPORT_SERIAL
-HardwareSerial LlmSerial(1);
+// Official M5Module-LLM Arduino examples use Serial2 for the CoreS3 stacked
+// module UART. ESP32-S3 can route either UART to these pins, but matching the
+// vendor-tested UART instance avoids subtle driver/resource differences.
+HardwareSerial LlmSerial(2);
 #endif
 #if POWER_SENTINEL_UART_PROBE
 uint32_t lastUartPingMs = 0;
