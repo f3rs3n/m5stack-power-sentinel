@@ -11,6 +11,19 @@
 #include "power_sentinel_config.example.h"
 #endif
 
+#ifndef POWER_SENTINEL_UART_PROBE
+#define POWER_SENTINEL_UART_PROBE 0
+#endif
+#ifndef POWER_SENTINEL_UART_RX_PIN
+#define POWER_SENTINEL_UART_RX_PIN 18
+#endif
+#ifndef POWER_SENTINEL_UART_TX_PIN
+#define POWER_SENTINEL_UART_TX_PIN 17
+#endif
+#ifndef POWER_SENTINEL_UART_BAUD
+#define POWER_SENTINEL_UART_BAUD 115200
+#endif
+
 namespace {
 constexpr uint16_t kScreenW = 320;
 constexpr uint16_t kScreenH = 240;
@@ -71,6 +84,12 @@ lv_obj_t *haTab = nullptr;
 lv_obj_t *proxmoxTab = nullptr;
 lv_obj_t *m5Tab = nullptr;
 lv_obj_t *offlineTab = nullptr;
+
+#if POWER_SENTINEL_UART_PROBE
+HardwareSerial LlmSerial(1);
+uint32_t lastUartPingMs = 0;
+String uartRxLine;
+#endif
 
 String samplePayload() {
   return R"JSON({
@@ -370,6 +389,40 @@ void initUi() {
   offlineTab = lv_tabview_add_tab(tabview, "Offline");
   renderAll();
 }
+
+#if POWER_SENTINEL_UART_PROBE
+void initUartProbe() {
+  LlmSerial.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN);
+  Serial.printf("UART probe enabled: RX=%d TX=%d baud=%d\n",
+                POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD);
+}
+
+void pollUartProbe(uint32_t now) {
+  if (now - lastUartPingMs >= 1000) {
+    lastUartPingMs = now;
+    LlmSerial.printf("PS1 PING %lu\n", static_cast<unsigned long>(now));
+    Serial.printf("UART TX PS1 PING %lu\n", static_cast<unsigned long>(now));
+  }
+
+  while (LlmSerial.available() > 0) {
+    char ch = static_cast<char>(LlmSerial.read());
+    if (ch == '\r') continue;
+    if (ch == '\n') {
+      if (uartRxLine.length() > 0) {
+        Serial.printf("UART RX %s\n", uartRxLine.c_str());
+        snprintf(state.problems, sizeof(state.problems), "UART RX: %s", uartRxLine.c_str());
+        state.offline = false;
+        renderAll();
+        uartRxLine = "";
+      }
+    } else if (uartRxLine.length() < 160) {
+      uartRxLine += ch;
+    } else {
+      uartRxLine = "";
+    }
+  }
+}
+#endif
 }  // namespace
 
 void setup() {
@@ -395,6 +448,9 @@ void setup() {
   initLvgl();
   initUi();
   connectWiFi();
+#if POWER_SENTINEL_UART_PROBE
+  initUartProbe();
+#endif
   if (fetchSummary()) {
     state.offline = false;
     renderAll();
@@ -409,6 +465,9 @@ void loop() {
   lastLvTickMs = now;
   lv_timer_handler();
   delay(5);
+#if POWER_SENTINEL_UART_PROBE
+  pollUartProbe(now);
+#endif
   if (now - lastFetchMs > SUMMARY_POLL_MS) {
     lastFetchMs = now;
     bool ok = fetchSummary();

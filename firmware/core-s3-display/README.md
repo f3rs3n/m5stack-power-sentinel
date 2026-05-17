@@ -56,6 +56,23 @@ Poi modifica solo `include/power_sentinel_config.h` localmente:
 - `1`: modalità CoreS3 sorgente. La USB-C del CoreS3 può alimentare il bus/stack, ma questa modalità può impedire al CoreS3 di avviarsi quando lo stack lo alimenta dall'altro lato.
 
 Il firmware demo M5Stack sembra gestire entrambi i versi dinamicamente. Con M5Unified 0.1.x il flag esposto è invece un output-enable esplicito sul bus, quindi per ora scegliamo la modalità sicura per l'appliance finale.
+
+Per testare la seriale interna CoreS3 <-> LLM Module, abilita temporaneamente nel file locale:
+
+```cpp
+#define POWER_SENTINEL_UART_PROBE 1
+#define POWER_SENTINEL_UART_RX_PIN 18
+#define POWER_SENTINEL_UART_TX_PIN 17
+#define POWER_SENTINEL_UART_BAUD 115200
+```
+
+Con probe attivo il CoreS3 invia una volta al secondo:
+
+```text
+PS1 PING <millis>
+```
+
+sulla UART hardware interna e stampa eventuali risposte sulla USB seriale del CoreS3. Sul modulo Linux avvia `tools/serial_probe_server.py`, come descritto in `docs/operations/core-s3-llm-uart-discovery.md`.
 ```
 
 `include/power_sentinel_config.h` è ignorato da git.

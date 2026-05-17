@@ -21,3 +21,11 @@
 //     old behavior where USB-C on the CoreS3 can power the rest of the stack. Do not use
 //     this mode when the stack/base is also feeding 5V into the CoreS3.
 #define POWER_SENTINEL_STACK_POWER_OUT 0
+
+// Internal CoreS3 <-> LLM Module UART discovery. Keep disabled for normal UI builds.
+// Enable temporarily in local power_sentinel_config.h to send `PS1 PING <millis>` once
+// per second on the stacked serial pins and print any replies to USB serial.
+#define POWER_SENTINEL_UART_PROBE 0
+#define POWER_SENTINEL_UART_RX_PIN 18
+#define POWER_SENTINEL_UART_TX_PIN 17
+#define POWER_SENTINEL_UART_BAUD 115200
