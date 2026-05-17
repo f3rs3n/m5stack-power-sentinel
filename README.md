@@ -56,10 +56,11 @@ See:
 
 ## Near-term phases
 
-1. Connect UPS via USB OTG and run discovery.
-2. Configure NUT server as `homelab_ups`.
-3. Build local Power Sentinel JSON API.
-4. Build UPS MQTT/Home Assistant integration.
-5. Build CoreS3 display firmware.
-6. Add Home Assistant automations.
-7. Add Proxmox NUT client in read-only mode, then dry-run shutdown, then real shutdown only after explicit approval.
+1. Deploy Power Sentinel API V0 and use `/api/v1/summary` as the CoreS3/frontend contract.
+2. Connect UPS via USB OTG and run discovery.
+3. Configure NUT server as `homelab_ups`.
+4. Replace UPS mock data with real NUT data.
+5. Build UPS MQTT/Home Assistant integration.
+6. Build CoreS3 display firmware.
+7. Add Home Assistant automations.
+8. Add Proxmox NUT client in read-only mode, then dry-run shutdown, then real shutdown only after explicit approval.
