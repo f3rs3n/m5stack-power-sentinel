@@ -87,6 +87,10 @@ struct SummaryState {
 SummaryState state;
 uint32_t lastFetchMs = 0;
 uint32_t lastLvTickMs = 0;
+uint32_t fetchAttemptCount = 0;
+uint32_t fetchOkCount = 0;
+uint32_t fetchFailCount = 0;
+uint32_t lastFetchDurationMs = 0;
 
 lv_color_t buf1[kScreenW * 24];
 lv_color_t buf2[kScreenW * 24];
@@ -346,6 +350,12 @@ void renderOffline() {
   addLine(card, line);
   snprintf(line, sizeof(line), "Transport: %s", state.transportStatus);
   addLine(card, line);
+  snprintf(line, sizeof(line), "Poll: %lu ok / %lu fail / every %lus / last %lums",
+           static_cast<unsigned long>(fetchOkCount),
+           static_cast<unsigned long>(fetchFailCount),
+           static_cast<unsigned long>(SUMMARY_POLL_MS / 1000UL),
+           static_cast<unsigned long>(lastFetchDurationMs));
+  addLine(card, line);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
   addLine(card, line);
 }
@@ -486,14 +496,29 @@ bool fetchSerialSummary() {
 #endif
 
 bool fetchLiveSummary() {
+  ++fetchAttemptCount;
+  uint32_t startedMs = millis();
+  bool ok = false;
 #if POWER_SENTINEL_TRANSPORT_SERIAL
-  if (fetchSerialSummary()) return true;
+  ok = fetchSerialSummary();
+  if (ok) {
+    lastFetchDurationMs = millis() - startedMs;
+    ++fetchOkCount;
+    return true;
+  }
 #endif
 #if POWER_SENTINEL_HTTP_FALLBACK
-  return fetchSummary();
+  ok = fetchSummary();
 #else
-  return false;
+  ok = false;
 #endif
+  lastFetchDurationMs = millis() - startedMs;
+  if (ok) {
+    ++fetchOkCount;
+  } else {
+    ++fetchFailCount;
+  }
+  return ok;
 }
 
 void initLvgl() {
