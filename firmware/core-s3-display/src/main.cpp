@@ -375,12 +375,17 @@ void initUi() {
 void setup() {
   Serial.begin(115200);
   auto cfg = M5.config();
-  // The Power Sentinel stack feeds the CoreS3 from the stacked base/LLM Mate
-  // path, not from the CoreS3 USB-C port during normal operation. M5Stack's
-  // CoreS3 power docs recommend disabling external 5V output when the device is
-  // powered through external/Grove/DC-style inputs to avoid fighting the input
-  // power rail.
+  // CoreS3 stacked 5V bus direction is deliberately configurable:
+  // - false: accept power from the LLM Mate/Module/base without feeding 5V back.
+  // - true:  feed 5V from CoreS3 USB-C to the M-Bus/stack.
+  // The stock firmware appears to support both directions dynamically; M5Unified
+  // exposes this as one explicit output-enable bit, so the Power Sentinel firmware
+  // chooses the safe external-input mode by default.
+#if POWER_SENTINEL_STACK_POWER_OUT
+  cfg.output_power = true;
+#else
   cfg.output_power = false;
+#endif
   M5.begin(cfg);
   M5.Power.setChargeCurrent(200);
   M5.Display.setRotation(1);

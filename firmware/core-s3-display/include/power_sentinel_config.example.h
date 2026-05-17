@@ -12,3 +12,12 @@
 
 // Network/API polling interval for live data.
 #define SUMMARY_POLL_MS 30000UL
+
+// CoreS3 stacked 5V bus direction.
+// 0 = external-input/sentinel mode: the CoreS3 accepts power from LLM Mate/Module/base,
+//     but does not feed 5V back into the stack. This is the safest mode for the final
+//     Power Sentinel appliance, where the stack/base is the primary power source.
+// 1 = CoreS3-source mode: the CoreS3 enables 5V output to the M-Bus/stack, matching the
+//     old behavior where USB-C on the CoreS3 can power the rest of the stack. Do not use
+//     this mode when the stack/base is also feeding 5V into the CoreS3.
+#define POWER_SENTINEL_STACK_POWER_OUT 0

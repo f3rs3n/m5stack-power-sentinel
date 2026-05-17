@@ -47,6 +47,15 @@ Poi modifica solo `include/power_sentinel_config.h` localmente:
 #define WIFI_SSID "nome-rete-locale"
 #define WIFI_PASSWORD "password-locale"
 #define POWER_SENTINEL_SUMMARY_URL "http://192.168.2.202:8088/api/v1/summary"
+#define POWER_SENTINEL_STACK_POWER_OUT 0
+```
+
+`POWER_SENTINEL_STACK_POWER_OUT` controlla la direzione della 5V dello stack:
+
+- `0`: modalità appliance/sentinel consigliata. Il CoreS3 può essere alimentato da LLM Mate/LLM Module/base, ma non alimenta il resto dello stack.
+- `1`: modalità CoreS3 sorgente. La USB-C del CoreS3 può alimentare il bus/stack, ma questa modalità può impedire al CoreS3 di avviarsi quando lo stack lo alimenta dall'altro lato.
+
+Il firmware demo M5Stack sembra gestire entrambi i versi dinamicamente. Con M5Unified 0.1.x il flag esposto è invece un output-enable esplicito sul bus, quindi per ora scegliamo la modalità sicura per l'appliance finale.
 ```
 
 `include/power_sentinel_config.h` è ignorato da git.
