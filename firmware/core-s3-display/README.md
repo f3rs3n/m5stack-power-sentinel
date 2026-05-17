@@ -81,10 +81,22 @@ Primo flash consigliato: Windows + VS Code + PlatformIO.
 2. Apri `firmware/core-s3-display` in VS Code.
 3. Copia `include/power_sentinel_config.example.h` in `include/power_sentinel_config.h` e configura eventualmente il WiFi locale.
 4. Collega il CoreS3 via USB.
-5. Se necessario entra in download mode: tieni premuto reset circa 2 secondi finché il LED interno verde si accende, poi rilascia.
-6. Esegui `Upload` da PlatformIO.
+5. Se PlatformIO vede due porte COM mentre lo stack è assemblato, una può essere il CH340/seriale dell'LLM Mate/Module. Per il primo flash è normale e più semplice separare il CoreS3 dallo stack, oppure scegliere esplicitamente la porta COM che appare/scompare collegando solo il CoreS3.
+6. Se necessario entra in download mode: tieni premuto reset circa 2 secondi finché il LED interno verde si accende, poi rilascia.
+7. Esegui `Upload` da PlatformIO.
 
 Upload futuri possibili: OTA dopo una prima flash dedicata, oppure passthrough USB Proxmox -> LXC se si vuole caricare da Hermes. Questa skeleton non abilita ancora OTA.
+
+## PlatformIO Inspect
+
+`Inspect Project` può segnalare un falso positivo dentro ArduinoJson, ad esempio:
+
+```text
+CWE-0: failed to expand 'ARDUINOJSON_BEGIN_PUBLIC_NAMESPACE'
+Invalid ## usage when expanding 'ARDUINOJSON_CONCAT_'
+```
+
+Questo viene dal parser/static analyzer usato da PlatformIO/cppcheck sulle macro interne di ArduinoJson, non da un difetto del firmware Power Sentinel. Se `pio run` compila e il firmware gira sul CoreS3, il warning può essere ignorato per questa skeleton.
 
 ## Caveat tecnici
 
