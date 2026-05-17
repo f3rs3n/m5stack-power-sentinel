@@ -24,6 +24,18 @@
 #ifndef POWER_SENTINEL_UART_BAUD
 #define POWER_SENTINEL_UART_BAUD 115200
 #endif
+#ifndef POWER_SENTINEL_TRANSPORT_SERIAL
+#define POWER_SENTINEL_TRANSPORT_SERIAL 1
+#endif
+#ifndef POWER_SENTINEL_HTTP_FALLBACK
+#define POWER_SENTINEL_HTTP_FALLBACK 1
+#endif
+#ifndef POWER_SENTINEL_SERIAL_TIMEOUT_MS
+#define POWER_SENTINEL_SERIAL_TIMEOUT_MS 3500UL
+#endif
+#ifndef POWER_SENTINEL_SERIAL_MAX_JSON_BYTES
+#define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
+#endif
 
 namespace {
 constexpr uint16_t kScreenW = 320;
@@ -86,8 +98,10 @@ lv_obj_t *proxmoxTab = nullptr;
 lv_obj_t *m5Tab = nullptr;
 lv_obj_t *offlineTab = nullptr;
 
-#if POWER_SENTINEL_UART_PROBE
+#if POWER_SENTINEL_UART_PROBE || POWER_SENTINEL_TRANSPORT_SERIAL
 HardwareSerial LlmSerial(1);
+#endif
+#if POWER_SENTINEL_UART_PROBE
 uint32_t lastUartPingMs = 0;
 String uartRxLine;
 #endif
@@ -370,6 +384,92 @@ bool fetchSummary() {
   return true;
 }
 
+#if POWER_SENTINEL_TRANSPORT_SERIAL
+void initSerialTransport() {
+  LlmSerial.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN);
+  LlmSerial.setTimeout(POWER_SENTINEL_SERIAL_TIMEOUT_MS);
+  Serial.printf("Serial transport enabled: RX=%d TX=%d baud=%d\n",
+                POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD);
+}
+
+bool readSerialLine(String &line, uint32_t timeoutMs) {
+  line = "";
+  uint32_t start = millis();
+  while (millis() - start < timeoutMs) {
+    while (LlmSerial.available() > 0) {
+      char ch = static_cast<char>(LlmSerial.read());
+      if (ch == '\r') continue;
+      if (ch == '\n') return true;
+      if (line.length() < 160) line += ch;
+    }
+    delay(2);
+    lv_timer_handler();
+  }
+  return line.length() > 0;
+}
+
+bool readSerialBytes(String &payload, size_t length, uint32_t timeoutMs) {
+  payload = "";
+  if (length == 0 || length > POWER_SENTINEL_SERIAL_MAX_JSON_BYTES) {
+    Serial.printf("Serial payload length invalid: %u\n", static_cast<unsigned>(length));
+    return false;
+  }
+  payload.reserve(length + 1);
+  uint32_t start = millis();
+  while (payload.length() < length && millis() - start < timeoutMs) {
+    while (LlmSerial.available() > 0 && payload.length() < length) {
+      payload += static_cast<char>(LlmSerial.read());
+    }
+    if (payload.length() >= length) break;
+    delay(2);
+    lv_timer_handler();
+  }
+  if (payload.length() != length) {
+    Serial.printf("Serial payload timeout: got %u/%u bytes\n", static_cast<unsigned>(payload.length()), static_cast<unsigned>(length));
+    return false;
+  }
+  return true;
+}
+
+bool fetchSerialSummary() {
+  while (LlmSerial.available() > 0) LlmSerial.read();
+  LlmSerial.print("PS1 GET summary\n");
+  Serial.println("Serial TX PS1 GET summary");
+
+  String header;
+  if (!readSerialLine(header, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
+    Serial.println("Serial summary failed: no header");
+    return false;
+  }
+  Serial.printf("Serial RX header: %s\n", header.c_str());
+
+  if (!header.startsWith("PS1 OK ")) {
+    Serial.printf("Serial summary failed: unexpected header '%s'\n", header.c_str());
+    return false;
+  }
+
+  size_t length = static_cast<size_t>(header.substring(strlen("PS1 OK ")).toInt());
+  String body;
+  if (!readSerialBytes(body, length, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) return false;
+
+  if (LlmSerial.peek() == '\n') LlmSerial.read();
+  parseSummary(body, true);
+  Serial.printf("Serial summary OK: %u bytes\n", static_cast<unsigned>(length));
+  return true;
+}
+#endif
+
+bool fetchLiveSummary() {
+#if POWER_SENTINEL_TRANSPORT_SERIAL
+  if (fetchSerialSummary()) return true;
+#endif
+#if POWER_SENTINEL_HTTP_FALLBACK
+  return fetchSummary();
+#else
+  return false;
+#endif
+}
+
 void initLvgl() {
   lv_init();
   display = lv_display_create(kScreenW, kScreenH);
@@ -396,7 +496,9 @@ void initUi() {
 
 #if POWER_SENTINEL_UART_PROBE
 void initUartProbe() {
+#if !POWER_SENTINEL_TRANSPORT_SERIAL
   LlmSerial.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN);
+#endif
   Serial.printf("UART probe enabled: RX=%d TX=%d baud=%d\n",
                 POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD);
 }
@@ -448,11 +550,16 @@ void setup() {
   parseSummary(samplePayload(), false);
   initLvgl();
   initUi();
+#if POWER_SENTINEL_TRANSPORT_SERIAL
+  initSerialTransport();
+#endif
+#if POWER_SENTINEL_HTTP_FALLBACK
   connectWiFi();
+#endif
 #if POWER_SENTINEL_UART_PROBE
   initUartProbe();
 #endif
-  if (fetchSummary()) {
+  if (fetchLiveSummary()) {
     state.offline = false;
     renderAll();
   }
@@ -471,7 +578,7 @@ void loop() {
 #endif
   if (now - lastFetchMs > SUMMARY_POLL_MS) {
     lastFetchMs = now;
-    bool ok = fetchSummary();
+    bool ok = fetchLiveSummary();
     state.offline = !ok;
     renderAll();
   }

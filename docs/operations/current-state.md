@@ -126,7 +126,21 @@ Important LVGL/M5GFX integration detail:
 The firmware currently has:
 
 - LVGL tab UI for UPS, HA, PVE, M5, Offline.
-- WiFi HTTP fetching as development/fallback transport.
+- Internal UART serial transport enabled by default:
+
+```cpp
+#define POWER_SENTINEL_TRANSPORT_SERIAL 1
+#define POWER_SENTINEL_SERIAL_TIMEOUT_MS 3500UL
+#define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
+```
+
+- Optional WiFi HTTP fallback/development transport:
+
+```cpp
+#define POWER_SENTINEL_HTTP_FALLBACK 1
+#define POWER_SENTINEL_SUMMARY_URL "http://192.168.2.202:8088/api/v1/summary"
+```
+
 - Optional UART probe mode:
 
 ```cpp
@@ -142,9 +156,9 @@ For normal builds, keep probe disabled:
 #define POWER_SENTINEL_UART_PROBE 0
 ```
 
-## Next implementation step
+## Current implementation step
 
-Replace UART probe with the real serial bridge.
+Flash the updated CoreS3 firmware and verify that it uses the real serial bridge as primary transport.
 
 Linux-side bridge implemented and deployed on the LLM Module:
 
@@ -173,20 +187,23 @@ PS1 OK <json-byte-length>
 {...power-sentinel.summary.v1...}
 ```
 
-Implementation split:
+Implementation status:
 
 1. LLM Module service:
-   - open `/dev/ttyS1` at 115200;
-   - listen for `PS1 GET summary`;
-   - fetch `http://127.0.0.1:8088/api/v1/summary`;
-   - return length-prefixed JSON;
-   - run under systemd.
+   - opens `/dev/ttyS1` at 115200;
+   - listens for `PS1 GET summary`;
+   - fetches `http://127.0.0.1:8088/api/v1/summary`;
+   - returns length-prefixed JSON;
+   - runs under systemd.
 
 2. CoreS3 firmware:
-   - periodically request summary over UART;
-   - parse `PS1 OK <len>` and JSON payload;
-   - update existing LVGL state;
-   - keep WiFi HTTP only as development/fallback.
+   - serial primary transport is enabled by default;
+   - periodically requests summary over UART;
+   - parses `PS1 OK <len>` and JSON payload;
+   - updates existing LVGL state through `parseSummary()`;
+   - can keep WiFi HTTP as development/fallback via `POWER_SENTINEL_HTTP_FALLBACK`.
+
+Hardware verification pending: flash this firmware and check `journalctl -u power-sentinel-serial-bridge -f` for `RX PS1 GET summary` / `TX OK ...` lines.
 
 ## Related docs
 

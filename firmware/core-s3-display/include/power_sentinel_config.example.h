@@ -13,6 +13,17 @@
 // Network/API polling interval for live data.
 #define SUMMARY_POLL_MS 30000UL
 
+// Data transport. The final stacked appliance should use the internal UART as
+// primary transport and keep WiFi/HTTP as an optional development fallback.
+// The Linux-side bridge listens on /dev/ttyS1 and serves this protocol:
+//   CoreS3 -> LLM Module: PS1 GET summary
+//   LLM Module -> CoreS3: PS1 OK <json-byte-length>
+//   LLM Module -> CoreS3: <json>
+#define POWER_SENTINEL_TRANSPORT_SERIAL 1
+#define POWER_SENTINEL_HTTP_FALLBACK 1
+#define POWER_SENTINEL_SERIAL_TIMEOUT_MS 3500UL
+#define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
+
 // CoreS3 stacked 5V bus direction.
 // 0 = external-input/sentinel mode: the CoreS3 accepts power from LLM Mate/Module/base,
 //     but does not feed 5V back into the stack. This is the safest mode for the final
