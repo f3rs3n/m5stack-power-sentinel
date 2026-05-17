@@ -36,6 +36,14 @@ All'avvio usa sempre un payload demo locale. Se WiFi è configurato, prova anche
 
 Non modificare `power_sentinel_config.example.h` con credenziali reali.
 
+Il file locale deve stare esattamente in:
+
+```text
+firmware/core-s3-display/include/power_sentinel_config.h
+```
+
+Non metterlo nella root di `firmware/core-s3-display/`: PlatformIO compila con `-I include`, quindi il firmware cerca il config dentro `include/`. Se hai già creato per errore `firmware/core-s3-display/power_sentinel_config.h`, spostalo in `include/` o copiane il contenuto lì.
+
 ```bash
 cd firmware/core-s3-display
 cp include/power_sentinel_config.example.h include/power_sentinel_config.h
