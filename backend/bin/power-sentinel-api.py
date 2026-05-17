@@ -172,6 +172,14 @@ def health_value(health: dict[str, Any] | None, *path: str, default: Any = None)
     return cur
 
 
+def first_health_value(health: dict[str, Any] | None, paths: list[tuple[str, ...]], default: Any = None) -> Any:
+    for path in paths:
+        value = health_value(health, *path, default=None)
+        if value is not None:
+            return value
+    return default
+
+
 def derive_severity(ups: dict[str, Any], m5_ok: bool, checks: dict[str, bool], problems: list[str]) -> str:
     if ups.get("low_battery"):
         return "critical"
@@ -249,10 +257,10 @@ def build_summary(
             "available": health is not None,
             "severity": "ok" if m5_overall else "critical",
             "temperature_c": health_value(health, "system", "temperature_c"),
-            "ram_available_mb": health_value(health, "system", "ram_available_mb"),
-            "disk_free_gb": health_value(health, "system", "root_disk_free_gb"),
-            "stackflow_ok": bool(health_value(health, "apis", "stackflow", default=False)),
-            "openai_ok": bool(health_value(health, "apis", "openai", default=False)),
+            "ram_available_mb": first_health_value(health, [("system", "linux_mem", "available_mb"), ("system", "ram_available_mb")]),
+            "disk_free_gb": first_health_value(health, [("system", "root_disk", "free_gb"), ("system", "root_disk_free_gb")]),
+            "stackflow_ok": bool(first_health_value(health, [("ports", "stackflow_10001", "ok"), ("stackflow", "lsmode_ok"), ("apis", "stackflow")], default=False)),
+            "openai_ok": bool(first_health_value(health, [("ports", "openai_8000", "ok"), ("openai", "models", "ok"), ("apis", "openai")], default=False)),
             "chat_smoke_ok": bool(health_value(health, "chat_smoke", "ok", default=False)),
         },
         "problems": problems,

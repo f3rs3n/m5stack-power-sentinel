@@ -22,8 +22,14 @@ def test_build_summary_has_stable_v1_contract():
         now=1_770_000_000,
         health={
             "overall_ok": True,
-            "system": {"temperature_c": 45.4, "ram_available_mb": 500, "root_disk_free_gb": 20.5},
-            "apis": {"stackflow": True, "openai": True},
+            "system": {
+                "temperature_c": 45.4,
+                "linux_mem": {"available_mb": 500},
+                "root_disk": {"free_gb": 20.5},
+            },
+            "ports": {"stackflow_10001": {"ok": True}, "openai_8000": {"ok": True}},
+            "openai": {"models": {"ok": True}},
+            "stackflow": {"lsmode_ok": True},
             "chat_smoke": {"ok": True},
         },
         ups=None,
