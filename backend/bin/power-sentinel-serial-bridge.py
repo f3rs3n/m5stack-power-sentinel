@@ -140,8 +140,23 @@ def err_reply(code: str, message: str) -> Reply:
     return Reply(body=f"PS1 ERR {code} {len(payload)}\n".encode("ascii") + payload + b"\n", log_label=f"ERR {code} {len(payload)}")
 
 
-def handle_request(line: str, summary_fetcher: Callable[[], bytes]) -> Reply | None:
+def normalize_request_line(line: str) -> str:
+    """Return the PS1 command inside a possibly noisy UART line.
+
+    The CoreS3/LLM stacked UART can occasionally deliver a leading junk byte
+    before an otherwise valid command after resets or bus glitches, e.g.
+    ``�PS1 GET summary``. Treat that as recoverable instead of replying with
+    unknown_command, while still ignoring arbitrary non-PS1 noise.
+    """
     text = line.strip()
+    marker = text.find("PS1 ")
+    if marker > 0:
+        text = text[marker:]
+    return text
+
+
+def handle_request(line: str, summary_fetcher: Callable[[], bytes]) -> Reply | None:
+    text = normalize_request_line(line)
     if not text:
         return None
     if text.startswith("PS1 PING"):
