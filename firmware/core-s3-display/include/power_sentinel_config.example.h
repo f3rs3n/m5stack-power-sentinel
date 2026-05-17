@@ -3,7 +3,7 @@
 // Copy this file to include/power_sentinel_config.h and edit locally.
 // include/power_sentinel_config.h is intentionally ignored by git.
 
-// Leave empty to run the static/demo UI without WiFi.
+// Leave empty if the stacked UART/StackFlow transport is used as primary data path.
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""
 
@@ -20,7 +20,6 @@
 //   LLM Module -> CoreS3: StackFlow JSON response with data=power-sentinel.summary.v1
 // Keep WiFi/HTTP as an optional development fallback.
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
-#define POWER_SENTINEL_TRANSPORT_STACKFLOW 1
 #define POWER_SENTINEL_HTTP_FALLBACK 1
 #define POWER_SENTINEL_SERIAL_TIMEOUT_MS 5000UL
 #define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
@@ -35,10 +34,6 @@
 //     this mode when the stack/base is also feeding 5V into the CoreS3.
 #define POWER_SENTINEL_STACK_POWER_OUT 0
 
-// Internal CoreS3 <-> LLM Module UART discovery. Keep disabled for normal UI builds.
-// Enable temporarily in local power_sentinel_config.h to send `PS1 PING <millis>` once
-// per second on the stacked serial pins and print any replies to USB serial.
-#define POWER_SENTINEL_UART_PROBE 0
 #define POWER_SENTINEL_UART_RX_PIN 18
 #define POWER_SENTINEL_UART_TX_PIN 17
 #define POWER_SENTINEL_UART_BAUD 115200

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Power Sentinel local JSON API for M5Stack LLM Module.
 
-V0 intentionally works before the UPS USB OTG cable is attached: UPS data is
-mock/unavailable, while M5Stack health and simple TCP reachability checks are
-filled from local probes when available.
+The API works before the UPS USB OTG cable is attached: UPS data is reported as
+explicitly unavailable until NUT/upsc can provide live values. No plausible UPS
+sample values are emitted by the backend.
 """
 
 from __future__ import annotations
@@ -144,11 +144,11 @@ def load_ups() -> dict[str, Any] | None:
     return parse_upsc_output(cp.stdout)
 
 
-def mock_ups() -> dict[str, Any]:
+def unavailable_ups() -> dict[str, Any]:
     return {
         "available": False,
-        "status": "MOCK",
-        "status_label": "UPS unavailable/mock",
+        "status": "UNAVAILABLE",
+        "status_label": "UPS unavailable",
         "on_battery": False,
         "low_battery": False,
         "battery_percent": None,
@@ -261,12 +261,12 @@ def build_summary(
     if health is None:
         health = load_m5stack_health()
     if ups is None:
-        ups = load_ups() or mock_ups()
+        ups = load_ups() or unavailable_ups()
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []
     if not ups.get("available"):
-        problems.append("UPS data is mock/unavailable")
+        problems.append("UPS data unavailable")
     if ups.get("low_battery"):
         problems.append("UPS low battery")
     elif ups.get("on_battery"):
@@ -345,7 +345,7 @@ def route_request(path: str) -> tuple[bytes, int, str]:
     if parsed.path == "/api/v1/health":
         return json_response(build_health())
     if parsed.path == "/api/v1/ups":
-        return json_response({"schema": "power-sentinel.ups.v1", "timestamp": iso_utc(), "ups": load_ups() or mock_ups()})
+        return json_response({"schema": "power-sentinel.ups.v1", "timestamp": iso_utc(), "ups": load_ups() or unavailable_ups()})
     return json_response({"error": "not_found", "path": parsed.path}, status=404)
 
 

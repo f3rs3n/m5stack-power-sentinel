@@ -1,6 +1,6 @@
 # Power Sentinel current state
 
-Last updated: 2026-05-17
+Last updated: 2026-05-18
 
 This file exists to survive chat/context compaction. It records the hardware facts, firmware decisions, and verified paths that must not be rediscovered unless hardware/firmware changes.
 
@@ -27,7 +27,7 @@ Observed behavior:
 Interpretation:
 
 - M5Stack stock/demo firmware appears to manage the shared power rail bidirectionally/dynamically.
-- M5Unified 0.1.x exposes this as an explicit external output enable bit via `cfg.output_power` -> `Power.setExtOutput()`.
+- M5Unified exposes this as an explicit external output enable bit via `cfg.output_power` -> `Power.setExtOutput()`.
 - For Power Sentinel appliance mode, use the safe external-input mode:
 
 ```cpp
@@ -61,18 +61,13 @@ firmware/core-s3-display/power_sentinel_config.h
 The internal CoreS3 <-> LLM Module UART path is confirmed working:
 
 ```text
-CoreS3 UART1 RX = G18
-CoreS3 UART1 TX = G17
-Baud            = 115200 8N1
-LLM Module dev  = /dev/ttyS1
+CoreS3 RX = G18
+CoreS3 TX = G17
+Baud      = 115200 8N1
+LLM side  = llm_sys owning /dev/ttyS1
 ```
 
-Probe result:
-
-```text
-/dev/ttyS1 RX PS1 PING <millis>
-/dev/ttyS1 TX PS1 PONG <same-token>
-```
+Important: `/dev/ttyS1` is owned by the vendor `llm_sys` service. Power Sentinel no longer runs a parallel Linux serial bridge on that device. The CoreS3 still uses the physical stacked UART, but speaks official StackFlow JSON and lets `llm_sys` route `work_id: "sentinel"` to the custom unit.
 
 `/dev/ttyS2` through `/dev/ttyS5` returned I/O errors during scan. `/dev/ttyS0` is the Linux console and must not be used.
 
@@ -90,11 +85,32 @@ The shared schema is:
 power-sentinel.summary.v1
 ```
 
+Current backend services:
+
+```text
+power-sentinel-api.service
+power-sentinel-stackflow-unit.service
+llm-sys.service
+```
+
+The StackFlow custom unit listens on:
+
+```text
+ipc:///tmp/rpc.sentinel
+```
+
+The custom unit calls the API using the non-recursive safe endpoint:
+
+```text
+http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
+```
+
 See:
 
 ```text
 docs/architecture/api-contract-v1.md
 docs/operations/power-sentinel-api.md
+docs/operations/backend-ops.md
 ```
 
 ## Current firmware state
@@ -108,9 +124,9 @@ firmware/core-s3-display/
 Current dependency strategy in `platformio.ini`:
 
 ```text
-M5Unified latest via PlatformIO registry (verified: 0.2.15)
-M5GFX     transitive dependency of M5Unified (verified: 0.2.21)
-LVGL      ^9.0.0 via PlatformIO registry (verified: 9.5.0)
+M5Unified latest via PlatformIO registry
+M5GFX     transitive dependency of M5Unified
+LVGL      ^9.0.0 via PlatformIO registry
 ArduinoJson ^7.0.4
 ```
 
@@ -119,19 +135,20 @@ Important LVGL/M5GFX integration detail:
 - `src/main.cpp` must include the real external `<lvgl.h>` and must not include `<M5Unified.h>` in the same translation unit.
 - M5GFX includes its own internal LVGL-compatible font shim at `lgfx/v1/lvgl.h`; if the same translation unit includes both M5Unified/M5GFX and external LVGL, symbols such as `lv_area_t`, `lv_color_format_t`, and `lv_font_glyph_format_t` collide.
 - The firmware avoids that by isolating M5Unified/M5GFX calls in `src/m5_hal.cpp` and exposing a tiny wrapper declared by `src/m5_hal.h`.
-- Use `-DLV_CONF_INCLUDE_SIMPLE` plus `-I include` for `include/lv_conf.h`; the earlier `LV_CONF_PATH` setup and local `include/lvgl/lvgl.h` shim are no longer needed.
-- RGB565 color order is handled explicitly in the LVGL flush callback with `lv_draw_sw_rgb565_swap(pxMap, w * h)` before writing to M5GFX with its swap flag disabled. Do not re-enable `LV_COLOR_16_SWAP`; that produced visibly wrong colors on CoreS3 with M5Unified 0.2.x / LVGL 9.5.
-- Hardware flash confirmed by user after the RGB565 fix: CoreS3 powers correctly from the stack and the LVGL UI colors render correctly with the latest M5Unified/M5GFX/LVGL dependency strategy.
+- Use `-DLV_CONF_INCLUDE_SIMPLE` plus `-I include` for `include/lv_conf.h`.
+- RGB565 color order is handled explicitly in the LVGL flush callback with `lv_draw_sw_rgb565_swap(pxMap, w * h)` before writing to M5GFX with its swap flag disabled.
 
 The firmware currently has:
 
-- LVGL tab UI for UPS, HA, PVE, M5, Offline.
-- Internal UART serial transport enabled by default:
+- LVGL tab UI for UPS, HA, PVE, M5, and transport/offline diagnostics.
+- No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
+- Internal UART StackFlow transport enabled by default:
 
 ```cpp
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
 #define POWER_SENTINEL_SERIAL_TIMEOUT_MS 3500UL
 #define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
+#define POWER_SENTINEL_SERIAL_RETRIES 3
 ```
 
 - Optional WiFi HTTP fallback/development transport:
@@ -141,69 +158,31 @@ The firmware currently has:
 #define POWER_SENTINEL_SUMMARY_URL "http://192.168.2.202:8088/api/v1/summary"
 ```
 
-- Optional UART probe mode:
+## Verified StackFlow path
 
-```cpp
-#define POWER_SENTINEL_UART_PROBE 1
-#define POWER_SENTINEL_UART_RX_PIN 18
-#define POWER_SENTINEL_UART_TX_PIN 17
-#define POWER_SENTINEL_UART_BAUD 115200
-```
-
-For normal builds, keep probe disabled:
-
-```cpp
-#define POWER_SENTINEL_UART_PROBE 0
-```
-
-## Current implementation step
-
-Flash the updated CoreS3 firmware and verify that it uses the real serial bridge as primary transport.
-
-Linux-side bridge implemented and deployed on the LLM Module:
+Verified by the user from VSCode on Windows over COM4 after flashing the StackFlow firmware:
 
 ```text
-backend/bin/power-sentinel-serial-bridge.py
-backend/systemd/power-sentinel-serial-bridge.service
-/usr/local/bin/power-sentinel-serial-bridge
-/etc/systemd/system/power-sentinel-serial-bridge.service
-systemd: enabled + active
-serial: /dev/ttyS1 @ 115200
-summary source: http://127.0.0.1:8088/api/v1/summary
+Serial TX StackFlow sentinel.summary id=ps-3 attempt 1/3
+Serial RX StackFlow: {"request_id":"ps-3","work_id":"sentinel","created":...,"object":"power-sentinel.summary.v1",...}
+StackFlow summary OK: 843 bytes
 ```
 
-Target protocol:
-
-Request from CoreS3:
+The user reported 38 consecutive OK polls with no misses. This validates the full path:
 
 ```text
-PS1 GET summary
+CoreS3
+-> internal UART / M-Bus
+-> llm_sys
+-> ipc:///tmp/rpc.sentinel
+-> power-sentinel-stackflow-unit
+-> http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
+-> CoreS3 display
 ```
 
-Response from LLM Module:
+## Deprecated implementation removed from repo
 
-```text
-PS1 OK <json-byte-length>
-{...power-sentinel.summary.v1...}
-```
-
-Implementation status:
-
-1. LLM Module service:
-   - opens `/dev/ttyS1` at 115200;
-   - listens for `PS1 GET summary`;
-   - fetches `http://127.0.0.1:8088/api/v1/summary`;
-   - returns length-prefixed JSON;
-   - runs under systemd.
-
-2. CoreS3 firmware:
-   - serial primary transport is enabled by default;
-   - periodically requests summary over UART;
-   - parses `PS1 OK <len>` and JSON payload;
-   - updates existing LVGL state through `parseSummary()`;
-   - can keep WiFi HTTP as development/fallback via `POWER_SENTINEL_HTTP_FALLBACK`.
-
-Hardware verification pending: flash this firmware and check `journalctl -u power-sentinel-serial-bridge -f` for `RX PS1 GET summary` / `TX OK ...` lines.
+The old direct serial bridge (`power-sentinel-serial-bridge.py`, its systemd unit, tests, and PS1 probe helper) was removed from the repository after StackFlow was verified. The choice is deliberate: preserving `llm_sys` avoids UART contention and keeps the vendor StackFlow/assistant path available.
 
 ## Related docs
 

@@ -40,7 +40,7 @@ def test_build_summary_has_stable_v1_contract():
     assert summary["timestamp"] == "2026-02-02T02:40:00Z"
     assert summary["severity"] == "warn"
     assert summary["ups"]["available"] is False
-    assert summary["ups"]["status"] == "MOCK"
+    assert summary["ups"]["status"] == "UNAVAILABLE"
     assert summary["ups"]["stale"] is True
     assert summary["homeassistant"] == {"available": True, "severity": "ok", "mqtt": True}
     assert summary["proxmox"] == {"available": True, "severity": "ok", "shutdown_state": "disarmed"}
@@ -48,7 +48,7 @@ def test_build_summary_has_stable_v1_contract():
     assert summary["m5stack"]["stackflow_ok"] is True
     assert summary["m5stack"]["openai_ok"] is True
     assert summary["m5stack"]["chat_smoke_ok"] is True
-    assert "UPS data is mock/unavailable" in summary["problems"]
+    assert "UPS data unavailable" in summary["problems"]
 
 
 def test_parse_upsc_derives_battery_status_and_numeric_values():

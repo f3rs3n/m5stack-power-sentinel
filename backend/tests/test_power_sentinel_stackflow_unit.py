@@ -67,7 +67,7 @@ def test_stackflow_response_shape():
     assert isinstance(payload["created"], int)
 
 
-def test_summary_action_wraps_api_payload(monkeypatch):
+def test_summary_action_wraps_api_payload():
     unit = load_module()
     req = unit.StackFlowRequest(
         callback_url="ipc:///tmp/llm/8000.sock",
@@ -78,7 +78,7 @@ def test_summary_action_wraps_api_payload(monkeypatch):
         object_name="None",
         data="None",
     )
-    monkeypatch.setattr(unit, "fetch_summary", lambda api_url, timeout: {"schema": "power-sentinel.summary.v1", "severity": "ok"})
+    unit.fetch_summary = lambda api_url, timeout: {"schema": "power-sentinel.summary.v1", "severity": "ok"}
 
     payload = json.loads(unit.handle_request(req, "http://127.0.0.1:8088/api/v1/summary"))
 
@@ -87,7 +87,7 @@ def test_summary_action_wraps_api_payload(monkeypatch):
     assert payload["error"]["code"] == 0
 
 
-def test_summary_action_reports_fetch_error(monkeypatch):
+def test_summary_action_reports_fetch_error():
     unit = load_module()
     req = unit.StackFlowRequest(
         callback_url="ipc:///tmp/llm/8000.sock",
@@ -102,7 +102,7 @@ def test_summary_action_reports_fetch_error(monkeypatch):
     def broken(api_url, timeout):
         raise RuntimeError("api down")
 
-    monkeypatch.setattr(unit, "fetch_summary", broken)
+    unit.fetch_summary = broken
 
     payload = json.loads(unit.handle_request(req, "http://127.0.0.1:8088/api/v1/summary"))
 

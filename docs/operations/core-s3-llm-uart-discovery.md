@@ -6,7 +6,7 @@ Stack currently assembled by Martino, bottom to top:
 DIN BASE -> LLM MATE -> LLM MODULE -> CORE S3
 ```
 
-No DIP/pin switch changes have been made by the user.
+No DIP/pin switch changes were needed.
 
 ## What the M5Stack docs imply
 
@@ -24,7 +24,7 @@ CoreS3 pin options listed in the Module LLM pin-switching doc:
 | --- | --- | --- |
 | CoreS3 | G18 / G7 / G14 / G10 | G17 / G13 / G6 / G0 |
 
-Since the user has not changed switches, the first/default-looking CoreS3 pair is the best initial candidate:
+The confirmed default pair for this assembled stack is:
 
 ```text
 CoreS3 RXD = G18
@@ -38,19 +38,19 @@ This also matches DIN Base PORT.C for CoreS3:
 PORT.C = G18/G17 = RX/TX
 ```
 
-Important caveat: the docs include a confusing example sentence saying a successful CoreS3 + Module LLM switch ended with "G7 for TX and G17 for RX", while the CoreS3 table lists RXD candidates `G18/G7/G14/G10` and TXD candidates `G17/G13/G6/G0`. Do not hard-code only the example sentence; verify on the assembled stack.
+Important caveat: the docs include a confusing example sentence saying a successful CoreS3 + Module LLM switch ended with "G7 for TX and G17 for RX", while the CoreS3 table lists RXD candidates `G18/G7/G14/G10` and TXD candidates `G17/G13/G6/G0`. Do not hard-code only the example sentence; verify on the assembled stack if hardware changes.
 
 ## Linux side observed on the LLM Module
 
 Observed over SSH on `192.168.2.202`:
 
 ```text
-/dev/ttyS0  root:tty     console, active serial-getty, DO NOT use for probe
-/dev/ttyS1  root:dialout candidate
-/dev/ttyS2  root:dialout candidate
-/dev/ttyS3  root:dialout candidate
-/dev/ttyS4  root:dialout candidate
-/dev/ttyS5  root:dialout candidate
+/dev/ttyS0  root:tty     console, active serial-getty, DO NOT use
+/dev/ttyS1  root:dialout real CoreS3/StackFlow UART, owned by llm_sys
+/dev/ttyS2  root:dialout dummy/nonfunctional on this device
+/dev/ttyS3  root:dialout dummy/nonfunctional on this device
+/dev/ttyS4  root:dialout dummy/nonfunctional on this device
+/dev/ttyS5  root:dialout dummy/nonfunctional on this device
 ```
 
 Kernel command line:
@@ -63,24 +63,22 @@ Only two UARTs appear in dmesg as MMIO devices:
 
 ```text
 ttyS0 at 0x4880000  # console
-ttyS1 at 0x4881000  # likely first non-console hardware UART
+ttyS1 at 0x4881000  # first non-console hardware UART, used by llm_sys
 ```
 
-Therefore the first Linux-side candidate for CoreS3 internal serial is:
+`/dev/ttyS2` through `/dev/ttyS5` returned I/O errors during scan. `/dev/ttyS0` is the Linux console and must not be used.
+
+## Discovery result
+
+Historical probe result, before choosing the final StackFlow architecture:
 
 ```text
-/dev/ttyS1 @ 115200
-```
-
-Confirmed on the assembled stack after flashing CoreS3 UART probe mode:
-
-```text
-CoreS3 UART1 RX=G18 TX=G17 @ 115200
+CoreS3 RX=G18 TX=G17 @ 115200
 LLM Module /dev/ttyS1 @ 115200
-Protocol PS1 PING/PONG works bidirectionally.
+Bidirectional traffic confirmed.
 ```
 
-Observed scan output:
+Observed scan output from that discovery phase:
 
 ```text
 /dev/ttyS1: listening @115200
@@ -88,63 +86,45 @@ Observed scan output:
 /dev/ttyS3: open failed: error(5, 'Input/output error')
 /dev/ttyS4: open failed: error(5, 'Input/output error')
 /dev/ttyS5: open failed: error(5, 'Input/output error')
-/dev/ttyS1 RX PS1 PING 135222
-/dev/ttyS1 TX b'PS1 PONG 135222\n'
+/dev/ttyS1 RX probe traffic from CoreS3
 RESULT seen
 ```
 
-No DIP switch changes were needed.
+The discovery scripts and the old direct probe/bridge protocol were removed from the repo after StackFlow was verified. Keep this file as hardware evidence, not as current runbook.
 
-## Safe discovery sequence
+## Current transport target
 
-1. Do not touch DIP switches yet.
-2. Do not use `/dev/ttyS0`; it is the Linux console/getty.
-3. Flash a minimal CoreS3 UART probe or add probe mode to the frontend firmware.
-4. On CoreS3, configure:
+The final Power Sentinel frontend uses internal UART over WiFi HTTP when the stack is physically assembled, but it speaks official StackFlow JSON through `llm_sys` rather than opening `/dev/ttyS1` from a parallel Linux process.
+
+CoreS3 firmware uses the vendor-tested UART instance and pins:
 
 ```cpp
-HardwareSerial LlmSerial(1);
+HardwareSerial LlmSerial(2);
 LlmSerial.begin(115200, SERIAL_8N1, 18, 17); // RX, TX
 ```
 
-5. Have CoreS3 send a line once per second:
-
-```text
-PS1 PING <millis>
-```
-
-6. On LLM Module, listen on `/dev/ttyS1` first and reply:
-
-```text
-PS1 PONG <same-token>
-```
-
-7. If no traffic appears, try `/dev/ttyS2`..`/dev/ttyS5` on Linux first; if still no traffic, inspect/switch the Module LLM pin selector and test alternate CoreS3 pairs:
-
-```text
-RX/TX G18/G17
-RX/TX G7/G13
-RX/TX G14/G6
-RX/TX G10/G0   # last resort; G0 can affect bootstrapping
-```
-
-## Final transport target
-
-The final Power Sentinel frontend should prefer internal UART over WiFi HTTP when the stack is physically assembled.
-
-Recommended line protocol V1:
-
 Request from CoreS3:
 
-```text
-PS1 GET summary
+```json
+{"request_id":"ps-N","work_id":"sentinel","action":"summary","object":"None","data":"None"}
 ```
 
-Response from LLM Module:
+Response routed back by `llm_sys`:
+
+```json
+{"request_id":"ps-N","work_id":"sentinel","object":"power-sentinel.summary.v1","data":{...},"error":{"code":0,"message":""}}
+```
+
+Linux-side routing:
 
 ```text
-PS1 OK <json-byte-length>
-{...power-sentinel.summary.v1...}
+llm_sys -> ipc:///tmp/rpc.sentinel -> power-sentinel-stackflow-unit
+```
+
+The custom unit calls:
+
+```text
+http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
 ```
 
 WiFi HTTP remains useful for development and fallback:

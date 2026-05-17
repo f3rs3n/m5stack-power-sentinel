@@ -15,9 +15,6 @@
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
 #define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-18"
 #endif
-#ifndef POWER_SENTINEL_UART_PROBE
-#define POWER_SENTINEL_UART_PROBE 0
-#endif
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
 #endif
@@ -25,12 +22,8 @@
 #define POWER_SENTINEL_UART_TX_PIN 17
 #endif
 #ifndef POWER_SENTINEL_UART_BAUD
-// Keep the vendor StackFlow/llm_sys UART default. Lower baud rates were useful
-// for the old direct PS1 bridge, but llm_sys expects the official 115200 8N1.
+// Keep the vendor StackFlow/llm_sys UART default: 115200 8N1.
 #define POWER_SENTINEL_UART_BAUD 115200
-#endif
-#ifndef POWER_SENTINEL_TRANSPORT_STACKFLOW
-#define POWER_SENTINEL_TRANSPORT_STACKFLOW 1
 #endif
 #ifndef POWER_SENTINEL_TRANSPORT_SERIAL
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
@@ -56,41 +49,41 @@ constexpr uint16_t kScreenW = 320;
 constexpr uint16_t kScreenH = 240;
 
 struct UpsState {
-  bool available = true;
+  bool available = false;
   bool onBattery = false;
   bool lowBattery = false;
-  bool stale = false;
-  char status[24] = "OL";
-  char statusLabel[32] = "Online";
-  int batteryPercent = 96;
-  int runtimeSeconds = 4120;
-  int loadPercent = 18;
-  float inputVoltage = 229.4f;
-  float outputVoltage = 230.1f;
-  int ageSeconds = 4;
+  bool stale = true;
+  char status[24] = "UNKNOWN";
+  char statusLabel[32] = "Waiting for UPS";
+  int batteryPercent = -1;
+  int runtimeSeconds = -1;
+  int loadPercent = -1;
+  float inputVoltage = 0.0f;
+  float outputVoltage = 0.0f;
+  int ageSeconds = -1;
 };
 
 struct ServiceState {
-  bool available = true;
-  bool mqtt = true;
-  bool stackflowOk = true;
-  bool openaiOk = true;
-  bool chatSmokeOk = true;
-  char severity[12] = "ok";
-  char shutdownState[20] = "disarmed";
-  float temperatureC = 42.5f;
-  int ramAvailableMb = 742;
-  float diskFreeGb = 18.7f;
+  bool available = false;
+  bool mqtt = false;
+  bool stackflowOk = false;
+  bool openaiOk = false;
+  bool chatSmokeOk = false;
+  char severity[12] = "unknown";
+  char shutdownState[20] = "unknown";
+  float temperatureC = 0.0f;
+  int ramAvailableMb = -1;
+  float diskFreeGb = 0.0f;
 };
 
 struct SummaryState {
   char schema[32] = "power-sentinel.summary.v1";
-  char timestamp[32] = "2026-05-17T15:30:00Z";
-  char severity[12] = "ok";
-  bool offline = false;
+  char timestamp[32] = "waiting";
+  char severity[12] = "unknown";
+  bool offline = true;
   uint32_t lastGoodMillis = 0;
-  char source[16] = "demo";
-  char transportStatus[96] = "Boot sample; waiting for live transport";
+  char source[16] = "boot";
+  char transportStatus[96] = "Waiting for StackFlow summary";
   UpsState ups;
   ServiceState ha;
   ServiceState proxmox;
@@ -119,29 +112,11 @@ lv_obj_t *proxmoxTab = nullptr;
 lv_obj_t *m5Tab = nullptr;
 lv_obj_t *offlineTab = nullptr;
 
-#if POWER_SENTINEL_UART_PROBE || POWER_SENTINEL_TRANSPORT_SERIAL
 // Official M5Module-LLM Arduino examples use Serial2 for the CoreS3 stacked
 // module UART. ESP32-S3 can route either UART to these pins, but matching the
 // vendor-tested UART instance avoids subtle driver/resource differences.
 HardwareSerial LlmSerial(2);
-#endif
-#if POWER_SENTINEL_UART_PROBE
-uint32_t lastUartPingMs = 0;
-String uartRxLine;
-#endif
 
-String samplePayload() {
-  return R"JSON({
-    "schema":"power-sentinel.summary.v1",
-    "timestamp":"2026-05-17T15:30:00Z",
-    "severity":"ok",
-    "ups":{"available":true,"status":"OL","status_label":"Online","on_battery":false,"low_battery":false,"battery_percent":96,"runtime_seconds":4120,"load_percent":18,"input_voltage":229.4,"output_voltage":230.1,"stale":false,"age_seconds":4},
-    "homeassistant":{"available":true,"severity":"ok","mqtt":true},
-    "proxmox":{"available":true,"severity":"ok","shutdown_state":"disarmed"},
-    "m5stack":{"available":true,"severity":"ok","temperature_c":42.5,"ram_available_mb":742,"disk_free_gb":18.7,"stackflow_ok":true,"openai_ok":true,"chat_smoke_ok":true},
-    "problems":[]
-  })JSON";
-}
 
 const lv_color_t severityColor(const char *severity) {
   if (strcmp(severity, "critical") == 0) return lv_palette_main(LV_PALETTE_RED);
@@ -152,6 +127,18 @@ const lv_color_t severityColor(const char *severity) {
 void safeCopy(char *dst, size_t dstSize, const char *src) {
   if (!dst || dstSize == 0) return;
   snprintf(dst, dstSize, "%s", src ? src : "");
+}
+
+const char *intOrUnknown(int value, char *buf, size_t bufSize, const char *suffix = "") {
+  if (value < 0) return "unknown";
+  snprintf(buf, bufSize, "%d%s", value, suffix);
+  return buf;
+}
+
+const char *floatOrUnknown(float value, char *buf, size_t bufSize, const char *suffix = "") {
+  if (value <= 0.0f) return "unknown";
+  snprintf(buf, bufSize, "%.1f%s", value, suffix);
+  return buf;
 }
 
 int jsonInt(JsonVariantConst v, int fallback) {
@@ -174,7 +161,7 @@ void parseSummary(const String &json, bool fromNetwork) {
   safeCopy(state.timestamp, sizeof(state.timestamp), doc["timestamp"] | "unknown");
   safeCopy(state.severity, sizeof(state.severity), doc["severity"] | "warn");
   state.offline = !fromNetwork;
-  safeCopy(state.source, sizeof(state.source), fromNetwork ? "live" : "demo");
+  safeCopy(state.source, sizeof(state.source), fromNetwork ? "live" : "offline");
   if (fromNetwork) state.lastGoodMillis = millis();
 
   JsonObjectConst ups = doc["ups"].as<JsonObjectConst>();
@@ -299,22 +286,35 @@ void renderUps() {
   lv_obj_t *card = makeCard(upsTab, "UPS / Power");
   char line[96];
   if (state.offline) {
-    addBadge(card, "DEMO / NO LIVE DATA", lv_palette_main(LV_PALETTE_ORANGE));
+    addBadge(card, "NO LIVE DATA", lv_palette_main(LV_PALETTE_ORANGE));
   }
   snprintf(line, sizeof(line), "Source: %s", state.source);
   addLine(card, line);
   snprintf(line, sizeof(line), "Status: %s (%s)", state.ups.statusLabel, state.ups.status);
   addLine(card, line);
-  snprintf(line, sizeof(line), "Battery: %d%%   Runtime: %d min", state.ups.batteryPercent, state.ups.runtimeSeconds / 60);
+  char battery[24];
+  char runtime[24];
+  snprintf(line, sizeof(line), "Battery: %s   Runtime: %s",
+           intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"),
+           state.ups.runtimeSeconds < 0 ? "unknown" : intOrUnknown(state.ups.runtimeSeconds / 60, runtime, sizeof(runtime), " min"));
   addLine(card, line);
   lv_obj_t *bar = lv_bar_create(card);
   lv_obj_set_width(bar, lv_pct(100));
   lv_bar_set_range(bar, 0, 100);
   lv_bar_set_value(bar, state.ups.batteryPercent < 0 ? 0 : state.ups.batteryPercent, LV_ANIM_OFF);
-  snprintf(line, sizeof(line), "Load: %d%%   In/Out: %.1fV / %.1fV", state.ups.loadPercent, state.ups.inputVoltage, state.ups.outputVoltage);
+  char load[24];
+  char inputV[24];
+  char outputV[24];
+  snprintf(line, sizeof(line), "Load: %s   In/Out: %s / %s",
+           intOrUnknown(state.ups.loadPercent, load, sizeof(load), "%"),
+           floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"),
+           floatOrUnknown(state.ups.outputVoltage, outputV, sizeof(outputV), "V"));
   addLine(card, line);
-  addBadge(card, state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : "ONLINE"),
-           state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) : (state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN)));
+  const char *upsBadge = !state.ups.available ? "UPS UNKNOWN" : (state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : "ONLINE"));
+  lv_color_t upsColor = !state.ups.available ? lv_palette_main(LV_PALETTE_GREY) :
+                        (state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) :
+                         (state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN)));
+  addBadge(card, upsBadge, upsColor);
 }
 
 void renderHa() {
@@ -344,9 +344,14 @@ void renderM5() {
   lv_obj_t *card = makeCard(m5Tab, "M5Stack / System");
   addBadge(card, state.m5stack.available ? "M5 OK" : "M5 DOWN", severityColor(state.m5stack.severity));
   char line[96];
-  snprintf(line, sizeof(line), "Temp: %.1f C   RAM free: %d MB", state.m5stack.temperatureC, state.m5stack.ramAvailableMb);
+  char temp[24];
+  char ram[24];
+  snprintf(line, sizeof(line), "Temp: %s   RAM free: %s",
+           floatOrUnknown(state.m5stack.temperatureC, temp, sizeof(temp), " C"),
+           intOrUnknown(state.m5stack.ramAvailableMb, ram, sizeof(ram), " MB"));
   addLine(card, line);
-  snprintf(line, sizeof(line), "Disk free: %.1f GB", state.m5stack.diskFreeGb);
+  char disk[24];
+  snprintf(line, sizeof(line), "Disk free: %s", floatOrUnknown(state.m5stack.diskFreeGb, disk, sizeof(disk), " GB"));
   addLine(card, line);
   snprintf(line, sizeof(line), "StackFlow: %s   OpenAI: %s", state.m5stack.stackflowOk ? "OK" : "FAIL", state.m5stack.openaiOk ? "OK" : "FAIL");
   addLine(card, line);
@@ -357,8 +362,8 @@ void renderM5() {
 void renderOffline() {
   lv_obj_clean(offlineTab);
   setupPage(offlineTab);
-  lv_obj_t *card = makeCard(offlineTab, "Offline / Stale Fallback");
-  addBadge(card, state.offline ? "DEMO/OFFLINE" : "LIVE", state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN));
+  lv_obj_t *card = makeCard(offlineTab, "Transport / Stale Fallback");
+  addBadge(card, state.offline ? "OFFLINE" : "LIVE", state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN));
   char line[160];
   snprintf(line, sizeof(line), "Schema: %s", state.schema);
   addLine(card, line);
@@ -392,7 +397,7 @@ bool wifiConfigured() {
 
 void connectWiFi() {
   if (!wifiConfigured()) {
-    Serial.println("WiFi not configured; using sample data.");
+    Serial.println("WiFi not configured; HTTP fallback disabled until credentials are set.");
     return;
   }
   WiFi.mode(WIFI_STA);
@@ -435,9 +440,8 @@ bool fetchSummary() {
 void initSerialTransport() {
   LlmSerial.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN);
   LlmSerial.setTimeout(POWER_SENTINEL_SERIAL_TIMEOUT_MS);
-  Serial.printf("Serial transport enabled: RX=%d TX=%d baud=%d mode=%s\n",
-                POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD,
-                POWER_SENTINEL_TRANSPORT_STACKFLOW ? "stackflow" : "ps1");
+  Serial.printf("Serial transport enabled: RX=%d TX=%d baud=%d mode=stackflow\n",
+                POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD);
 }
 
 bool readSerialLine(String &line, uint32_t timeoutMs) {
@@ -456,28 +460,6 @@ bool readSerialLine(String &line, uint32_t timeoutMs) {
   return line.length() > 0;
 }
 
-bool readSerialBytes(String &payload, size_t length, uint32_t timeoutMs) {
-  payload = "";
-  if (length == 0 || length > POWER_SENTINEL_SERIAL_MAX_JSON_BYTES) {
-    Serial.printf("Serial payload length invalid: %u\n", static_cast<unsigned>(length));
-    return false;
-  }
-  payload.reserve(length + 1);
-  uint32_t start = millis();
-  while (payload.length() < length && millis() - start < timeoutMs) {
-    while (LlmSerial.available() > 0 && payload.length() < length) {
-      payload += static_cast<char>(LlmSerial.read());
-    }
-    if (payload.length() >= length) break;
-    delay(2);
-    lv_timer_handler();
-  }
-  if (payload.length() != length) {
-    Serial.printf("Serial payload timeout: got %u/%u bytes\n", static_cast<unsigned>(payload.length()), static_cast<unsigned>(length));
-    return false;
-  }
-  return true;
-}
 
 bool parseStackFlowSummaryResponse(const String &line, const String &requestId, uint8_t attempt) {
   JsonDocument doc;
@@ -523,7 +505,6 @@ bool fetchSerialSummary() {
   for (uint8_t attempt = 1; attempt <= POWER_SENTINEL_SERIAL_RETRIES; ++attempt) {
     while (LlmSerial.available() > 0) LlmSerial.read();
 
-#if POWER_SENTINEL_TRANSPORT_STACKFLOW
     String requestId = "ps-" + String(++stackflowRequestId);
     JsonDocument request;
     request["request_id"] = requestId;
@@ -548,47 +529,6 @@ bool fetchSerialSummary() {
     Serial.printf("Serial RX StackFlow: %.160s\n", line.c_str());
     if (parseStackFlowSummaryResponse(line, requestId, attempt)) return true;
     delay(120);
-#else
-    LlmSerial.print("PS1 GET summary\n");
-    LlmSerial.flush();
-    Serial.printf("Serial TX PS1 GET summary attempt %u/%u\n",
-                  static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
-
-    String header;
-    if (!readSerialLine(header, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
-      Serial.println("Serial summary failed: no header");
-      snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial no header try %u/%u",
-               static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
-      delay(120);
-      continue;
-    }
-    Serial.printf("Serial RX header: %s\n", header.c_str());
-
-    if (!header.startsWith("PS1 OK ")) {
-      Serial.printf("Serial summary failed: unexpected header '%s'\n", header.c_str());
-      snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial bad header try %u: %.60s",
-               static_cast<unsigned>(attempt), header.c_str());
-      delay(120);
-      continue;
-    }
-
-    size_t length = static_cast<size_t>(header.substring(strlen("PS1 OK ")).toInt());
-    String body;
-    if (!readSerialBytes(body, length, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
-      snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial payload fail try %u: %u bytes",
-               static_cast<unsigned>(attempt), static_cast<unsigned>(length));
-      delay(120);
-      continue;
-    }
-
-    if (LlmSerial.peek() == '\n') LlmSerial.read();
-    parseSummary(body, true);
-    safeCopy(state.source, sizeof(state.source), "serial");
-    snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial OK: %u bytes try %u/%u",
-             static_cast<unsigned>(length), static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
-    Serial.printf("Serial summary OK: %u bytes\n", static_cast<unsigned>(length));
-    return true;
-#endif
   }
   return false;
 }
@@ -631,7 +571,7 @@ void applyFetchResult(bool ok) {
     return;
   }
   state.offline = true;
-  safeCopy(state.source, sizeof(state.source), "demo");
+  safeCopy(state.source, sizeof(state.source), "offline");
 }
 
 void initLvgl() {
@@ -658,41 +598,6 @@ void initUi() {
   renderAll();
 }
 
-#if POWER_SENTINEL_UART_PROBE
-void initUartProbe() {
-#if !POWER_SENTINEL_TRANSPORT_SERIAL
-  LlmSerial.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN);
-#endif
-  Serial.printf("UART probe enabled: RX=%d TX=%d baud=%d\n",
-                POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD);
-}
-
-void pollUartProbe(uint32_t now) {
-  if (now - lastUartPingMs >= 1000) {
-    lastUartPingMs = now;
-    LlmSerial.printf("PS1 PING %lu\n", static_cast<unsigned long>(now));
-    Serial.printf("UART TX PS1 PING %lu\n", static_cast<unsigned long>(now));
-  }
-
-  while (LlmSerial.available() > 0) {
-    char ch = static_cast<char>(LlmSerial.read());
-    if (ch == '\r') continue;
-    if (ch == '\n') {
-      if (uartRxLine.length() > 0) {
-        Serial.printf("UART RX %s\n", uartRxLine.c_str());
-        snprintf(state.problems, sizeof(state.problems), "UART RX: %s", uartRxLine.c_str());
-        state.offline = false;
-        renderAll();
-        uartRxLine = "";
-      }
-    } else if (uartRxLine.length() < 160) {
-      uartRxLine += ch;
-    } else {
-      uartRxLine = "";
-    }
-  }
-}
-#endif
 }  // namespace
 
 void setup() {
@@ -712,7 +617,6 @@ void setup() {
   psDisplaySetRotation(1);
   psDisplaySetBrightness(160);
 
-  parseSummary(samplePayload(), false);
   initLvgl();
   initUi();
 #if POWER_SENTINEL_TRANSPORT_SERIAL
@@ -720,9 +624,6 @@ void setup() {
 #endif
 #if POWER_SENTINEL_HTTP_FALLBACK
   connectWiFi();
-#endif
-#if POWER_SENTINEL_UART_PROBE
-  initUartProbe();
 #endif
   bool firstFetchOk = fetchLiveSummary();
   applyFetchResult(firstFetchOk);
@@ -737,9 +638,6 @@ void loop() {
   lastLvTickMs = now;
   lv_timer_handler();
   delay(5);
-#if POWER_SENTINEL_UART_PROBE
-  pollUartProbe(now);
-#endif
   if (now - lastFetchMs > SUMMARY_POLL_MS) {
     lastFetchMs = now;
     bool ok = fetchLiveSummary();

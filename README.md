@@ -8,7 +8,7 @@ Current architecture target:
 
 ```text
 UPS -> USB OTG -> M5Stack LLM Module -> NUT server
-                              |-> local JSON/status API -> CoreS3 display
+                              |-> local JSON/status API -> StackFlow custom unit -> CoreS3 display
                               |-> MQTT -> Home Assistant
                               |-> NUT clients -> Proxmox / HA / other hosts
 ```
@@ -19,6 +19,7 @@ Important principles:
 - Home Assistant is a consumer/automation layer, not required for the CoreS3 UPS page.
 - Proxmox shutdown will stay read-only/dry-run until explicitly approved and tested.
 - Do not commit secrets or local credentials.
+- The CoreS3 uses the internal stacked UART through vendor StackFlow/`llm_sys`, not a parallel `/dev/ttyS1` reader. This preserves vendor services and avoids UART contention.
 
 ## Repository layout
 
@@ -48,7 +49,8 @@ Already completed on the physical module:
 - local LLM healthcheck installed;
 - MQTT/Home Assistant discovery for LLM module health installed and verified;
 - NUT packages installed, but NUT services intentionally disabled until UPS USB OTG cable arrives;
-- read-only UPS detection script prepared.
+- read-only UPS detection script prepared;
+- StackFlow transport verified: CoreS3 sends `work_id: "sentinel"` summaries over the internal UART, `llm_sys` routes to `ipc:///tmp/rpc.sentinel`, and the display renders live data.
 
 See:
 
@@ -59,7 +61,7 @@ See:
 1. Deploy Power Sentinel API V0 and use `/api/v1/summary` as the CoreS3/frontend contract.
 2. Connect UPS via USB OTG and run discovery.
 3. Configure NUT server as `homelab_ups`.
-4. Replace UPS mock data with real NUT data.
+4. Replace current UPS-unavailable state with real NUT data.
 5. Build UPS MQTT/Home Assistant integration.
 6. Build CoreS3 display firmware.
 7. Add Home Assistant automations.
