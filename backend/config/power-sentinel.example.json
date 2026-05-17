@@ -1,0 +1,17 @@
+{
+  "nut": {
+    "ups_name": "homelab_ups",
+    "endpoint": "localhost"
+  },
+  "mqtt": {
+    "host": "192.168.2.200",
+    "port": 1883,
+    "username": "m5stack_ups",
+    "password": "CHANGE_ME",
+    "prefix": "m5stack/ups"
+  },
+  "api": {
+    "bind_host": "192.168.2.202",
+    "port": 8088
+  }
+}
