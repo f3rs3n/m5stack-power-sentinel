@@ -36,6 +36,12 @@
 #ifndef POWER_SENTINEL_SERIAL_MAX_JSON_BYTES
 #define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
 #endif
+#ifndef POWER_SENTINEL_SERIAL_RETRIES
+#define POWER_SENTINEL_SERIAL_RETRIES 3
+#endif
+#ifndef POWER_SENTINEL_STALE_GRACE_MS
+#define POWER_SENTINEL_STALE_GRACE_MS (SUMMARY_POLL_MS * 3UL)
+#endif
 
 namespace {
 constexpr uint16_t kScreenW = 320;
@@ -461,37 +467,49 @@ bool readSerialBytes(String &payload, size_t length, uint32_t timeoutMs) {
 }
 
 bool fetchSerialSummary() {
-  while (LlmSerial.available() > 0) LlmSerial.read();
-  LlmSerial.print("PS1 GET summary\n");
-  Serial.println("Serial TX PS1 GET summary");
+  for (uint8_t attempt = 1; attempt <= POWER_SENTINEL_SERIAL_RETRIES; ++attempt) {
+    while (LlmSerial.available() > 0) LlmSerial.read();
+    LlmSerial.print("PS1 GET summary\n");
+    LlmSerial.flush();
+    Serial.printf("Serial TX PS1 GET summary attempt %u/%u\n",
+                  static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
 
-  String header;
-  if (!readSerialLine(header, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
-    Serial.println("Serial summary failed: no header");
-    safeCopy(state.transportStatus, sizeof(state.transportStatus), "Serial failed: no header");
-    return false;
+    String header;
+    if (!readSerialLine(header, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
+      Serial.println("Serial summary failed: no header");
+      snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial no header try %u/%u",
+               static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
+      delay(120);
+      continue;
+    }
+    Serial.printf("Serial RX header: %s\n", header.c_str());
+
+    if (!header.startsWith("PS1 OK ")) {
+      Serial.printf("Serial summary failed: unexpected header '%s'\n", header.c_str());
+      snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial bad header try %u: %.60s",
+               static_cast<unsigned>(attempt), header.c_str());
+      delay(120);
+      continue;
+    }
+
+    size_t length = static_cast<size_t>(header.substring(strlen("PS1 OK ")).toInt());
+    String body;
+    if (!readSerialBytes(body, length, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
+      snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial payload fail try %u: %u bytes",
+               static_cast<unsigned>(attempt), static_cast<unsigned>(length));
+      delay(120);
+      continue;
+    }
+
+    if (LlmSerial.peek() == '\n') LlmSerial.read();
+    parseSummary(body, true);
+    safeCopy(state.source, sizeof(state.source), "serial");
+    snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial OK: %u bytes try %u/%u",
+             static_cast<unsigned>(length), static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
+    Serial.printf("Serial summary OK: %u bytes\n", static_cast<unsigned>(length));
+    return true;
   }
-  Serial.printf("Serial RX header: %s\n", header.c_str());
-
-  if (!header.startsWith("PS1 OK ")) {
-    Serial.printf("Serial summary failed: unexpected header '%s'\n", header.c_str());
-    snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial bad header: %.72s", header.c_str());
-    return false;
-  }
-
-  size_t length = static_cast<size_t>(header.substring(strlen("PS1 OK ")).toInt());
-  String body;
-  if (!readSerialBytes(body, length, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
-    snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial payload failed: %u bytes", static_cast<unsigned>(length));
-    return false;
-  }
-
-  if (LlmSerial.peek() == '\n') LlmSerial.read();
-  parseSummary(body, true);
-  safeCopy(state.source, sizeof(state.source), "serial");
-  snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial OK: %u bytes", static_cast<unsigned>(length));
-  Serial.printf("Serial summary OK: %u bytes\n", static_cast<unsigned>(length));
-  return true;
+  return false;
 }
 #endif
 
@@ -519,6 +537,20 @@ bool fetchLiveSummary() {
     ++fetchFailCount;
   }
   return ok;
+}
+
+void applyFetchResult(bool ok) {
+  if (ok) {
+    state.offline = false;
+    return;
+  }
+  if (state.lastGoodMillis > 0 && millis() - state.lastGoodMillis <= POWER_SENTINEL_STALE_GRACE_MS) {
+    state.offline = false;
+    safeCopy(state.source, sizeof(state.source), "serial-stale");
+    return;
+  }
+  state.offline = true;
+  safeCopy(state.source, sizeof(state.source), "demo");
 }
 
 void initLvgl() {
@@ -611,8 +643,7 @@ void setup() {
   initUartProbe();
 #endif
   bool firstFetchOk = fetchLiveSummary();
-  state.offline = !firstFetchOk;
-  if (!firstFetchOk) safeCopy(state.source, sizeof(state.source), "demo");
+  applyFetchResult(firstFetchOk);
   renderAll();
   lastFetchMs = millis();
   lastLvTickMs = millis();
@@ -630,7 +661,7 @@ void loop() {
   if (now - lastFetchMs > SUMMARY_POLL_MS) {
     lastFetchMs = now;
     bool ok = fetchLiveSummary();
-    state.offline = !ok;
+    applyFetchResult(ok);
     renderAll();
   }
 }
