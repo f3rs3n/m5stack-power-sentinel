@@ -72,7 +72,28 @@ Therefore the first Linux-side candidate for CoreS3 internal serial is:
 /dev/ttyS1 @ 115200
 ```
 
-Probe the others only if `/dev/ttyS1` does not receive traffic.
+Confirmed on the assembled stack after flashing CoreS3 UART probe mode:
+
+```text
+CoreS3 UART1 RX=G18 TX=G17 @ 115200
+LLM Module /dev/ttyS1 @ 115200
+Protocol PS1 PING/PONG works bidirectionally.
+```
+
+Observed scan output:
+
+```text
+/dev/ttyS1: listening @115200
+/dev/ttyS2: open failed: error(5, 'Input/output error')
+/dev/ttyS3: open failed: error(5, 'Input/output error')
+/dev/ttyS4: open failed: error(5, 'Input/output error')
+/dev/ttyS5: open failed: error(5, 'Input/output error')
+/dev/ttyS1 RX PS1 PING 135222
+/dev/ttyS1 TX b'PS1 PONG 135222\n'
+RESULT seen
+```
+
+No DIP switch changes were needed.
 
 ## Safe discovery sequence
 
