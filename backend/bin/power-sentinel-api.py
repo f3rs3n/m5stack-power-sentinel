@@ -29,7 +29,7 @@ UPSC = os.environ.get("POWER_SENTINEL_UPSC", "/usr/bin/upsc")
 UPS_NAME = os.environ.get("POWER_SENTINEL_UPS", "homelab_ups@localhost")
 HA_HOST = os.environ.get("POWER_SENTINEL_HA_HOST", "192.168.2.200")
 MQTT_HOST = os.environ.get("POWER_SENTINEL_MQTT_HOST", HA_HOST)
-PROXMOX_HOST = os.environ.get("POWER_SENTINEL_PROXMOX_HOST", "192.168.2.1")
+PROXMOX_HOST = os.environ.get("POWER_SENTINEL_PROXMOX_HOST", "192.168.2.99")
 
 
 def iso_utc(ts: float | int | None = None) -> str:

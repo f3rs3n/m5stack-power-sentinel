@@ -13,5 +13,10 @@
   "api": {
     "bind_host": "192.168.2.202",
     "port": 8088
+  },
+  "proxmox": {
+    "host": "192.168.2.99",
+    "dns_name": "pve.warpzone.info",
+    "port": 8006
   }
 }

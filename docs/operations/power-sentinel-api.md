@@ -42,7 +42,7 @@ Before the UPS cable is attached/configured:
 - M5Stack section tries to read `/usr/local/bin/m5stack-healthcheck --json`;
 - Home Assistant reachability uses TCP `192.168.2.200:8123`;
 - MQTT reachability uses TCP `192.168.2.200:1883`;
-- Proxmox reachability defaults to TCP `192.168.2.1:8006` unless overridden.
+- Proxmox reachability defaults to TCP `192.168.2.99:8006` (`pve.warpzone.info`) unless overridden.
 
 Environment overrides:
 
