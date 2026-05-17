@@ -146,6 +146,18 @@ For normal builds, keep probe disabled:
 
 Replace UART probe with the real serial bridge.
 
+Linux-side bridge implemented and deployed on the LLM Module:
+
+```text
+backend/bin/power-sentinel-serial-bridge.py
+backend/systemd/power-sentinel-serial-bridge.service
+/usr/local/bin/power-sentinel-serial-bridge
+/etc/systemd/system/power-sentinel-serial-bridge.service
+systemd: enabled + active
+serial: /dev/ttyS1 @ 115200
+summary source: http://127.0.0.1:8088/api/v1/summary
+```
+
 Target protocol:
 
 Request from CoreS3:
