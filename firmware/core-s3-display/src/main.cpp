@@ -188,7 +188,13 @@ void parseSummary(const String &json, bool fromNetwork) {
 void myDispFlush(lv_display_t *disp, const lv_area_t *area, uint8_t *pxMap) {
   uint32_t w = area->x2 - area->x1 + 1;
   uint32_t h = area->y2 - area->y1 + 1;
-  psDisplayWritePixels(area->x1, area->y1, w, h, reinterpret_cast<uint16_t *>(pxMap), true);
+  // LVGL renders RGB565 in host byte order. M5GFX/CoreS3 expects the bytes swapped
+  // for LCD DMA/write operations; do the same explicit swap used by the upstream
+  // LVGL + M5Stack PlatformIO example instead of relying on LV_COLOR_16_SWAP or
+  // M5GFX writePixels' swap flag. The old double/implicit swap path produced
+  // visibly wrong colors with M5Unified 0.2.x / LVGL 9.5.
+  lv_draw_sw_rgb565_swap(pxMap, w * h);
+  psDisplayWritePixels(area->x1, area->y1, w, h, reinterpret_cast<uint16_t *>(pxMap), false);
   lv_display_flush_ready(disp);
 }
 

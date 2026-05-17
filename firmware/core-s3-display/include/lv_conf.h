@@ -6,7 +6,6 @@
 // Keep this file small and reviewable; tune memory/fonts after testing on hardware.
 
 #define LV_COLOR_DEPTH 16
-#define LV_COLOR_16_SWAP 1
 #define LV_MEM_SIZE (48U * 1024U)
 #define LV_TICK_CUSTOM 0
 

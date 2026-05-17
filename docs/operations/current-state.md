@@ -120,6 +120,7 @@ Important LVGL/M5GFX integration detail:
 - M5GFX includes its own internal LVGL-compatible font shim at `lgfx/v1/lvgl.h`; if the same translation unit includes both M5Unified/M5GFX and external LVGL, symbols such as `lv_area_t`, `lv_color_format_t`, and `lv_font_glyph_format_t` collide.
 - The firmware avoids that by isolating M5Unified/M5GFX calls in `src/m5_hal.cpp` and exposing a tiny wrapper declared by `src/m5_hal.h`.
 - Use `-DLV_CONF_INCLUDE_SIMPLE` plus `-I include` for `include/lv_conf.h`; the earlier `LV_CONF_PATH` setup and local `include/lvgl/lvgl.h` shim are no longer needed.
+- RGB565 color order is handled explicitly in the LVGL flush callback with `lv_draw_sw_rgb565_swap(pxMap, w * h)` before writing to M5GFX with its swap flag disabled. Do not re-enable `LV_COLOR_16_SWAP`; that produced visibly wrong colors on CoreS3 with M5Unified 0.2.x / LVGL 9.5.
 
 The firmware currently has:
 
