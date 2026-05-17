@@ -75,6 +75,8 @@ struct SummaryState {
   char severity[12] = "ok";
   bool offline = false;
   uint32_t lastGoodMillis = 0;
+  char source[16] = "demo";
+  char transportStatus[96] = "Boot sample; waiting for live transport";
   UpsState ups;
   ServiceState ha;
   ServiceState proxmox;
@@ -150,6 +152,7 @@ void parseSummary(const String &json, bool fromNetwork) {
   safeCopy(state.timestamp, sizeof(state.timestamp), doc["timestamp"] | "unknown");
   safeCopy(state.severity, sizeof(state.severity), doc["severity"] | "warn");
   state.offline = !fromNetwork;
+  safeCopy(state.source, sizeof(state.source), fromNetwork ? "live" : "demo");
   if (fromNetwork) state.lastGoodMillis = millis();
 
   JsonObjectConst ups = doc["ups"].as<JsonObjectConst>();
@@ -273,6 +276,11 @@ void renderUps() {
   setupPage(upsTab);
   lv_obj_t *card = makeCard(upsTab, "UPS / Power");
   char line[96];
+  if (state.offline) {
+    addBadge(card, "DEMO / NO LIVE DATA", lv_palette_main(LV_PALETTE_ORANGE));
+  }
+  snprintf(line, sizeof(line), "Source: %s", state.source);
+  addLine(card, line);
   snprintf(line, sizeof(line), "Status: %s (%s)", state.ups.statusLabel, state.ups.status);
   addLine(card, line);
   snprintf(line, sizeof(line), "Battery: %d%%   Runtime: %d min", state.ups.batteryPercent, state.ups.runtimeSeconds / 60);
@@ -334,7 +342,9 @@ void renderOffline() {
   addLine(card, line);
   snprintf(line, sizeof(line), "Timestamp: %s", state.timestamp);
   addLine(card, line);
-  snprintf(line, sizeof(line), "Backend: %s", state.offline ? "sample data or unreachable" : POWER_SENTINEL_SUMMARY_URL);
+  snprintf(line, sizeof(line), "Source: %s", state.source);
+  addLine(card, line);
+  snprintf(line, sizeof(line), "Transport: %s", state.transportStatus);
   addLine(card, line);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
   addLine(card, line);
@@ -368,19 +378,28 @@ void connectWiFi() {
 }
 
 bool fetchSummary() {
-  if (WiFi.status() != WL_CONNECTED) return false;
+  if (WiFi.status() != WL_CONNECTED) {
+    safeCopy(state.transportStatus, sizeof(state.transportStatus), "HTTP skipped: WiFi disconnected");
+    return false;
+  }
   HTTPClient http;
   http.setTimeout(5000);
-  if (!http.begin(POWER_SENTINEL_SUMMARY_URL)) return false;
+  if (!http.begin(POWER_SENTINEL_SUMMARY_URL)) {
+    safeCopy(state.transportStatus, sizeof(state.transportStatus), "HTTP begin failed");
+    return false;
+  }
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
     Serial.printf("HTTP summary failed: %d\n", code);
     http.end();
+    snprintf(state.transportStatus, sizeof(state.transportStatus), "HTTP failed: %d", code);
     return false;
   }
   String body = http.getString();
   http.end();
   parseSummary(body, true);
+  safeCopy(state.source, sizeof(state.source), "http");
+  safeCopy(state.transportStatus, sizeof(state.transportStatus), "HTTP OK");
   return true;
 }
 
@@ -439,21 +458,28 @@ bool fetchSerialSummary() {
   String header;
   if (!readSerialLine(header, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
     Serial.println("Serial summary failed: no header");
+    safeCopy(state.transportStatus, sizeof(state.transportStatus), "Serial failed: no header");
     return false;
   }
   Serial.printf("Serial RX header: %s\n", header.c_str());
 
   if (!header.startsWith("PS1 OK ")) {
     Serial.printf("Serial summary failed: unexpected header '%s'\n", header.c_str());
+    snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial bad header: %.72s", header.c_str());
     return false;
   }
 
   size_t length = static_cast<size_t>(header.substring(strlen("PS1 OK ")).toInt());
   String body;
-  if (!readSerialBytes(body, length, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) return false;
+  if (!readSerialBytes(body, length, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
+    snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial payload failed: %u bytes", static_cast<unsigned>(length));
+    return false;
+  }
 
   if (LlmSerial.peek() == '\n') LlmSerial.read();
   parseSummary(body, true);
+  safeCopy(state.source, sizeof(state.source), "serial");
+  snprintf(state.transportStatus, sizeof(state.transportStatus), "Serial OK: %u bytes", static_cast<unsigned>(length));
   Serial.printf("Serial summary OK: %u bytes\n", static_cast<unsigned>(length));
   return true;
 }
@@ -559,10 +585,10 @@ void setup() {
 #if POWER_SENTINEL_UART_PROBE
   initUartProbe();
 #endif
-  if (fetchLiveSummary()) {
-    state.offline = false;
-    renderAll();
-  }
+  bool firstFetchOk = fetchLiveSummary();
+  state.offline = !firstFetchOk;
+  if (!firstFetchOk) safeCopy(state.source, sizeof(state.source), "demo");
+  renderAll();
   lastFetchMs = millis();
   lastLvTickMs = millis();
 }
