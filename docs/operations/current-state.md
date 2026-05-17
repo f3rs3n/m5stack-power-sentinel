@@ -121,6 +121,7 @@ Important LVGL/M5GFX integration detail:
 - The firmware avoids that by isolating M5Unified/M5GFX calls in `src/m5_hal.cpp` and exposing a tiny wrapper declared by `src/m5_hal.h`.
 - Use `-DLV_CONF_INCLUDE_SIMPLE` plus `-I include` for `include/lv_conf.h`; the earlier `LV_CONF_PATH` setup and local `include/lvgl/lvgl.h` shim are no longer needed.
 - RGB565 color order is handled explicitly in the LVGL flush callback with `lv_draw_sw_rgb565_swap(pxMap, w * h)` before writing to M5GFX with its swap flag disabled. Do not re-enable `LV_COLOR_16_SWAP`; that produced visibly wrong colors on CoreS3 with M5Unified 0.2.x / LVGL 9.5.
+- Hardware flash confirmed by user after the RGB565 fix: CoreS3 powers correctly from the stack and the LVGL UI colors render correctly with the latest M5Unified/M5GFX/LVGL dependency strategy.
 
 The firmware currently has:
 
