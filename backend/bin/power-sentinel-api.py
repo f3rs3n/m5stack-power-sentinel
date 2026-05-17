@@ -18,7 +18,7 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 SCHEMA_SUMMARY = "power-sentinel.summary.v1"
 SCHEMA_HEALTH = "power-sentinel.health.v1"
@@ -194,6 +194,56 @@ def derive_severity(ups: dict[str, Any], m5_ok: bool, checks: dict[str, bool], p
     return "ok"
 
 
+def lightweight_m5stack_health(stackflow_ok: bool = False) -> dict[str, Any]:
+    """Fast, non-recursive health snapshot for calls already inside llm_sys.
+
+    The normal healthcheck probes StackFlow port 10001. That is correct for HTTP
+    clients, but deadlocks/timeouts when a custom StackFlow unit calls the API
+    while llm_sys is waiting for that same unit's response. This lightweight
+    variant avoids any StackFlow/OpenAI socket calls and is safe for
+    /api/v1/summary?stackflow_safe=1.
+    """
+    mem_available_mb = None
+    try:
+        with open("/proc/meminfo", "r", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("MemAvailable:"):
+                    mem_available_mb = round(int(line.split()[1]) / 1024, 1)
+                    break
+    except OSError:
+        pass
+
+    disk_free_gb = None
+    try:
+        st = os.statvfs("/")
+        disk_free_gb = round((st.f_bavail * st.f_frsize) / (1024**3), 2)
+    except OSError:
+        pass
+
+    temperature_c = None
+    for path in ("/sys/class/thermal/thermal_zone0/temp", "/sys/class/hwmon/hwmon0/temp1_input"):
+        try:
+            raw = open(path, "r", encoding="utf-8").read().strip()
+            temperature_c = round(float(raw) / 1000.0, 1)
+            break
+        except (OSError, ValueError):
+            continue
+
+    return {
+        "overall_ok": True,
+        "system": {
+            "temperature_c": temperature_c,
+            "linux_mem": {"available_mb": mem_available_mb},
+            "root_disk": {"free_gb": disk_free_gb},
+        },
+        "ports": {
+            "stackflow_10001": {"ok": bool(stackflow_ok)},
+            "openai_8000": {"ok": tcp_check("127.0.0.1", 8000, timeout=0.2)},
+        },
+        "chat_smoke": {"ok": False, "not_run": True},
+    }
+
+
 def build_summary(
     now: float | int | None = None,
     health: dict[str, Any] | None = None,
@@ -288,6 +338,9 @@ def json_response(payload: dict[str, Any], status: int = 200) -> tuple[bytes, in
 def route_request(path: str) -> tuple[bytes, int, str]:
     parsed = urlparse(path)
     if parsed.path in ("/", "/api/v1/summary"):
+        query = parse_qs(parsed.query)
+        if query.get("stackflow_safe", ["0"])[0] in ("1", "true", "yes"):
+            return json_response(build_summary(health=lightweight_m5stack_health(stackflow_ok=True)))
         return json_response(build_summary())
     if parsed.path == "/api/v1/health":
         return json_response(build_health())

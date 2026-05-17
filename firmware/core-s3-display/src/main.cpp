@@ -12,6 +12,9 @@
 #include "power_sentinel_config.example.h"
 #endif
 
+#ifndef POWER_SENTINEL_FIRMWARE_BUILD
+#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-18"
+#endif
 #ifndef POWER_SENTINEL_UART_PROBE
 #define POWER_SENTINEL_UART_PROBE 0
 #endif
@@ -22,10 +25,12 @@
 #define POWER_SENTINEL_UART_TX_PIN 17
 #endif
 #ifndef POWER_SENTINEL_UART_BAUD
-// The internal CoreS3 <-> LLM Module UART path is short, but observed hardware
-// drops/corrupts some commands at 115200. 38400 is still far faster than the
-// small summary payload needs and gives the stacked bus more timing margin.
-#define POWER_SENTINEL_UART_BAUD 38400
+// Keep the vendor StackFlow/llm_sys UART default. Lower baud rates were useful
+// for the old direct PS1 bridge, but llm_sys expects the official 115200 8N1.
+#define POWER_SENTINEL_UART_BAUD 115200
+#endif
+#ifndef POWER_SENTINEL_TRANSPORT_STACKFLOW
+#define POWER_SENTINEL_TRANSPORT_STACKFLOW 1
 #endif
 #ifndef POWER_SENTINEL_TRANSPORT_SERIAL
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
@@ -100,6 +105,7 @@ uint32_t fetchAttemptCount = 0;
 uint32_t fetchOkCount = 0;
 uint32_t fetchFailCount = 0;
 uint32_t lastFetchDurationMs = 0;
+uint32_t stackflowRequestId = 0;
 
 lv_color_t buf1[kScreenW * 24];
 lv_color_t buf2[kScreenW * 24];
@@ -429,8 +435,9 @@ bool fetchSummary() {
 void initSerialTransport() {
   LlmSerial.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN);
   LlmSerial.setTimeout(POWER_SENTINEL_SERIAL_TIMEOUT_MS);
-  Serial.printf("Serial transport enabled: RX=%d TX=%d baud=%d\n",
-                POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD);
+  Serial.printf("Serial transport enabled: RX=%d TX=%d baud=%d mode=%s\n",
+                POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD,
+                POWER_SENTINEL_TRANSPORT_STACKFLOW ? "stackflow" : "ps1");
 }
 
 bool readSerialLine(String &line, uint32_t timeoutMs) {
@@ -441,7 +448,7 @@ bool readSerialLine(String &line, uint32_t timeoutMs) {
       char ch = static_cast<char>(LlmSerial.read());
       if (ch == '\r') continue;
       if (ch == '\n') return true;
-      if (line.length() < 160) line += ch;
+      if (line.length() < POWER_SENTINEL_SERIAL_MAX_JSON_BYTES) line += ch;
     }
     delay(2);
     lv_timer_handler();
@@ -472,9 +479,76 @@ bool readSerialBytes(String &payload, size_t length, uint32_t timeoutMs) {
   return true;
 }
 
+bool parseStackFlowSummaryResponse(const String &line, const String &requestId, uint8_t attempt) {
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, line);
+  if (err) {
+    Serial.printf("StackFlow JSON parse error: %s\n", err.c_str());
+    snprintf(state.transportStatus, sizeof(state.transportStatus), "StackFlow JSON parse fail try %u", static_cast<unsigned>(attempt));
+    return false;
+  }
+
+  const char *rxRequestId = doc["request_id"] | "";
+  if (requestId.length() > 0 && strcmp(rxRequestId, requestId.c_str()) != 0) {
+    Serial.printf("StackFlow stale/unrelated response: request_id=%s expected=%s\n", rxRequestId, requestId.c_str());
+    snprintf(state.transportStatus, sizeof(state.transportStatus), "StackFlow stale id try %u", static_cast<unsigned>(attempt));
+    return false;
+  }
+
+  int errorCode = doc["error"]["code"] | -999;
+  if (errorCode != 0) {
+    const char *message = doc["error"]["message"] | "unknown";
+    Serial.printf("StackFlow summary error: code=%d message=%s\n", errorCode, message);
+    snprintf(state.transportStatus, sizeof(state.transportStatus), "StackFlow error %d try %u", errorCode, static_cast<unsigned>(attempt));
+    return false;
+  }
+
+  JsonVariantConst data = doc["data"];
+  if (data.isNull()) {
+    safeCopy(state.transportStatus, sizeof(state.transportStatus), "StackFlow response missing data");
+    return false;
+  }
+
+  String body;
+  serializeJson(data, body);
+  parseSummary(body, true);
+  safeCopy(state.source, sizeof(state.source), "stackflow");
+  snprintf(state.transportStatus, sizeof(state.transportStatus), "StackFlow OK: %u bytes try %u/%u",
+           static_cast<unsigned>(line.length()), static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
+  Serial.printf("StackFlow summary OK: %u bytes\n", static_cast<unsigned>(line.length()));
+  return true;
+}
+
 bool fetchSerialSummary() {
   for (uint8_t attempt = 1; attempt <= POWER_SENTINEL_SERIAL_RETRIES; ++attempt) {
     while (LlmSerial.available() > 0) LlmSerial.read();
+
+#if POWER_SENTINEL_TRANSPORT_STACKFLOW
+    String requestId = "ps-" + String(++stackflowRequestId);
+    JsonDocument request;
+    request["request_id"] = requestId;
+    request["work_id"] = "sentinel";
+    request["action"] = "summary";
+    request["object"] = "None";
+    request["data"] = "None";
+    serializeJson(request, LlmSerial);
+    LlmSerial.print('\n');
+    LlmSerial.flush();
+    Serial.printf("Serial TX StackFlow sentinel.summary id=%s attempt %u/%u\n",
+                  requestId.c_str(), static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
+
+    String line;
+    if (!readSerialLine(line, POWER_SENTINEL_SERIAL_TIMEOUT_MS)) {
+      Serial.println("StackFlow summary failed: no response line");
+      snprintf(state.transportStatus, sizeof(state.transportStatus), "StackFlow no response try %u/%u",
+               static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
+      delay(120);
+      continue;
+    }
+    Serial.printf("Serial RX StackFlow: %.160s\n", line.c_str());
+    if (parseStackFlowSummaryResponse(line, requestId, attempt)) return true;
+    delay(120);
+#else
     LlmSerial.print("PS1 GET summary\n");
     LlmSerial.flush();
     Serial.printf("Serial TX PS1 GET summary attempt %u/%u\n",
@@ -514,6 +588,7 @@ bool fetchSerialSummary() {
              static_cast<unsigned>(length), static_cast<unsigned>(attempt), static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES));
     Serial.printf("Serial summary OK: %u bytes\n", static_cast<unsigned>(length));
     return true;
+#endif
   }
   return false;
 }
@@ -622,6 +697,7 @@ void pollUartProbe(uint32_t now) {
 
 void setup() {
   Serial.begin(115200);
+  Serial.printf("Power Sentinel firmware build: %s\n", POWER_SENTINEL_FIRMWARE_BUILD);
   // CoreS3 stacked 5V bus direction is deliberately configurable:
   // - false: accept power from the LLM Mate/Module/base without feeding 5V back.
   // - true:  feed 5V from CoreS3 USB-C to the M-Bus/stack.

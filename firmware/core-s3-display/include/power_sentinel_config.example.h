@@ -13,13 +13,14 @@
 // Network/API polling interval for live data.
 #define SUMMARY_POLL_MS 30000UL
 
-// Data transport. The final stacked appliance should use the internal UART as
-// primary transport and keep WiFi/HTTP as an optional development fallback.
-// The Linux-side bridge listens on /dev/ttyS1 and serves this protocol:
-//   CoreS3 -> LLM Module: PS1 GET summary
-//   LLM Module -> CoreS3: PS1 OK <json-byte-length>
-//   LLM Module -> CoreS3: <json>
+// Data transport. The final stacked appliance uses the internal UART as
+// primary transport, but through vendor StackFlow/llm_sys rather than a
+// parallel /dev/ttyS1 bridge:
+//   CoreS3 -> LLM Module: {"work_id":"sentinel","action":"summary",...}
+//   LLM Module -> CoreS3: StackFlow JSON response with data=power-sentinel.summary.v1
+// Keep WiFi/HTTP as an optional development fallback.
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
+#define POWER_SENTINEL_TRANSPORT_STACKFLOW 1
 #define POWER_SENTINEL_HTTP_FALLBACK 1
 #define POWER_SENTINEL_SERIAL_TIMEOUT_MS 5000UL
 #define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
@@ -40,4 +41,4 @@
 #define POWER_SENTINEL_UART_PROBE 0
 #define POWER_SENTINEL_UART_RX_PIN 18
 #define POWER_SENTINEL_UART_TX_PIN 17
-#define POWER_SENTINEL_UART_BAUD 38400
+#define POWER_SENTINEL_UART_BAUD 115200
