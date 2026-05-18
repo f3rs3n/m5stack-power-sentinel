@@ -34,6 +34,15 @@ def test_build_summary_has_stable_v1_contract():
         },
         ups=None,
         checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        pve=api.summarize_proxmox_data(
+            node="pve-mini",
+            latency_ms=10,
+            node_status={"status": "online", "cpu": 0.1, "mem": 1, "maxmem": 2},
+            qemu=[],
+            lxc=[],
+            zfs=[],
+            disks=[],
+        ),
     )
 
     assert summary["schema"] == "power-sentinel.summary.v1"
@@ -43,7 +52,9 @@ def test_build_summary_has_stable_v1_contract():
     assert summary["ups"]["status"] == "UNAVAILABLE"
     assert summary["ups"]["stale"] is True
     assert summary["homeassistant"] == {"available": True, "severity": "ok", "mqtt": True}
-    assert summary["proxmox"] == {"available": True, "severity": "ok", "shutdown_state": "disarmed"}
+    assert summary["proxmox"]["available"] is True
+    assert summary["proxmox"]["severity"] == "ok"
+    assert summary["proxmox"]["shutdown_state"] == "disarmed"
     assert summary["m5stack"]["temperature_c"] == 45.4
     assert summary["m5stack"]["stackflow_ok"] is True
     assert summary["m5stack"]["openai_ok"] is True
@@ -177,6 +188,83 @@ def test_build_summary_includes_nut_service_state_when_available():
         "clients": [],
         "shutdown_state": "disarmed",
     }
+
+
+def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
+    api = load_module()
+
+    pve = api.summarize_proxmox_data(
+        node="pve-mini",
+        latency_ms=42,
+        node_status={"status": "online", "cpu": 0.18, "mem": 8 * 1024**3, "maxmem": 16 * 1024**3, "rootfs": {"used": 62, "total": 100}},
+        qemu=[{"name": "ha", "status": "running"}, {"name": "test", "status": "stopped"}, {"vmid": 101, "status": "running"}],
+        lxc=[{"name": "hermes", "status": "running"}, {"name": "old", "status": "stopped"}],
+        zfs=[{"name": "rpool", "health": "ONLINE", "alloc": 55, "size": 100}],
+        disks=[{"devpath": "/dev/sda", "health": "PASSED"}, {"devpath": "/dev/sdb", "health": "OK"}],
+    )
+
+    assert pve["available"] is True
+    assert pve["severity"] == "ok"
+    assert pve["node"] == "pve-mini"
+    assert pve["api_latency_ms"] == 42
+    assert pve["cpu_percent"] == 18
+    assert pve["ram_percent"] == 50
+    assert pve["storage_percent"] == 62
+    assert pve["zfs"]["status"] == "ONLINE"
+    assert pve["zfs"]["pools"][0]["capacity_percent"] == 55
+    assert pve["smart"]["status"] == "OK"
+    assert pve["vm"]["running_count"] == 2
+    assert pve["vm"]["running_names"] == ["ha", "101"]
+    assert pve["lxc"]["running_count"] == 1
+    assert pve["lxc"]["running_names"] == ["hermes"]
+    assert pve["shutdown_state"] == "disarmed"
+
+
+def test_summarize_proxmox_data_marks_zfs_and_smart_failures_critical():
+    api = load_module()
+
+    pve = api.summarize_proxmox_data(
+        node="pve-mini",
+        latency_ms=11,
+        node_status={"status": "online", "cpu": 0.10, "mem": 1, "maxmem": 2},
+        qemu=[],
+        lxc=[],
+        zfs=[{"name": "rpool", "health": "DEGRADED", "alloc": 50, "size": 100}],
+        disks=[{"devpath": "/dev/sda", "health": "FAILED"}],
+    )
+
+    assert pve["available"] is True
+    assert pve["severity"] == "critical"
+    assert pve["zfs"]["status"] == "DEGRADED"
+    assert pve["smart"]["status"] == "FAIL"
+    assert "ZFS DEGRADED" in pve["problems"]
+    assert "SMART disk health failure" in pve["problems"]
+
+
+def test_build_summary_uses_pve_read_only_payload_and_global_criticality():
+    api = load_module()
+    pve = api.summarize_proxmox_data(
+        node="pve-mini",
+        latency_ms=11,
+        node_status={"status": "online", "cpu": 0.10, "mem": 1, "maxmem": 2},
+        qemu=[],
+        lxc=[],
+        zfs=[{"name": "rpool", "health": "DEGRADED"}],
+        disks=[],
+    )
+
+    summary = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True},
+        ups=api.parse_upsc_output("ups.status: OL"),
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        pve=pve,
+    )
+
+    assert summary["severity"] == "critical"
+    assert summary["proxmox"]["node"] == "pve-mini"
+    assert summary["proxmox"]["zfs"]["status"] == "DEGRADED"
+    assert "ZFS DEGRADED" in summary["problems"]
 
 
 def test_http_json_response_is_valid_for_summary_endpoint():

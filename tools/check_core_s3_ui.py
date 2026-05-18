@@ -53,6 +53,10 @@ def main() -> int:
     for needle, message in required_v1b.items():
         if needle not in text:
             return fail(message)
+    required_pve = ["cpuPercent", "ramPercent", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "Running workloads"]
+    for needle in required_pve:
+        if needle not in text:
+            return fail(f"PVE read-only UI missing {needle}")
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")

@@ -66,7 +66,51 @@ Other sections:
 - M5Stack section tries to read `/usr/local/bin/m5stack-healthcheck --json`;
 - Home Assistant reachability uses TCP `192.168.2.200:8123`;
 - MQTT reachability uses TCP `192.168.2.200:1883`;
-- Proxmox reachability defaults to TCP `192.168.2.99:8006` (`pve.warpzone.info`) unless overridden.
+- Proxmox still keeps a cheap TCP reachability check for availability, but the `proxmox` summary object can now use read-only Proxmox API data when a token is configured.
+
+## Proxmox read-only integration
+
+Configure a dedicated read-only Proxmox API token in root-only runtime config:
+
+```text
+/etc/power-sentinel.json
+```
+
+Sanitized shape:
+
+```json
+{
+  "proxmox": {
+    "host": "192.168.2.99",
+    "port": 8006,
+    "node": "pve",
+    "verify_ssl": false,
+    "token_id": "power-sentinel@pve!readonly",
+    "token_secret": "CHANGE_ME"
+  }
+}
+```
+
+The API reads these PVE endpoints only:
+
+- `/api2/json/nodes/{node}/status`
+- `/api2/json/nodes/{node}/qemu`
+- `/api2/json/nodes/{node}/lxc`
+- `/api2/json/nodes/{node}/disks/zfs` best-effort
+- `/api2/json/nodes/{node}/disks/list` best-effort
+
+No SSH, no shutdown action, no `smartctl` custom script, and no expected-state model are used in this V1 read-only step.
+
+The `proxmox` summary object includes:
+
+- `available`, `severity`, `node`, `node_status`, `api_latency_ms`
+- `cpu_percent`, `ram_percent`, `cpu_temp_c`, `storage_percent`
+- `zfs.status`, `zfs.pools[]`
+- `smart.status`, `smart.failing_count`, `smart.warning_count`
+- `vm.running_count`, `vm.running_names[]`
+- `lxc.running_count`, `lxc.running_names[]`
+- `shutdown_state=disarmed`
+- `problems[]`
 
 Environment overrides:
 
@@ -79,6 +123,12 @@ POWER_SENTINEL_UPS
 POWER_SENTINEL_HA_HOST
 POWER_SENTINEL_MQTT_HOST
 POWER_SENTINEL_PROXMOX_HOST
+POWER_SENTINEL_PROXMOX_PORT
+POWER_SENTINEL_PROXMOX_NODE
+POWER_SENTINEL_PROXMOX_TOKEN_ID
+POWER_SENTINEL_PROXMOX_TOKEN_SECRET
+POWER_SENTINEL_PROXMOX_VERIFY_SSL
+POWER_SENTINEL_CONFIG
 ```
 
 ## Local development

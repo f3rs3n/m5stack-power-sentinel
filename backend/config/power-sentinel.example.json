@@ -17,6 +17,10 @@
   "proxmox": {
     "host": "192.168.2.99",
     "dns_name": "pve.warpzone.info",
-    "port": 8006
+    "port": 8006,
+    "node": "pve",
+    "verify_ssl": false,
+    "token_id": "power-sentinel@pve!readonly",
+    "token_secret": "CHANGE_ME"
   }
 }

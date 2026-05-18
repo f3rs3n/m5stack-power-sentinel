@@ -13,12 +13,14 @@ import datetime as dt
 import json
 import os
 import socket
+import ssl
 import subprocess
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 SCHEMA_SUMMARY = "power-sentinel.summary.v1"
 SCHEMA_HEALTH = "power-sentinel.health.v1"
@@ -30,6 +32,12 @@ UPS_NAME = os.environ.get("POWER_SENTINEL_UPS", "homelab_ups@localhost")
 HA_HOST = os.environ.get("POWER_SENTINEL_HA_HOST", "192.168.2.200")
 MQTT_HOST = os.environ.get("POWER_SENTINEL_MQTT_HOST", HA_HOST)
 PROXMOX_HOST = os.environ.get("POWER_SENTINEL_PROXMOX_HOST", "192.168.2.99")
+PROXMOX_PORT = int(os.environ.get("POWER_SENTINEL_PROXMOX_PORT", "8006"))
+PROXMOX_NODE = os.environ.get("POWER_SENTINEL_PROXMOX_NODE", "pve")
+PROXMOX_TOKEN_ID = os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_ID")
+PROXMOX_TOKEN_SECRET = os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_SECRET")
+PROXMOX_VERIFY_SSL = os.environ.get("POWER_SENTINEL_PROXMOX_VERIFY_SSL", "0").lower() in ("1", "true", "yes")
+POWER_SENTINEL_CONFIG = os.environ.get("POWER_SENTINEL_CONFIG", "/etc/power-sentinel.json")
 
 
 def iso_utc(ts: float | int | None = None) -> str:
@@ -63,6 +71,29 @@ def load_m5stack_health() -> dict[str, Any] | None:
     if not os.path.exists(HEALTHCHECK):
         return None
     return run_json_command([HEALTHCHECK, "--json"])
+
+
+def load_site_config(path: str = POWER_SENTINEL_CONFIG) -> dict[str, Any]:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def proxmox_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    pve = (config or load_site_config()).get("proxmox", {})
+    if not isinstance(pve, dict):
+        pve = {}
+    return {
+        "host": os.environ.get("POWER_SENTINEL_PROXMOX_HOST") or pve.get("host") or PROXMOX_HOST,
+        "port": int(os.environ.get("POWER_SENTINEL_PROXMOX_PORT") or pve.get("port") or PROXMOX_PORT),
+        "node": os.environ.get("POWER_SENTINEL_PROXMOX_NODE") or pve.get("node") or PROXMOX_NODE,
+        "token_id": os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_ID") or pve.get("token_id") or pve.get("api_token_id") or PROXMOX_TOKEN_ID,
+        "token_secret": os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_SECRET") or pve.get("token_secret") or pve.get("api_token_secret") or PROXMOX_TOKEN_SECRET,
+        "verify_ssl": bool(pve.get("verify_ssl", PROXMOX_VERIFY_SSL)),
+    }
 
 
 def as_int(value: str | None) -> int | None:
@@ -241,8 +272,10 @@ def first_health_value(health: dict[str, Any] | None, paths: list[tuple[str, ...
     return default
 
 
-def derive_severity(ups: dict[str, Any], m5_ok: bool, checks: dict[str, bool], problems: list[str]) -> str:
+def derive_severity(ups: dict[str, Any], m5_ok: bool, checks: dict[str, bool], problems: list[str], pve: dict[str, Any] | None = None) -> str:
     if ups.get("low_battery"):
+        return "critical"
+    if pve and pve.get("severity") == "critical":
         return "critical"
     if not m5_ok:
         return "critical"
@@ -305,12 +338,189 @@ def lightweight_m5stack_health(stackflow_ok: bool = False) -> dict[str, Any]:
     }
 
 
+def unavailable_proxmox(reason: str = "not configured") -> dict[str, Any]:
+    return {
+        "available": False,
+        "severity": "warn",
+        "node": None,
+        "node_status": "unavailable",
+        "api_latency_ms": None,
+        "cpu_percent": None,
+        "ram_percent": None,
+        "cpu_temp_c": None,
+        "storage_percent": None,
+        "zfs": {"status": "UNKNOWN", "pools": []},
+        "smart": {"status": "UNKNOWN", "failing_count": None, "warning_count": None},
+        "vm": {"running_count": 0, "running_names": []},
+        "lxc": {"running_count": 0, "running_names": []},
+        "shutdown_state": "disarmed",
+        "problems": [f"Proxmox {reason}"],
+    }
+
+
+def percent_ratio(used: Any, total: Any) -> int | None:
+    try:
+        used_f = float(used)
+        total_f = float(total)
+    except (TypeError, ValueError):
+        return None
+    if total_f <= 0:
+        return None
+    return int(round(used_f * 100.0 / total_f))
+
+
+def workload_summary(items: list[dict[str, Any]], limit: int = 6) -> dict[str, Any]:
+    names: list[str] = []
+    for item in items:
+        if item.get("status") != "running":
+            continue
+        names.append(str(item.get("name") or item.get("vmid") or item.get("id") or "unknown"))
+    return {"running_count": len(names), "running_names": names[:limit], "more": max(0, len(names) - limit)}
+
+
+def zfs_summary(pools: list[dict[str, Any]]) -> dict[str, Any]:
+    normalized: list[dict[str, Any]] = []
+    status = "UNKNOWN"
+    worst_bad = False
+    for pool in pools or []:
+        health = str(pool.get("health") or pool.get("state") or "UNKNOWN").upper()
+        cap = pool.get("capacity") or pool.get("cap")
+        if cap is None:
+            cap = percent_ratio(pool.get("alloc"), pool.get("size"))
+        normalized.append({"name": pool.get("name") or pool.get("pool") or "unknown", "health": health, "capacity_percent": cap})
+        if health not in ("ONLINE", "OK"):
+            worst_bad = True
+        elif status == "UNKNOWN":
+            status = health
+    if worst_bad:
+        for pool in normalized:
+            if pool["health"] not in ("ONLINE", "OK"):
+                status = pool["health"]
+                break
+    return {"status": status, "pools": normalized}
+
+
+def smart_summary(disks: list[dict[str, Any]]) -> dict[str, Any]:
+    failing = 0
+    warning = 0
+    for disk in disks or []:
+        health = str(disk.get("health") or disk.get("smart_health") or disk.get("status") or "").upper()
+        if any(token in health for token in ("FAIL", "BAD", "CRIT")):
+            failing += 1
+        elif health and health not in ("OK", "PASSED", "PASS", "UNKNOWN"):
+            warning += 1
+    if failing:
+        status = "FAIL"
+    elif warning:
+        status = "WARN"
+    elif disks:
+        status = "OK"
+    else:
+        status = "UNKNOWN"
+    return {"status": status, "failing_count": failing, "warning_count": warning}
+
+
+def summarize_proxmox_data(
+    node: str,
+    latency_ms: int | None,
+    node_status: dict[str, Any],
+    qemu: list[dict[str, Any]],
+    lxc: list[dict[str, Any]],
+    zfs: list[dict[str, Any]],
+    disks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    cpu_percent = None
+    if node_status.get("cpu") is not None:
+        cpu_percent = int(round(float(node_status.get("cpu", 0)) * 100))
+    ram_percent = percent_ratio(node_status.get("mem"), node_status.get("maxmem"))
+    rootfs = node_status.get("rootfs") or {}
+    storage_percent = percent_ratio(rootfs.get("used"), rootfs.get("total"))
+    zfs_info = zfs_summary(zfs)
+    smart_info = smart_summary(disks)
+    problems: list[str] = []
+    node_state = str(node_status.get("status") or "online")
+    if node_state.lower() not in ("online", "ok"):
+        problems.append("Proxmox node down")
+    if zfs_info["status"] not in ("ONLINE", "OK", "UNKNOWN"):
+        problems.append(f"ZFS {zfs_info['status']}")
+    if smart_info["status"] == "FAIL":
+        problems.append("SMART disk health failure")
+    elif smart_info["status"] == "WARN":
+        problems.append("SMART disk health warning")
+    cpu_temp_c = node_status.get("cpu_temp_c") or node_status.get("temperature_c")
+    if cpu_temp_c is not None:
+        try:
+            temp = float(cpu_temp_c)
+            if temp >= 80:
+                problems.append("PVE CPU temperature critical")
+            elif temp >= 70:
+                problems.append("PVE CPU temperature warning")
+        except (TypeError, ValueError):
+            pass
+    critical = any(p.startswith(("Proxmox node", "ZFS", "SMART disk health failure", "PVE CPU temperature critical")) for p in problems)
+    return {
+        "available": True,
+        "severity": "critical" if critical else ("warn" if problems else "ok"),
+        "node": node,
+        "node_status": node_state,
+        "api_latency_ms": latency_ms,
+        "cpu_percent": cpu_percent,
+        "ram_percent": ram_percent,
+        "cpu_temp_c": cpu_temp_c,
+        "storage_percent": storage_percent,
+        "zfs": zfs_info,
+        "smart": smart_info,
+        "vm": workload_summary(qemu),
+        "lxc": workload_summary(lxc),
+        "shutdown_state": "disarmed",
+        "problems": problems,
+    }
+
+
+def proxmox_api_get(cfg: dict[str, Any], path: str, timeout: float = 2.5) -> Any:
+    token_id = cfg.get("token_id")
+    token_secret = cfg.get("token_secret")
+    if not token_id or not token_secret:
+        raise RuntimeError("API token not configured")
+    url = f"https://{cfg['host']}:{cfg['port']}/api2/json{path}"
+    req = Request(url, headers={"Authorization": f"PVEAPIToken={token_id}={token_secret}"})
+    context = None if cfg.get("verify_ssl") else ssl._create_unverified_context()
+    with urlopen(req, timeout=timeout, context=context) as resp:  # noqa: S310 - local homelab endpoint, optional TLS verification
+        payload = json.loads(resp.read().decode("utf-8"))
+    return payload.get("data")
+
+
+def load_proxmox() -> dict[str, Any]:
+    cfg = proxmox_config()
+    if not cfg.get("token_id") or not cfg.get("token_secret"):
+        return unavailable_proxmox("API token not configured")
+    node = cfg.get("node") or PROXMOX_NODE
+    started = time.monotonic()
+    try:
+        node_status = proxmox_api_get(cfg, f"/nodes/{node}/status") or {}
+        qemu = proxmox_api_get(cfg, f"/nodes/{node}/qemu") or []
+        lxc = proxmox_api_get(cfg, f"/nodes/{node}/lxc") or []
+        try:
+            zfs = proxmox_api_get(cfg, f"/nodes/{node}/disks/zfs") or []
+        except Exception:
+            zfs = []
+        try:
+            disks = proxmox_api_get(cfg, f"/nodes/{node}/disks/list") or []
+        except Exception:
+            disks = []
+    except Exception as exc:
+        return unavailable_proxmox(f"API read failed: {type(exc).__name__}")
+    latency_ms = int(round((time.monotonic() - started) * 1000))
+    return summarize_proxmox_data(node=node, latency_ms=latency_ms, node_status=node_status, qemu=qemu, lxc=lxc, zfs=zfs, disks=disks)
+
+
 def build_summary(
     now: float | int | None = None,
     health: dict[str, Any] | None = None,
     ups: dict[str, Any] | None = None,
     checks: dict[str, bool] | None = None,
     nut: dict[str, Any] | None = None,
+    pve: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if now is None:
         now = time.time()
@@ -326,6 +536,8 @@ def build_summary(
         ups = load_ups() or unavailable_ups()
     if nut is None:
         nut = load_nut_status()
+    if pve is None:
+        pve = load_proxmox()
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []
@@ -345,8 +557,11 @@ def build_summary(
         problems.append("MQTT broker unreachable")
     if not checks.get("proxmox", False):
         problems.append("Proxmox API unreachable")
+    for problem in pve.get("problems", []):
+        if problem not in problems:
+            problems.append(problem)
 
-    severity = derive_severity(ups, m5_overall, checks, problems)
+    severity = derive_severity(ups, m5_overall, checks, problems, pve=pve)
     return {
         "schema": SCHEMA_SUMMARY,
         "timestamp": iso_utc(now),
@@ -382,7 +597,7 @@ def build_summary(
             "clients": nut.get("clients", []),
             "shutdown_state": nut.get("shutdown_state", "unknown"),
         },
-        "proxmox": {"available": bool(checks.get("proxmox")), "severity": "ok" if checks.get("proxmox") else "warn", "shutdown_state": "disarmed"},
+        "proxmox": pve,
         "m5stack": {
             "available": health is not None,
             "severity": "ok" if m5_overall else "critical",

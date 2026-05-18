@@ -93,6 +93,25 @@ struct ServiceState {
   float diskFreeGb = 0.0f;
 };
 
+struct ProxmoxState {
+  bool available = false;
+  char severity[12] = "unknown";
+  char shutdownState[20] = "unknown";
+  char node[32] = "unknown";
+  char nodeStatus[20] = "unknown";
+  char zfsStatus[20] = "UNKNOWN";
+  char smartStatus[20] = "UNKNOWN";
+  char vmNames[96] = "none";
+  char lxcNames[96] = "none";
+  int apiLatencyMs = -1;
+  int cpuPercent = -1;
+  int ramPercent = -1;
+  int storagePercent = -1;
+  int vmRunningCount = -1;
+  int lxcRunningCount = -1;
+  float cpuTempC = 0.0f;
+};
+
 struct SummaryState {
   char schema[32] = "power-sentinel.summary.v1";
   char timestamp[32] = "waiting";
@@ -104,7 +123,7 @@ struct SummaryState {
   UpsState ups;
   NutState nut;
   ServiceState ha;
-  ServiceState proxmox;
+  ProxmoxState proxmox;
   ServiceState m5stack;
   char problems[192] = "No active problems";
 };
@@ -231,6 +250,43 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.proxmox.available = px["available"] | false;
   safeCopy(state.proxmox.severity, sizeof(state.proxmox.severity), px["severity"] | "warn");
   safeCopy(state.proxmox.shutdownState, sizeof(state.proxmox.shutdownState), px["shutdown_state"] | "unknown");
+  safeCopy(state.proxmox.node, sizeof(state.proxmox.node), px["node"] | "unknown");
+  safeCopy(state.proxmox.nodeStatus, sizeof(state.proxmox.nodeStatus), px["node_status"] | "unknown");
+  state.proxmox.apiLatencyMs = jsonInt(px["api_latency_ms"], -1);
+  state.proxmox.cpuPercent = jsonInt(px["cpu_percent"], -1);
+  state.proxmox.ramPercent = jsonInt(px["ram_percent"], -1);
+  state.proxmox.storagePercent = jsonInt(px["storage_percent"], -1);
+  state.proxmox.cpuTempC = jsonFloat(px["cpu_temp_c"], 0);
+  JsonObjectConst zfs = px["zfs"].as<JsonObjectConst>();
+  safeCopy(state.proxmox.zfsStatus, sizeof(state.proxmox.zfsStatus), zfs["status"] | "UNKNOWN");
+  JsonObjectConst smart = px["smart"].as<JsonObjectConst>();
+  safeCopy(state.proxmox.smartStatus, sizeof(state.proxmox.smartStatus), smart["status"] | "UNKNOWN");
+  JsonObjectConst vm = px["vm"].as<JsonObjectConst>();
+  state.proxmox.vmRunningCount = jsonInt(vm["running_count"], -1);
+  JsonArrayConst vmNames = vm["running_names"].as<JsonArrayConst>();
+  if (vmNames.isNull() || vmNames.size() == 0) {
+    safeCopy(state.proxmox.vmNames, sizeof(state.proxmox.vmNames), "none");
+  } else {
+    String joined;
+    for (JsonVariantConst item : vmNames) {
+      if (joined.length() > 0) joined += ", ";
+      joined += item.as<const char *>();
+    }
+    safeCopy(state.proxmox.vmNames, sizeof(state.proxmox.vmNames), joined.c_str());
+  }
+  JsonObjectConst lxc = px["lxc"].as<JsonObjectConst>();
+  state.proxmox.lxcRunningCount = jsonInt(lxc["running_count"], -1);
+  JsonArrayConst lxcNames = lxc["running_names"].as<JsonArrayConst>();
+  if (lxcNames.isNull() || lxcNames.size() == 0) {
+    safeCopy(state.proxmox.lxcNames, sizeof(state.proxmox.lxcNames), "none");
+  } else {
+    String joined;
+    for (JsonVariantConst item : lxcNames) {
+      if (joined.length() > 0) joined += ", ";
+      joined += item.as<const char *>();
+    }
+    safeCopy(state.proxmox.lxcNames, sizeof(state.proxmox.lxcNames), joined.c_str());
+  }
 
   JsonObjectConst m5 = doc["m5stack"].as<JsonObjectConst>();
   state.m5stack.available = m5["available"] | false;
@@ -528,11 +584,32 @@ void renderProxmox() {
   setupPage(proxmoxTab);
   lv_obj_t *card = makeCard(proxmoxTab, "Proxmox");
   addBadge(card, state.proxmox.available ? "PVE OK" : "PVE DOWN", severityColor(state.proxmox.severity));
-  char line[96];
-  snprintf(line, sizeof(line), "API: %s", state.proxmox.available ? "reachable" : "unreachable");
+  char line[128];
+  char apiMs[24];
+  snprintf(line, sizeof(line), "%s   %s", state.proxmox.node, intOrUnknown(state.proxmox.apiLatencyMs, apiMs, sizeof(apiMs), "ms"));
+  addMetricRow(card, "node / api", line);
+  char cpu[24];
+  char ram[24];
+  snprintf(line, sizeof(line), "%s   %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"), intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
+  addMetricRow(card, "cpu / ram", line);
+  addPercentBar(card, state.proxmox.cpuPercent, lv_palette_main(LV_PALETTE_BLUE));
+  char temp[24];
+  char storage[24];
+  snprintf(line, sizeof(line), "%s   %s", floatOrUnknown(state.proxmox.cpuTempC, temp, sizeof(temp), " C"), intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
+  addMetricRow(card, "temp / storage", line);
+  addPercentBar(card, state.proxmox.storagePercent, lv_palette_main(LV_PALETTE_TEAL));
+  snprintf(line, sizeof(line), "ZFS %s   SMART %s", state.proxmox.zfsStatus, state.proxmox.smartStatus);
+  addMetricRow(card, "storage health", line);
+  snprintf(line, sizeof(line), "VM %s run   CT %s run", intOrUnknown(state.proxmox.vmRunningCount, cpu, sizeof(cpu)), intOrUnknown(state.proxmox.lxcRunningCount, ram, sizeof(ram)));
+  addMetricRow(card, "workloads", line);
+  snprintf(line, sizeof(line), "Shutdown %s", state.proxmox.shutdownState);
   addLine(card, line);
-  snprintf(line, sizeof(line), "Shutdown state: %s", state.proxmox.shutdownState);
-  addLine(card, line);
+
+  lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");
+  snprintf(line, sizeof(line), "VMs: %s", state.proxmox.vmNames);
+  addLine(workloads, line);
+  snprintf(line, sizeof(line), "CTs: %s", state.proxmox.lxcNames);
+  addLine(workloads, line);
 }
 
 void renderM5s() {
