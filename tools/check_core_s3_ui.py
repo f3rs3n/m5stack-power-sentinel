@@ -34,6 +34,14 @@ def main() -> int:
     for renderer in REQUIRED_RENDERERS:
         if f"void {renderer}()" not in text:
             return fail(f"missing renderer {renderer}()")
+    if text.count("addPercentBar(") < 5:
+        return fail("V1a functional UI should render multiple bars for HOME/NUT metrics")
+    if 'NET UNK' not in text:
+        return fail("HOME must render NET UNK until a real network probe exists")
+    if 'state.proxmox.available ? "OK" : "UNK"' in text:
+        return fail("HOME NET status must not be derived from Proxmox reachability")
+    if "state.ha.available && state.ha.mqtt" not in text:
+        return fail("HOME HA status must require both HA API and MQTT in V1a")
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")

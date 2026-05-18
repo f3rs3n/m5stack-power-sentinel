@@ -318,6 +318,17 @@ void addBadge(lv_obj_t *parent, const char *text, lv_color_t color) {
   lv_obj_set_style_pad_ver(badge, 4, 0);
 }
 
+void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
+  lv_obj_t *bar = lv_bar_create(parent);
+  lv_obj_set_width(bar, lv_pct(100));
+  lv_obj_set_height(bar, 10);
+  lv_bar_set_range(bar, 0, 100);
+  int clamped = value < 0 ? 0 : (value > 100 ? 100 : value);
+  lv_bar_set_value(bar, clamped, LV_ANIM_OFF);
+  lv_obj_set_style_bg_color(bar, lv_color_hex(0x283041), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(bar, color, LV_PART_INDICATOR);
+}
+
 void setupPage(lv_obj_t *tab) {
   lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_all(tab, 8, 0);
@@ -336,8 +347,12 @@ const char *okDown(bool ok) {
   return ok ? "OK" : "DOWN";
 }
 
+bool haFunctional() {
+  return state.ha.available && state.ha.mqtt;
+}
+
 const char *nutStatusBadge() {
-  if (!state.ups.available) return "NUT UNK";
+  if (!state.ups.available || !state.nut.serverActive || !state.nut.driverActive) return "NUT UNK";
   if (state.ups.lowBattery) return "NUT CRIT";
   if (state.ups.onBattery) return "NUT WARN";
   return "NUT OK";
@@ -357,6 +372,7 @@ void renderHome() {
            intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"),
            runtimeText(state.ups.runtimeSeconds, runtime, sizeof(runtime)));
   addLine(card, line);
+  addPercentBar(card, state.ups.batteryPercent, state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) : lv_palette_main(LV_PALETTE_GREEN));
 
   char load[24];
   char inputV[24];
@@ -364,11 +380,12 @@ void renderHome() {
            intOrUnknown(state.ups.loadPercent, load, sizeof(load), "%"),
            floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
   addLine(card, line);
+  addPercentBar(card, state.ups.loadPercent, lv_palette_main(LV_PALETTE_BLUE));
 
   snprintf(line, sizeof(line), "%s   PVE %s   HA %s",
-           nutStatusBadge(), okDown(state.proxmox.available), okDown(state.ha.available));
+           nutStatusBadge(), okDown(state.proxmox.available), okDown(haFunctional()));
   addLine(card, line);
-  snprintf(line, sizeof(line), "NET %s   M5S %s", state.proxmox.available ? "OK" : "UNK", state.m5stack.available ? "OK" : "DOWN");
+  snprintf(line, sizeof(line), "NET UNK   M5S %s", state.m5stack.available ? "OK" : "DOWN");
   addLine(card, line);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
   addLine(card, line);
@@ -395,10 +412,7 @@ void renderNut() {
            intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"),
            runtimeText(state.ups.runtimeSeconds, runtime, sizeof(runtime)));
   addLine(card, line);
-  lv_obj_t *bar = lv_bar_create(card);
-  lv_obj_set_width(bar, lv_pct(100));
-  lv_bar_set_range(bar, 0, 100);
-  lv_bar_set_value(bar, state.ups.batteryPercent < 0 ? 0 : state.ups.batteryPercent, LV_ANIM_OFF);
+  addPercentBar(card, state.ups.batteryPercent, state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) : lv_palette_main(LV_PALETTE_GREEN));
   char load[24];
   char watts[24];
   char inputV[24];
@@ -407,6 +421,7 @@ void renderNut() {
            intOrUnknown(state.ups.loadW, watts, sizeof(watts), "W"),
            floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
   addLine(card, line);
+  addPercentBar(card, state.ups.loadPercent, lv_palette_main(LV_PALETTE_BLUE));
 
   lv_obj_t *nutCard = makeCard(nutTab, "NUT server");
   snprintf(line, sizeof(line), "server %s   driver %s", okDown(state.nut.serverActive), okDown(state.nut.driverActive));
