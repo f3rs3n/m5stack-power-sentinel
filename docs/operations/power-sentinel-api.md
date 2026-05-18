@@ -34,11 +34,35 @@ Schema:
 power-sentinel.summary.v1
 ```
 
-## V0 behavior
+## Current behavior
 
-Before the UPS cable is attached/configured:
+If the UPS/NUT path is unavailable:
 
-- UPS section is deliberately `available=false`, `status=MOCK`, `stale=true`;
+- UPS section is deliberately `available=false`, `status=UNAVAILABLE`, `stale=true`;
+- no plausible placeholder UPS values are emitted.
+
+With the current APC Back-UPS ES 850G2 connected via USB OTG/NUT, `/api/v1/summary` exposes live UPS essentials plus V1 display fields:
+
+- `ups.model`
+- `ups.battery_voltage`
+- `ups.realpower_nominal_w`
+- `ups.load_w`
+- `ups.beeper_status`
+- `ups.transfer_reason`
+- `ups.driver`
+
+The summary also exposes the low-complexity NUT service state needed by the CoreS3 `NUT` page:
+
+- `nut.server_active`
+- `nut.driver_active`
+- `nut.monitor_active`
+- `nut.mode`
+- `nut.client_count`
+- `nut.clients`
+- `nut.shutdown_state`
+
+Other sections:
+
 - M5Stack section tries to read `/usr/local/bin/m5stack-healthcheck --json`;
 - Home Assistant reachability uses TCP `192.168.2.200:8123`;
 - MQTT reachability uses TCP `192.168.2.200:1883`;

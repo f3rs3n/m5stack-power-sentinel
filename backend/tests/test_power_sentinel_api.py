@@ -80,6 +80,105 @@ device.model: TestUPS 900
     assert ups["device"]["manufacturer"] == "TestCorp"
 
 
+def test_parse_upsc_exposes_extended_nut_fields_and_estimated_load_watts():
+    api = load_module()
+
+    ups = api.parse_upsc_output(
+        """
+ups.status: OL
+battery.charge: 100
+battery.runtime: 384
+battery.voltage: 13.6
+input.voltage: 224.0
+input.transfer.reason: input voltage out of range
+ups.load: 38
+ups.realpower.nominal: 520
+ups.beeper.status: disabled
+ups.model: Back-UPS ES 850G2
+ups.mfr: American Power Conversion
+ups.serial: 5B2350TD6030
+ups.firmware: 938.a2 .I
+driver.name: usbhid-ups
+driver.version: 2.7.4
+""".strip()
+    )
+
+    assert ups["model"] == "Back-UPS ES 850G2"
+    assert ups["manufacturer"] == "American Power Conversion"
+    assert ups["serial"] == "5B2350TD6030"
+    assert ups["battery_voltage"] == 13.6
+    assert ups["realpower_nominal_w"] == 520
+    assert ups["load_w"] == 198
+    assert ups["beeper_status"] == "disabled"
+    assert ups["transfer_reason"] == "input voltage out of range"
+    assert ups["driver"] == "usbhid-ups"
+    assert ups["firmware"] == "938.a2 .I"
+
+
+def test_build_summary_includes_extended_ups_fields():
+    api = load_module()
+
+    ups = api.parse_upsc_output(
+        """
+ups.status: OL
+battery.charge: 100
+battery.runtime: 384
+battery.voltage: 13.6
+input.voltage: 224.0
+input.transfer.reason: input voltage out of range
+ups.load: 38
+ups.realpower.nominal: 520
+ups.beeper.status: disabled
+ups.model: Back-UPS ES 850G2
+driver.name: usbhid-ups
+""".strip()
+    )
+    summary = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True},
+        ups=ups,
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+    )
+
+    assert summary["ups"]["model"] == "Back-UPS ES 850G2"
+    assert summary["ups"]["battery_voltage"] == 13.6
+    assert summary["ups"]["realpower_nominal_w"] == 520
+    assert summary["ups"]["load_w"] == 198
+    assert summary["ups"]["beeper_status"] == "disabled"
+    assert summary["ups"]["transfer_reason"] == "input voltage out of range"
+    assert summary["ups"]["driver"] == "usbhid-ups"
+
+
+def test_build_summary_includes_nut_service_state_when_available():
+    api = load_module()
+
+    summary = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True},
+        ups=api.unavailable_ups(),
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        nut={
+            "server_active": True,
+            "driver_active": True,
+            "monitor_active": False,
+            "mode": "netserver",
+            "client_count": None,
+            "clients": [],
+            "shutdown_state": "disarmed",
+        },
+    )
+
+    assert summary["nut"] == {
+        "server_active": True,
+        "driver_active": True,
+        "monitor_active": False,
+        "mode": "netserver",
+        "client_count": None,
+        "clients": [],
+        "shutdown_state": "disarmed",
+    }
+
+
 def test_http_json_response_is_valid_for_summary_endpoint():
     api = load_module()
     body, status, content_type = api.route_request("/api/v1/summary")

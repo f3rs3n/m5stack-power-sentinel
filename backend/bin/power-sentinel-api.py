@@ -110,6 +110,14 @@ def parse_upsc_output(text: str) -> dict[str, Any]:
     raw = parse_key_values(text)
     status = raw.get("ups.status", "UNKNOWN")
     tokens = set(status.split())
+    load_percent = as_int(raw.get("ups.load"))
+    realpower_nominal_w = as_int(raw.get("ups.realpower.nominal"))
+    load_w = None
+    if load_percent is not None and realpower_nominal_w is not None:
+        load_w = int(round(realpower_nominal_w * load_percent / 100.0))
+    manufacturer = raw.get("ups.mfr") or raw.get("device.mfr")
+    model = raw.get("ups.model") or raw.get("device.model")
+    serial = raw.get("ups.serial") or raw.get("device.serial")
     return {
         "available": True,
         "status": status,
@@ -118,15 +126,25 @@ def parse_upsc_output(text: str) -> dict[str, Any]:
         "low_battery": "LB" in tokens,
         "battery_percent": as_int(raw.get("battery.charge")),
         "runtime_seconds": as_int(raw.get("battery.runtime")),
-        "load_percent": as_int(raw.get("ups.load")),
+        "load_percent": load_percent,
         "input_voltage": as_float(raw.get("input.voltage")),
         "output_voltage": as_float(raw.get("output.voltage")),
+        "battery_voltage": as_float(raw.get("battery.voltage")),
+        "realpower_nominal_w": realpower_nominal_w,
+        "load_w": load_w,
+        "beeper_status": raw.get("ups.beeper.status"),
+        "transfer_reason": raw.get("input.transfer.reason"),
+        "driver": raw.get("driver.name"),
+        "firmware": raw.get("ups.firmware"),
+        "manufacturer": manufacturer,
+        "model": model,
+        "serial": serial,
         "stale": False,
         "age_seconds": 0,
         "device": {
-            "manufacturer": raw.get("device.mfr"),
-            "model": raw.get("device.model"),
-            "serial": raw.get("device.serial"),
+            "manufacturer": manufacturer,
+            "model": model,
+            "serial": serial,
         },
         "raw": raw,
     }
@@ -144,6 +162,39 @@ def load_ups() -> dict[str, Any] | None:
     return parse_upsc_output(cp.stdout)
 
 
+def systemd_is_active(service: str) -> bool | None:
+    try:
+        cp = subprocess.run(["systemctl", "is-active", service], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=0.75, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return cp.stdout.strip() == "active"
+
+
+def nut_mode(path: str = "/etc/nut/nut.conf") -> str | None:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                stripped = line.strip()
+                if stripped.startswith("MODE="):
+                    return stripped.split("=", 1)[1].strip().strip('"\'') or None
+    except OSError:
+        return None
+    return None
+
+
+def load_nut_status() -> dict[str, Any]:
+    monitor_active = systemd_is_active("nut-monitor.service")
+    return {
+        "server_active": systemd_is_active("nut-server.service"),
+        "driver_active": systemd_is_active("nut-driver.service"),
+        "monitor_active": monitor_active,
+        "mode": nut_mode(),
+        "client_count": None,
+        "clients": [],
+        "shutdown_state": "unknown" if monitor_active is None else ("armed" if monitor_active else "disarmed"),
+    }
+
+
 def unavailable_ups() -> dict[str, Any]:
     return {
         "available": False,
@@ -156,6 +207,16 @@ def unavailable_ups() -> dict[str, Any]:
         "load_percent": None,
         "input_voltage": None,
         "output_voltage": None,
+        "battery_voltage": None,
+        "realpower_nominal_w": None,
+        "load_w": None,
+        "beeper_status": None,
+        "transfer_reason": None,
+        "driver": None,
+        "firmware": None,
+        "manufacturer": None,
+        "model": None,
+        "serial": None,
         "stale": True,
         "age_seconds": None,
         "device": {"manufacturer": None, "model": None, "serial": None},
@@ -249,6 +310,7 @@ def build_summary(
     health: dict[str, Any] | None = None,
     ups: dict[str, Any] | None = None,
     checks: dict[str, bool] | None = None,
+    nut: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if now is None:
         now = time.time()
@@ -262,6 +324,8 @@ def build_summary(
         health = load_m5stack_health()
     if ups is None:
         ups = load_ups() or unavailable_ups()
+    if nut is None:
+        nut = load_nut_status()
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []
@@ -298,10 +362,26 @@ def build_summary(
             "load_percent": ups.get("load_percent"),
             "input_voltage": ups.get("input_voltage"),
             "output_voltage": ups.get("output_voltage"),
+            "battery_voltage": ups.get("battery_voltage"),
+            "realpower_nominal_w": ups.get("realpower_nominal_w"),
+            "load_w": ups.get("load_w"),
+            "beeper_status": ups.get("beeper_status"),
+            "transfer_reason": ups.get("transfer_reason"),
+            "driver": ups.get("driver"),
+            "model": ups.get("model"),
             "stale": bool(ups.get("stale", False)),
             "age_seconds": ups.get("age_seconds"),
         },
         "homeassistant": {"available": bool(checks.get("homeassistant")), "severity": "ok" if checks.get("homeassistant") else "warn", "mqtt": bool(checks.get("mqtt"))},
+        "nut": {
+            "server_active": nut.get("server_active"),
+            "driver_active": nut.get("driver_active"),
+            "monitor_active": nut.get("monitor_active"),
+            "mode": nut.get("mode"),
+            "client_count": nut.get("client_count"),
+            "clients": nut.get("clients", []),
+            "shutdown_state": nut.get("shutdown_state", "unknown"),
+        },
         "proxmox": {"available": bool(checks.get("proxmox")), "severity": "ok" if checks.get("proxmox") else "warn", "shutdown_state": "disarmed"},
         "m5stack": {
             "available": health is not None,
