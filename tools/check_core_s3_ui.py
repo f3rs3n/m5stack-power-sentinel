@@ -42,6 +42,17 @@ def main() -> int:
         return fail("HOME NET status must not be derived from Proxmox reachability")
     if "state.ha.available && state.ha.mqtt" not in text:
         return fail("HOME HA status must require both HA API and MQTT in V1a")
+    required_v1b = {
+        "applyAppTheme()": "V1b should apply a global modern theme",
+        "makeHeroCard(": "V1b should use a hero card for the HOME overview",
+        "addMetricRow(": "V1b should use structured metric rows instead of plain line-only layout",
+        "addStatusPillRow(": "V1b should render compact status pills for dense overview pages",
+        "LV_OPA_60": "V1b should use subtle translucent/shadow styling",
+        "lv_obj_set_style_text_font": "V1b should use deliberate font hierarchy",
+    }
+    for needle, message in required_v1b.items():
+        if needle not in text:
+            return fail(message)
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")

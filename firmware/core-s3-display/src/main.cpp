@@ -280,21 +280,43 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
   }
 }
 
-lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
-  lv_obj_t *card = lv_obj_create(parent);
+void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
   lv_obj_set_width(card, lv_pct(100));
   lv_obj_set_height(card, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_gap(card, 6, 0);
   lv_obj_set_style_pad_all(card, 8, 0);
-  lv_obj_set_style_radius(card, 10, 0);
+  lv_obj_set_style_radius(card, 14, 0);
   lv_obj_set_style_border_width(card, 1, 0);
-  lv_obj_set_style_border_color(card, lv_color_hex(0x394152), 0);
-  lv_obj_set_style_bg_color(card, lv_color_hex(0x171b24), 0);
+  lv_obj_set_style_border_color(card, border, 0);
+  lv_obj_set_style_bg_color(card, bg, 0);
+  lv_obj_set_style_shadow_width(card, 10, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_shadow_ofs_y(card, 3, 0);
+}
+
+lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
+  lv_obj_t *card = lv_obj_create(parent);
+  stylePanel(card, lv_color_hex(0x171b24), lv_color_hex(0x394152));
 
   lv_obj_t *label = lv_label_create(card);
   lv_label_set_text(label, title);
   lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
+  lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
+  return card;
+}
+
+lv_obj_t *makeHeroCard(lv_obj_t *parent, const char *title) {
+  lv_obj_t *card = lv_obj_create(parent);
+  stylePanel(card, lv_color_hex(0x111827), severityColor(state.severity));
+  lv_obj_set_style_pad_all(card, 10, 0);
+  lv_obj_set_style_pad_gap(card, 7, 0);
+
+  lv_obj_t *label = lv_label_create(card);
+  lv_label_set_text(label, title);
+  lv_obj_set_style_text_color(label, lv_color_hex(0xf8fbff), 0);
+  lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
   return card;
 }
 
@@ -302,6 +324,7 @@ lv_obj_t *addLine(lv_obj_t *parent, const char *text) {
   lv_obj_t *label = lv_label_create(parent);
   lv_label_set_text(label, text);
   lv_obj_set_style_text_color(label, lv_color_hex(0xc8d0df), 0);
+  lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
   lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(label, lv_pct(100));
   return label;
@@ -311,11 +334,44 @@ void addBadge(lv_obj_t *parent, const char *text, lv_color_t color) {
   lv_obj_t *badge = lv_label_create(parent);
   lv_label_set_text(badge, text);
   lv_obj_set_style_text_color(badge, lv_color_white(), 0);
+  lv_obj_set_style_text_font(badge, &lv_font_montserrat_12, 0);
   lv_obj_set_style_bg_color(badge, color, 0);
   lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(badge, 8, 0);
+  lv_obj_set_style_radius(badge, 10, 0);
   lv_obj_set_style_pad_hor(badge, 8, 0);
   lv_obj_set_style_pad_ver(badge, 4, 0);
+}
+
+lv_obj_t *addMetricRow(lv_obj_t *parent, const char *label, const char *value) {
+  lv_obj_t *row = lv_obj_create(parent);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_width(row, lv_pct(100));
+  lv_obj_set_height(row, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+  lv_obj_t *left = lv_label_create(row);
+  lv_label_set_text(left, label);
+  lv_obj_set_style_text_color(left, lv_color_hex(0x8fa0b8), 0);
+  lv_obj_set_style_text_font(left, &lv_font_montserrat_12, 0);
+
+  lv_obj_t *right = lv_label_create(row);
+  lv_label_set_text(right, value);
+  lv_obj_set_style_text_color(right, lv_color_hex(0xf8fbff), 0);
+  lv_obj_set_style_text_font(right, &lv_font_montserrat_14, 0);
+  return row;
+}
+
+void addStatusPillRow(lv_obj_t *parent, const char *a, lv_color_t ca, const char *b, lv_color_t cb, const char *c, lv_color_t cc) {
+  lv_obj_t *row = lv_obj_create(parent);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_width(row, lv_pct(100));
+  lv_obj_set_height(row, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
+  lv_obj_set_style_pad_gap(row, 4, 0);
+  addBadge(row, a, ca);
+  addBadge(row, b, cb);
+  addBadge(row, c, cc);
 }
 
 void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
@@ -361,32 +417,39 @@ const char *nutStatusBadge() {
 void renderHome() {
   lv_obj_clean(homeTab);
   setupPage(homeTab);
-  lv_obj_t *card = makeCard(homeTab, "POWER SENTINEL");
+  lv_obj_t *card = makeHeroCard(homeTab, "POWER SENTINEL");
   addBadge(card, state.offline ? "STALE" : state.severity, state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : severityColor(state.severity));
   addLine(card, state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : (state.ups.available ? "GRID ONLINE" : "UPS UNAVAILABLE")));
 
   char line[128];
   char battery[24];
   char runtime[24];
-  snprintf(line, sizeof(line), "Batt %s   Run %s",
+  snprintf(line, sizeof(line), "%s   %s",
            intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"),
            runtimeText(state.ups.runtimeSeconds, runtime, sizeof(runtime)));
-  addLine(card, line);
+  addMetricRow(card, "battery / runtime", line);
   addPercentBar(card, state.ups.batteryPercent, state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) : lv_palette_main(LV_PALETTE_GREEN));
 
   char load[24];
   char inputV[24];
-  snprintf(line, sizeof(line), "Load %s   In %s",
+  snprintf(line, sizeof(line), "%s   %s",
            intOrUnknown(state.ups.loadPercent, load, sizeof(load), "%"),
            floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
-  addLine(card, line);
+  addMetricRow(card, "load / input", line);
   addPercentBar(card, state.ups.loadPercent, lv_palette_main(LV_PALETTE_BLUE));
 
-  snprintf(line, sizeof(line), "%s   PVE %s   HA %s",
-           nutStatusBadge(), okDown(state.proxmox.available), okDown(haFunctional()));
-  addLine(card, line);
+  char nutPill[24];
+  snprintf(nutPill, sizeof(nutPill), "%s", nutStatusBadge());
+  char pvePill[16];
+  snprintf(pvePill, sizeof(pvePill), "PVE %s", okDown(state.proxmox.available));
+  char haPill[16];
+  snprintf(haPill, sizeof(haPill), "HA %s", okDown(haFunctional()));
+  addStatusPillRow(card, nutPill, state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN),
+                   pvePill, state.proxmox.available ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED),
+                   haPill, haFunctional() ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED));
+
   snprintf(line, sizeof(line), "NET UNK   M5S %s", state.m5stack.available ? "OK" : "DOWN");
-  addLine(card, line);
+  addMetricRow(card, "local", line);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
   addLine(card, line);
 }
@@ -713,11 +776,32 @@ void initLvgl() {
   lv_indev_set_read_cb(indev, myTouchRead);
 }
 
+void applyAppTheme() {
+  lv_obj_t *screen = lv_screen_active();
+  lv_obj_set_style_bg_color(screen, lv_color_hex(0x070b12), 0);
+  lv_obj_set_style_bg_grad_color(screen, lv_color_hex(0x121826), 0);
+  lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_VER, 0);
+  lv_obj_set_style_text_font(screen, &lv_font_montserrat_14, 0);
+
+  lv_obj_set_style_bg_color(tabview, lv_color_hex(0x070b12), 0);
+  lv_obj_t *tabBar = lv_tabview_get_tab_bar(tabview);
+  lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x0b1220), 0);
+  lv_obj_set_style_bg_opa(tabBar, LV_OPA_COVER, 0);
+  lv_obj_set_style_pad_hor(tabBar, 4, 0);
+  lv_obj_set_style_pad_gap(tabBar, 2, 0);
+  lv_obj_set_style_text_font(tabBar, &lv_font_montserrat_12, 0);
+  lv_obj_set_style_text_color(tabBar, lv_color_hex(0x9fb0c8), LV_PART_ITEMS);
+  lv_obj_set_style_text_color(tabBar, lv_color_hex(0xf8fbff), LV_PART_ITEMS | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x2563eb), LV_PART_ITEMS | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_opa(tabBar, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
+  lv_obj_set_style_radius(tabBar, 9, LV_PART_ITEMS);
+}
+
 void initUi() {
   tabview = lv_tabview_create(lv_screen_active());
   lv_tabview_set_tab_bar_position(tabview, LV_DIR_TOP);
   lv_tabview_set_tab_bar_size(tabview, 34);
-  lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x0b0f17), 0);
+  applyAppTheme();
   homeTab = lv_tabview_add_tab(tabview, "HOME");
   nutTab = lv_tabview_add_tab(tabview, "NUT");
   proxmoxTab = lv_tabview_add_tab(tabview, "PVE");
