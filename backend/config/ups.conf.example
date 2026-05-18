@@ -1,0 +1,11 @@
+# Power Sentinel UPS definition
+# Detected example: APC Back-UPS ES 850G2 over USB HID.
+
+[homelab_ups]
+    driver = usbhid-ups
+    port = auto
+    vendorid = 051d
+    productid = 0002
+    # Optional: pin to a specific unit after detection.
+    # serial = REPLACE_WITH_UPS_SERIAL
+    desc = "APC Back-UPS ES 850G2"

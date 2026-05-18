@@ -71,6 +71,49 @@ Important: `/dev/ttyS1` is owned by the vendor `llm_sys` service. Power Sentinel
 
 `/dev/ttyS2` through `/dev/ttyS5` returned I/O errors during scan. `/dev/ttyS0` is the Linux console and must not be used.
 
+## Current UPS / NUT state
+
+The UPS is physically connected over USB OTG to the LLM Module and is detected as:
+
+```text
+Vendor/Product: 051d:0002
+Vendor: American Power Conversion
+Model: Back-UPS ES 850G2
+Serial: 5B2350TD6030
+NUT driver: usbhid-ups
+NUT UPS name: homelab_ups@localhost
+```
+
+Current verified NUT service state:
+
+```text
+nut-server: enabled/active
+nut-driver: static/active
+nut-monitor: disabled/inactive
+```
+
+`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but has no autonomous shutdown policy armed yet. Proxmox shutdown remains `disarmed`.
+
+Verified live UPS values after connection:
+
+```text
+ups.status: OL
+battery.charge: 100
+battery.runtime: 384 seconds
+input.voltage: 223.0 V
+ups.load: 38 %
+```
+
+The local API and StackFlow path now report `ups.available=true`, `status=OL`, and overall `severity=ok` from live `upsc` data rather than placeholder values.
+
+Sanitized example configs are in:
+
+```text
+backend/config/nut.conf.example
+backend/config/ups.conf.example
+backend/config/upsd.conf.example
+```
+
 ## Current backend
 
 The LLM Module backend is reachable at:

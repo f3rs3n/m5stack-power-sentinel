@@ -75,13 +75,51 @@ s.close()
 PY
 ```
 
-## NUT pre-cable state
+## NUT current state
 
-NUT packages are installed, but services are intentionally disabled until the UPS is attached and configured:
+The USB OTG cable is connected and the UPS is detected by the LLM Module:
 
 ```text
-nut-server: disabled/inactive
+Bus 001 Device 003: ID 051d:0002 American Power Conversion Uninterruptible Power Supply
+Product: Back-UPS ES 850G2 FW:938.a2 .I USB FW:a2
+Serial: 5B2350TD6030
+NUT driver: usbhid-ups
+UPS name: homelab_ups
+```
+
+Current service policy:
+
+```text
+nut-server: enabled/active
+nut-driver: static/active
 nut-monitor: disabled/inactive
-nut-driver: static/inactive
-/etc/nut/nut.conf: MODE=none
+/etc/nut/nut.conf: MODE=netserver
+```
+
+`nut-server` is enabled so UPS telemetry survives reboot. `nut-monitor` remains disabled until a deliberate shutdown policy is designed and approved.
+
+Useful NUT commands:
+
+```bash
+ssh root@192.168.2.202 'upsc homelab_ups@localhost'
+ssh root@192.168.2.202 'systemctl status nut-server nut-driver nut-monitor --no-pager'
+ssh root@192.168.2.202 'ss -ltnp | grep :3493 || true'
+ssh root@192.168.2.202 '/usr/local/bin/m5stack-ups-detect'
+```
+
+Current sanitized config templates in the repo:
+
+```text
+backend/config/nut.conf.example
+backend/config/ups.conf.example
+backend/config/upsd.conf.example
+```
+
+The live API summary should now show:
+
+```text
+ups.available: true
+ups.status: OL
+ups.status_label: Online
+severity: ok
 ```

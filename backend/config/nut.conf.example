@@ -1,0 +1,3 @@
+# Power Sentinel NUT mode
+# M5Stack LLM Module is the USB-attached UPS server.
+MODE=netserver
