@@ -37,13 +37,13 @@ Il vecchio bridge seriale PS1 è stato rimosso. La scelta StackFlow evita contes
 
 ## UI inclusa
 
-La UI LVGL ha tab per:
+La UI LVGL V1a segue la specifica `docs/architecture/core-s3-pages-v1.md` e ha cinque tab:
 
-1. `UPS` - stato UPS, batteria, runtime, carico, tensioni.
-2. `HA` - raggiungibilità Home Assistant API e MQTT.
-3. `PVE` - raggiungibilità Proxmox e shutdown state.
-4. `M5` - stato M5Stack/System, temperatura, RAM, disco, OpenAI, StackFlow, chat smoke.
-5. `Offline` - diagnostica trasporto, schema, timestamp, problemi e contatori poll.
+1. `HOME` - overview da scrivania con stato globale, UPS essentials, NUT/PVE/HA/NET/M5S e problemi principali.
+2. `NUT` - UPS essentials più sezioni scrollabili per NUT server/client e dettagli UPS.
+3. `PVE` - raggiungibilità Proxmox e shutdown state disarmato.
+4. `HA` - raggiungibilità Home Assistant API e MQTT.
+5. `M5S` - stato M5Stack/System più diagnostica trasporto, firmware, schema, UART e contatori poll.
 
 Non c'è più un payload demo/sample plausibile all'avvio. Finché non arriva il primo summary live, lo stato è esplicitamente `boot` / `offline` / `waiting`.
 

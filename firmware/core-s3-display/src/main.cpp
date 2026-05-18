@@ -55,12 +55,29 @@ struct UpsState {
   bool stale = true;
   char status[24] = "UNKNOWN";
   char statusLabel[32] = "Waiting for UPS";
+  char model[48] = "unknown";
+  char beeperStatus[24] = "unknown";
+  char transferReason[48] = "unknown";
+  char driver[24] = "unknown";
   int batteryPercent = -1;
   int runtimeSeconds = -1;
   int loadPercent = -1;
+  int realpowerNominalW = -1;
+  int loadW = -1;
   float inputVoltage = 0.0f;
   float outputVoltage = 0.0f;
+  float batteryVoltage = 0.0f;
   int ageSeconds = -1;
+};
+
+struct NutState {
+  bool serverActive = false;
+  bool driverActive = false;
+  bool monitorActive = false;
+  int clientCount = -1;
+  char mode[20] = "unknown";
+  char shutdownState[20] = "unknown";
+  char clients[96] = "none";
 };
 
 struct ServiceState {
@@ -85,6 +102,7 @@ struct SummaryState {
   char source[16] = "boot";
   char transportStatus[96] = "Waiting for StackFlow summary";
   UpsState ups;
+  NutState nut;
   ServiceState ha;
   ServiceState proxmox;
   ServiceState m5stack;
@@ -106,11 +124,11 @@ lv_display_t *display = nullptr;
 lv_indev_t *indev = nullptr;
 
 lv_obj_t *tabview = nullptr;
-lv_obj_t *upsTab = nullptr;
-lv_obj_t *haTab = nullptr;
+lv_obj_t *homeTab = nullptr;
+lv_obj_t *nutTab = nullptr;
 lv_obj_t *proxmoxTab = nullptr;
-lv_obj_t *m5Tab = nullptr;
-lv_obj_t *offlineTab = nullptr;
+lv_obj_t *haTab = nullptr;
+lv_obj_t *m5sTab = nullptr;
 
 // Official M5Module-LLM Arduino examples use Serial2 for the CoreS3 stacked
 // module UART. ESP32-S3 can route either UART to these pins, but matching the
@@ -176,7 +194,33 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.ups.loadPercent = jsonInt(ups["load_percent"], -1);
   state.ups.inputVoltage = jsonFloat(ups["input_voltage"], 0);
   state.ups.outputVoltage = jsonFloat(ups["output_voltage"], 0);
+  state.ups.batteryVoltage = jsonFloat(ups["battery_voltage"], 0);
+  state.ups.realpowerNominalW = jsonInt(ups["realpower_nominal_w"], -1);
+  state.ups.loadW = jsonInt(ups["load_w"], -1);
+  safeCopy(state.ups.model, sizeof(state.ups.model), ups["model"] | "unknown");
+  safeCopy(state.ups.beeperStatus, sizeof(state.ups.beeperStatus), ups["beeper_status"] | "unknown");
+  safeCopy(state.ups.transferReason, sizeof(state.ups.transferReason), ups["transfer_reason"] | "unknown");
+  safeCopy(state.ups.driver, sizeof(state.ups.driver), ups["driver"] | "unknown");
   state.ups.ageSeconds = jsonInt(ups["age_seconds"], -1);
+
+  JsonObjectConst nut = doc["nut"].as<JsonObjectConst>();
+  state.nut.serverActive = nut["server_active"] | false;
+  state.nut.driverActive = nut["driver_active"] | false;
+  state.nut.monitorActive = nut["monitor_active"] | false;
+  state.nut.clientCount = jsonInt(nut["client_count"], -1);
+  safeCopy(state.nut.mode, sizeof(state.nut.mode), nut["mode"] | "unknown");
+  safeCopy(state.nut.shutdownState, sizeof(state.nut.shutdownState), nut["shutdown_state"] | "unknown");
+  JsonArrayConst clients = nut["clients"].as<JsonArrayConst>();
+  if (clients.isNull() || clients.size() == 0) {
+    safeCopy(state.nut.clients, sizeof(state.nut.clients), "none");
+  } else {
+    String joined;
+    for (JsonVariantConst client : clients) {
+      if (joined.length() > 0) joined += ", ";
+      joined += client.as<const char *>();
+    }
+    safeCopy(state.nut.clients, sizeof(state.nut.clients), joined.c_str());
+  }
 
   JsonObjectConst ha = doc["homeassistant"].as<JsonObjectConst>();
   state.ha.available = ha["available"] | false;
@@ -280,41 +324,116 @@ void setupPage(lv_obj_t *tab) {
   lv_obj_set_style_pad_gap(tab, 8, 0);
 }
 
-void renderUps() {
-  lv_obj_clean(upsTab);
-  setupPage(upsTab);
-  lv_obj_t *card = makeCard(upsTab, "UPS / Power");
-  char line[96];
+const char *runtimeText(int seconds, char *buf, size_t bufSize) {
+  if (seconds < 0) return "unknown";
+  int minutes = seconds / 60;
+  int rem = seconds % 60;
+  snprintf(buf, bufSize, "%dm%02ds", minutes, rem);
+  return buf;
+}
+
+const char *okDown(bool ok) {
+  return ok ? "OK" : "DOWN";
+}
+
+const char *nutStatusBadge() {
+  if (!state.ups.available) return "NUT UNK";
+  if (state.ups.lowBattery) return "NUT CRIT";
+  if (state.ups.onBattery) return "NUT WARN";
+  return "NUT OK";
+}
+
+void renderHome() {
+  lv_obj_clean(homeTab);
+  setupPage(homeTab);
+  lv_obj_t *card = makeCard(homeTab, "POWER SENTINEL");
+  addBadge(card, state.offline ? "STALE" : state.severity, state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : severityColor(state.severity));
+  addLine(card, state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : (state.ups.available ? "GRID ONLINE" : "UPS UNAVAILABLE")));
+
+  char line[128];
+  char battery[24];
+  char runtime[24];
+  snprintf(line, sizeof(line), "Batt %s   Run %s",
+           intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"),
+           runtimeText(state.ups.runtimeSeconds, runtime, sizeof(runtime)));
+  addLine(card, line);
+
+  char load[24];
+  char inputV[24];
+  snprintf(line, sizeof(line), "Load %s   In %s",
+           intOrUnknown(state.ups.loadPercent, load, sizeof(load), "%"),
+           floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
+  addLine(card, line);
+
+  snprintf(line, sizeof(line), "%s   PVE %s   HA %s",
+           nutStatusBadge(), okDown(state.proxmox.available), okDown(state.ha.available));
+  addLine(card, line);
+  snprintf(line, sizeof(line), "NET %s   M5S %s", state.proxmox.available ? "OK" : "UNK", state.m5stack.available ? "OK" : "DOWN");
+  addLine(card, line);
+  snprintf(line, sizeof(line), "Problems: %s", state.problems);
+  addLine(card, line);
+}
+
+void renderNut() {
+  lv_obj_clean(nutTab);
+  setupPage(nutTab);
+  lv_obj_t *card = makeCard(nutTab, "NUT");
   if (state.offline) {
     addBadge(card, "NO LIVE DATA", lv_palette_main(LV_PALETTE_ORANGE));
   }
-  snprintf(line, sizeof(line), "Source: %s", state.source);
-  addLine(card, line);
+  const char *upsBadge = !state.ups.available ? "UPS UNKNOWN" : (state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : "ONLINE"));
+  lv_color_t upsColor = !state.ups.available ? lv_palette_main(LV_PALETTE_GREY) :
+                        (state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) :
+                         (state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN)));
+  addBadge(card, upsBadge, upsColor);
+  char line[128];
   snprintf(line, sizeof(line), "Status: %s (%s)", state.ups.statusLabel, state.ups.status);
   addLine(card, line);
   char battery[24];
   char runtime[24];
-  snprintf(line, sizeof(line), "Battery: %s   Runtime: %s",
+  snprintf(line, sizeof(line), "Battery %s   Runtime %s",
            intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"),
-           state.ups.runtimeSeconds < 0 ? "unknown" : intOrUnknown(state.ups.runtimeSeconds / 60, runtime, sizeof(runtime), " min"));
+           runtimeText(state.ups.runtimeSeconds, runtime, sizeof(runtime)));
   addLine(card, line);
   lv_obj_t *bar = lv_bar_create(card);
   lv_obj_set_width(bar, lv_pct(100));
   lv_bar_set_range(bar, 0, 100);
   lv_bar_set_value(bar, state.ups.batteryPercent < 0 ? 0 : state.ups.batteryPercent, LV_ANIM_OFF);
   char load[24];
+  char watts[24];
   char inputV[24];
-  char outputV[24];
-  snprintf(line, sizeof(line), "Load: %s   In/Out: %s / %s",
+  snprintf(line, sizeof(line), "Load %s / %s   Input %s",
            intOrUnknown(state.ups.loadPercent, load, sizeof(load), "%"),
-           floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"),
-           floatOrUnknown(state.ups.outputVoltage, outputV, sizeof(outputV), "V"));
+           intOrUnknown(state.ups.loadW, watts, sizeof(watts), "W"),
+           floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
   addLine(card, line);
-  const char *upsBadge = !state.ups.available ? "UPS UNKNOWN" : (state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : "ONLINE"));
-  lv_color_t upsColor = !state.ups.available ? lv_palette_main(LV_PALETTE_GREY) :
-                        (state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) :
-                         (state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN)));
-  addBadge(card, upsBadge, upsColor);
+
+  lv_obj_t *nutCard = makeCard(nutTab, "NUT server");
+  snprintf(line, sizeof(line), "server %s   driver %s", okDown(state.nut.serverActive), okDown(state.nut.driverActive));
+  addLine(nutCard, line);
+  snprintf(line, sizeof(line), "monitor %s   mode %s", state.nut.monitorActive ? "ARMED" : "off", state.nut.mode);
+  addLine(nutCard, line);
+  char clientCount[24];
+  snprintf(line, sizeof(line), "shutdown %s   clients %s", state.nut.shutdownState, state.nut.clientCount < 0 ? "unknown" : intOrUnknown(state.nut.clientCount, clientCount, sizeof(clientCount)));
+  addLine(nutCard, line);
+  snprintf(line, sizeof(line), "client list: %s", state.nut.clients);
+  addLine(nutCard, line);
+
+  lv_obj_t *details = makeCard(nutTab, "UPS details");
+  char battV[24];
+  char outV[24];
+  snprintf(line, sizeof(line), "Model: %s", state.ups.model);
+  addLine(details, line);
+  snprintf(line, sizeof(line), "BattV %s   Out %s",
+           floatOrUnknown(state.ups.batteryVoltage, battV, sizeof(battV), "V"),
+           floatOrUnknown(state.ups.outputVoltage, outV, sizeof(outV), "V"));
+  addLine(details, line);
+  snprintf(line, sizeof(line), "Nominal %s   Driver %s", intOrUnknown(state.ups.realpowerNominalW, watts, sizeof(watts), "W"), state.ups.driver);
+  addLine(details, line);
+  snprintf(line, sizeof(line), "Beeper %s", state.ups.beeperStatus);
+  addLine(details, line);
+  snprintf(line, sizeof(line), "Transfer: %s", state.ups.transferReason);
+  addLine(details, line);
 }
 
 void renderHa() {
@@ -338,57 +457,51 @@ void renderProxmox() {
   addLine(card, line);
 }
 
-void renderM5() {
-  lv_obj_clean(m5Tab);
-  setupPage(m5Tab);
-  lv_obj_t *card = makeCard(m5Tab, "M5Stack / System");
-  addBadge(card, state.m5stack.available ? "M5 OK" : "M5 DOWN", severityColor(state.m5stack.severity));
-  char line[96];
+void renderM5s() {
+  lv_obj_clean(m5sTab);
+  setupPage(m5sTab);
+  lv_obj_t *card = makeCard(m5sTab, "M5S");
+  addBadge(card, state.m5stack.available ? "M5S OK" : "M5S DOWN", severityColor(state.m5stack.severity));
+  char line[160];
   char temp[24];
   char ram[24];
-  snprintf(line, sizeof(line), "Temp: %s   RAM free: %s",
+  snprintf(line, sizeof(line), "Temp %s   RAM %s",
            floatOrUnknown(state.m5stack.temperatureC, temp, sizeof(temp), " C"),
            intOrUnknown(state.m5stack.ramAvailableMb, ram, sizeof(ram), " MB"));
   addLine(card, line);
   char disk[24];
-  snprintf(line, sizeof(line), "Disk free: %s", floatOrUnknown(state.m5stack.diskFreeGb, disk, sizeof(disk), " GB"));
+  snprintf(line, sizeof(line), "Disk free %s", floatOrUnknown(state.m5stack.diskFreeGb, disk, sizeof(disk), " GB"));
   addLine(card, line);
-  snprintf(line, sizeof(line), "StackFlow: %s   OpenAI: %s", state.m5stack.stackflowOk ? "OK" : "FAIL", state.m5stack.openaiOk ? "OK" : "FAIL");
+  snprintf(line, sizeof(line), "StackFlow %s   OpenAI %s", state.m5stack.stackflowOk ? "OK" : "FAIL", state.m5stack.openaiOk ? "OK" : "FAIL");
   addLine(card, line);
-  snprintf(line, sizeof(line), "Chat smoke: %s", state.m5stack.chatSmokeOk ? "OK" : "FAIL");
+  snprintf(line, sizeof(line), "Chat smoke %s", state.m5stack.chatSmokeOk ? "OK" : "FAIL");
   addLine(card, line);
-}
 
-void renderOffline() {
-  lv_obj_clean(offlineTab);
-  setupPage(offlineTab);
-  lv_obj_t *card = makeCard(offlineTab, "Transport / Stale Fallback");
-  addBadge(card, state.offline ? "OFFLINE" : "LIVE", state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN));
-  char line[160];
-  snprintf(line, sizeof(line), "Schema: %s", state.schema);
-  addLine(card, line);
-  snprintf(line, sizeof(line), "Timestamp: %s", state.timestamp);
-  addLine(card, line);
-  snprintf(line, sizeof(line), "Source: %s", state.source);
-  addLine(card, line);
+  lv_obj_t *transport = makeCard(m5sTab, "Transport");
+  addBadge(transport, state.offline ? "OFFLINE" : "LIVE", state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN));
+  snprintf(line, sizeof(line), "Source %s   Schema %s", state.source, state.schema);
+  addLine(transport, line);
   snprintf(line, sizeof(line), "Transport: %s", state.transportStatus);
-  addLine(card, line);
-  snprintf(line, sizeof(line), "Poll: %lu ok / %lu fail / every %lus / last %lums",
+  addLine(transport, line);
+  snprintf(line, sizeof(line), "Poll %lu ok / %lu fail / last %lums",
            static_cast<unsigned long>(fetchOkCount),
            static_cast<unsigned long>(fetchFailCount),
-           static_cast<unsigned long>(SUMMARY_POLL_MS / 1000UL),
            static_cast<unsigned long>(lastFetchDurationMs));
-  addLine(card, line);
+  addLine(transport, line);
+  snprintf(line, sizeof(line), "FW %s", POWER_SENTINEL_FIRMWARE_BUILD);
+  addLine(transport, line);
+  snprintf(line, sizeof(line), "UART %d/%d %d", POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN, POWER_SENTINEL_UART_BAUD);
+  addLine(transport, line);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
-  addLine(card, line);
+  addLine(transport, line);
 }
 
 void renderAll() {
-  renderUps();
-  renderHa();
+  renderHome();
+  renderNut();
   renderProxmox();
-  renderM5();
-  renderOffline();
+  renderHa();
+  renderM5s();
 }
 
 bool wifiConfigured() {
@@ -590,11 +703,11 @@ void initUi() {
   lv_tabview_set_tab_bar_position(tabview, LV_DIR_TOP);
   lv_tabview_set_tab_bar_size(tabview, 34);
   lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x0b0f17), 0);
-  upsTab = lv_tabview_add_tab(tabview, "UPS");
-  haTab = lv_tabview_add_tab(tabview, "HA");
+  homeTab = lv_tabview_add_tab(tabview, "HOME");
+  nutTab = lv_tabview_add_tab(tabview, "NUT");
   proxmoxTab = lv_tabview_add_tab(tabview, "PVE");
-  m5Tab = lv_tabview_add_tab(tabview, "M5");
-  offlineTab = lv_tabview_add_tab(tabview, "Offline");
+  haTab = lv_tabview_add_tab(tabview, "HA");
+  m5sTab = lv_tabview_add_tab(tabview, "M5S");
   renderAll();
 }
 
