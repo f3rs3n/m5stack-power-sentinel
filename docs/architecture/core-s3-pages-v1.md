@@ -1,0 +1,671 @@
+# CoreS3 Pages V1 Specification
+
+Date: 2026-05-18
+Status: design spec for the next UI/API iteration
+Device: M5Stack CoreS3 + LLM Kit Power Sentinel
+
+## Goal
+
+Define the V1 CoreS3 display information architecture now that the StackFlow transport is stable and NUT is reading the real UPS.
+
+The CoreS3 is a desk-visible physical homelab sentinel. It should answer, quickly and honestly:
+
+1. Is power OK?
+2. How much runtime remains?
+3. Are Proxmox, Home Assistant, Zigbee, and the M5Stack appliance healthy?
+4. If something is wrong, which subsystem is the cause?
+5. If the display itself looks stale, is StackFlow transport still working?
+
+No page may show plausible demo/sample values after live transport fails. Missing data must render as `unknown`, `unavailable`, or an explicit stale/offline state.
+
+## Page set
+
+V1 has five top-level tabs:
+
+1. `HOME`
+2. `NUT`
+3. `PVE`
+4. `HA`
+5. `M5S`
+
+Navigation:
+
+- `HOME` is the default boot page.
+- Horizontal swipe between top-level tabs is required.
+- No automatic tab switch in V1.
+- No automatic return-to-HOME timer in V1.
+- No audible/beep alert in V1; visual alerts only.
+- For V1, nested detail is implemented as vertical scroll sections/cards inside the relevant tab.
+- A later V2 may promote dense sections into tap-to-open subpages with a back affordance.
+
+Visual direction:
+
+- Modern, clean, desk-readable dashboard.
+- Dark background, high contrast text, restrained accent colors.
+- No grimdark/Warhammer skin in V1.
+- Favor compact cards, clear status pills, and simple bars over decorative assets.
+
+## Severity and colors
+
+Global severity values:
+
+- `ok`
+- `warn`
+- `critical`
+- `offline` / `stale` display state when the CoreS3 has no live summary
+
+Color mapping:
+
+- OK: green accent
+- WARN: amber/orange accent
+- CRITICAL: red accent
+- OFFLINE/STALE/UNAVAILABLE: grey or amber depending on whether stale data exists
+- System/debug/informational accents: cyan/blue
+
+V1 severity policy:
+
+Critical:
+
+- NUT reports `LB` / low battery.
+- Estimated runtime <= 180 seconds.
+- Battery <= 15%, unless NUT/runtime clearly indicates a better state.
+- PVE API/node down.
+- ZFS degraded/faulted/error state.
+- SMART failing or disk health not OK according to PVE API data.
+- HA API down.
+- MQTT broker down.
+
+Warn:
+
+- NUT reports on-battery (`OB`) but not low-battery.
+- Runtime <= 10 minutes and > 3 minutes.
+- Battery <= 50% and > 15%.
+- Zigbee2MQTT add-on/bridge down.
+- Zigbee coordinator down.
+- CPU temperature warning thresholds crossed.
+- OpenAI API / chat smoke failure on the M5Stack.
+- Short stale data / transient transport failures.
+
+Temperature thresholds:
+
+- PVE CPU temperature WARN: >= 70 C
+- PVE CPU temperature CRITICAL: >= 80 C
+
+Notes:
+
+- `OpenAI FAIL` is WARN, not CRITICAL. It does not break the primary power sentinel function.
+- VM/LXC counts are informational in V1 and do not affect global severity until an expected-state model is explicitly introduced.
+- Z2M/coordinator are WARN in V1, not CRITICAL.
+
+## HOME tab
+
+Purpose: dense desk overview.
+
+HOME answers: “Is the homelab currently OK, and if not, where should I look?”
+
+Required visible elements:
+
+- Header: `POWER SENTINEL` or compact title.
+- Global severity pill: `OK`, `WARN`, `CRITICAL`, `OFFLINE`, or `STALE`.
+- Main power state:
+  - `GRID ONLINE`
+  - `ON BATTERY`
+  - `LOW BATTERY`
+  - `UPS UNAVAILABLE`
+  - `STALE DATA`
+- UPS essentials:
+  - battery percent
+  - runtime, min/sec
+  - load percent
+  - input voltage
+- Subsystem status row:
+  - `NUT OK/WARN/CRIT/UNK`
+  - `PVE OK/DOWN`
+  - `HA OK/DOWN/WARN`
+  - `NET OK/DOWN/UNK`
+  - `M5S OK/WARN/CRIT`
+- Problems summary:
+  - show max 2-3 human-readable problems.
+  - if none: `No active problems`.
+
+HOME must not show:
+
+- VM/LXC counts.
+- Long IPs, tokens, model IDs, schemas, serial numbers, or driver versions.
+- Transport poll counters; those belong on M5S.
+- Architecture commentary or explanatory slogans; HOME should stay operational.
+
+Example HOME layout:
+
+```text
+POWER SENTINEL       OK
+GRID ONLINE
+
+Batt 100%     Run 6m24s
+Load 38%      In 226V
+
+NUT OK   PVE OK   HA OK
+NET OK   M5S OK
+
+No active problems
+```
+
+Network status in HOME:
+
+- V1 may show `NET OK/DOWN/UNK` if a simple gateway/router reachability probe is available.
+- If no reliable probe exists yet, render `NET UNK` rather than inventing state.
+- Router/Ubiquiti is not otherwise modeled as a first-class page in V1.
+
+## NUT tab
+
+Purpose: UPS + NUT server operational view.
+
+The `NUT` tab combines two vertical sections for V1:
+
+1. UPS essentials
+2. NUT server / clients
+
+If this becomes too dense, V2 may split into separate `UPS` and `NUT` pages or use tap-to-open subpages.
+
+### NUT: UPS essentials section
+
+Always visible near the top:
+
+- UPS state label: `Online`, `On battery`, `Low battery`, `Unavailable`, `Stale`.
+- Raw NUT status: e.g. `OL`, `OB`, `LB`, `CHRG`, `DISCHRG`, `RB` if present.
+- Battery percent with large bar.
+- Runtime in min/sec as a prominent number.
+- Load percent with smaller bar.
+- Estimated load watts, if `ups.realpower.nominal` is known:
+  - `load_w = realpower_nominal_w * load_percent / 100`
+- Input voltage.
+- Data age/stale indicator.
+
+Secondary UPS details, lower on the same scrollable tab:
+
+- output voltage, if NUT exposes it.
+- battery voltage.
+- nominal real power W.
+- transfer reason.
+- beeper status.
+- UPS model.
+- NUT driver name.
+
+Do not show on the normal top section:
+
+- UPS serial number.
+- UPS firmware version.
+- NUT driver version.
+- battery manufacture date.
+
+These may appear only in a future debug/details section if useful.
+
+Current known UPS data from APC Back-UPS ES 850G2:
+
+- model: `Back-UPS ES 850G2`
+- driver: `usbhid-ups`
+- status: `OL`
+- battery percent: available
+- runtime seconds: available
+- load percent: available
+- input voltage: available
+- battery voltage: available
+- nominal real power: available (`ups.realpower.nominal`)
+- beeper status: available
+- transfer reason: available
+- output voltage: currently may be unavailable
+
+Example NUT top section:
+
+```text
+NUT                 ONLINE
+
+Battery
+[##########] 100%
+
+Runtime 6m24s
+Load [####------] 38%  ~198W
+
+Input 226V
+Status OL   Age 0s
+```
+
+### NUT: server / clients section
+
+V1 should use NUT-observable client data only. Do not add custom log parsing, custom upsmon config introspection, or bespoke client health agents for V1.
+
+Display fields:
+
+- `nut-server`: OK/DOWN
+- `nut-driver`: OK/DOWN
+- `upsd` listener: localhost/LAN status if available
+- client count, if obtainable from NUT/upsd tools in a low-complexity way
+- connected client names/hosts, if obtainable from NUT/upsd tools in a low-complexity way
+
+Known physical UPS loads:
+
+- Proxmox mini-PC
+- main PC
+- Ubiquiti router
+
+Do not hard-code these as `OK` clients unless NUT actually exposes them as connected clients. Static physical load labels may be used only as low-priority informational text if dynamic client discovery is not available, but the preferred V1 behavior is NUT client-derived data.
+
+Shutdown policy:
+
+- `nut-monitor` remains disabled in V1.
+- No autonomous shutdown is armed in V1.
+- NUT page may show `Shutdown: DISARMED` only if it is unambiguous.
+
+## PVE tab
+
+Purpose: single-node Proxmox host and workload health.
+
+Scope:
+
+- One Proxmox node only.
+- No cluster model in V1.
+- Read-only API integration.
+- No shutdown actions in V1.
+- Shutdown policy display remains explicitly disarmed/not active.
+
+Security/config direction:
+
+- Use a dedicated Proxmox API token with read-only permissions.
+- Store token/config in a root-only file on the LLM Module, e.g. `/etc/power-sentinel.json`.
+- Commit only sanitized config templates.
+- The M5Stack backend talks directly to the Proxmox API over HTTPS.
+
+Top PVE section:
+
+- `PVE OK/DOWN`
+- node name
+- API latency if available
+- node online status
+- CPU usage %
+- RAM usage %
+- CPU temperature
+- storage usage % if available
+- ZFS status
+- SMART/disk health status
+- VM running count
+- LXC/CT running count
+- Shutdown state: `DISARMED` / `not active`
+
+Do not show shutdown triggers in V1. Avoid implying an armed shutdown policy before dry-run exists.
+
+VM/LXC section:
+
+- Use a lower scrollable section/card.
+- List running VM names, up to a display-safe maximum, then `+N more`.
+- List running LXC/CT names, up to a display-safe maximum, then `+N more`.
+- Do not list stopped workloads in V1.
+- Do not distinguish critical vs non-critical workloads in V1.
+- VM/LXC stopped/running counts are informational only and do not affect severity until an explicit expected-state config exists.
+
+ZFS section:
+
+- pool name(s)
+- pool health: `ONLINE`, `DEGRADED`, `FAULTED`, etc.
+- capacity %
+- scrub state / last scrub age if available via API
+- error count if available
+
+SMART/disk section:
+
+- Use PVE API first.
+- V1 should not require SSH or custom `smartctl` scripts on the Proxmox host.
+- Show health summary and failing/warning count.
+- Disk names are not essential on the CoreS3 unless there is a problem.
+
+Example PVE layout:
+
+```text
+PVE                 OK
+Node pve-mini
+
+CPU 18%      RAM 46%
+Temp 58C     Storage 62%
+
+ZFS ONLINE   SMART OK
+VM 8 run     CT 4 run
+
+Shutdown DISARMED
+
+VMs: ha, docker, ... +5
+CTs: hermes, services, ... +2
+```
+
+## HA tab
+
+Purpose: Home Assistant, MQTT, Zigbee2MQTT, and coordinator health.
+
+HA OK in V1 requires:
+
+- Home Assistant API reachable.
+- MQTT broker reachable.
+
+Zigbee2MQTT and coordinator are shown separately and currently map to WARN, not CRITICAL.
+
+Data source priority:
+
+1. Home Assistant API for HA reachability and entities.
+2. MQTT broker reachability.
+3. Zigbee2MQTT MQTT bridge topics:
+   - `zigbee2mqtt/bridge/state`
+   - `zigbee2mqtt/bridge/info`
+4. Supervisor API only if MQTT/entity checks are insufficient.
+
+Known HA/Zigbee context:
+
+- Home Assistant is supervised.
+- Zigbee2MQTT runs as a Home Assistant add-on.
+- Zigbee2MQTT topic base: `zigbee2mqtt`.
+- Coordinator: Sonoff Dongle-M via Ethernet.
+
+Visible fields:
+
+- `HA API OK/DOWN`
+- `MQTT OK/DOWN`
+- `Z2M OK/DOWN/UNK`
+- `Coordinator OK/DOWN/UNK`
+- HA API latency if available
+- MQTT last publish age if available
+- Power/M5Stack entities OK if available
+- last error/problem summary
+
+Do not duplicate the full Home Assistant UI.
+Keep text operational: status, latency, age, and problem summaries only.
+
+Example HA layout:
+
+```text
+HA                  OK
+
+API OK       MQTT OK
+Z2M OK       COORD OK
+
+Last publish 12s
+Power sensors OK
+
+Problem: none
+```
+
+Severity mapping:
+
+- HA API down: CRITICAL.
+- MQTT broker down: CRITICAL.
+- Z2M down: WARN in V1.
+- Coordinator down: WARN in V1.
+
+## M5S tab
+
+Purpose: local M5Stack appliance health + transport/debug.
+
+This tab replaces separate `M5` and `Transport` debug tabs for the final appliance UI.
+
+Visible fields:
+
+M5Stack Linux:
+
+- module temperature
+- RAM available or RAM usage
+- disk free
+- uptime if available
+- core services:
+  - `llm-sys`
+  - `power-sentinel-api`
+  - `power-sentinel-stackflow-unit`
+  - `nut-server`
+- StackFlow API OK/FAIL
+- OpenAI API OK/FAIL
+- chat smoke OK/FAIL/last run if available
+
+Transport:
+
+- source:
+  - `stackflow`
+  - `http`
+  - `boot`
+  - `stale`
+- poll OK count
+- poll fail count
+- last fetch duration ms
+- last good age
+- last request ID if useful
+- firmware build
+- backend schema
+- UART pins/baud:
+  - CoreS3 RX G18 / TX G17 @ 115200
+
+Example M5S layout:
+
+```text
+M5S                 OK
+
+Temp 42C     RAM 695MB
+Disk 20.0GB  Uptime 1d
+
+llm-sys OK   API OK
+StackFlow OK NUT OK
+OpenAI WARN  Chat FAIL
+
+Transport stackflow
+Poll 153 ok / 2 fail
+Last 84ms  Age 1s
+FW stackflow-2026-05-18
+Schema summary.v1
+UART 18/17 115200
+```
+
+OpenAI/chat smoke failures should surface here and may contribute WARN, but not CRITICAL.
+
+## Alert/offline behavior
+
+V1 visual-only alert behavior:
+
+- No beep/audio.
+- No auto-switch to HOME/NUT/PVE.
+- No forced modal alerts.
+- Current page may show a global top bar/badge reflecting global severity.
+
+Offline/stale behavior:
+
+- If CoreS3 has no valid live summary, show explicit stale/offline state.
+- Keep the last good values only if clearly marked stale and aged.
+- Never synthesize plausible replacement values.
+- M5S must show poll fail count and last good age.
+
+## API contract extension direction
+
+Keep `power-sentinel.summary.v1` and add optional fields. The firmware must tolerate missing fields and render `unknown`/`unavailable`.
+
+Preferred implementation strategy:
+
+- Define a broad optional schema in docs/tests.
+- Implement incrementally.
+- Start with fields already available from NUT/upsc and local healthcheck.
+- Add Proxmox and HA/Z2M read-only integrations later.
+
+### Proposed optional `ups` fields
+
+```json
+{
+  "model": "Back-UPS ES 850G2",
+  "status": "OL",
+  "status_label": "Online",
+  "battery_percent": 100,
+  "runtime_seconds": 384,
+  "load_percent": 38,
+  "input_voltage": 226.0,
+  "output_voltage": null,
+  "battery_voltage": 13.6,
+  "realpower_nominal_w": 520,
+  "load_w": 198,
+  "beeper_status": "disabled",
+  "transfer_reason": "input voltage out of range",
+  "driver": "usbhid-ups",
+  "nut_server_state": "active",
+  "age_seconds": 0,
+  "stale": false
+}
+```
+
+### Proposed optional `nut` object
+
+```json
+{
+  "server_active": true,
+  "driver_active": true,
+  "monitor_active": false,
+  "mode": "netserver",
+  "client_count": null,
+  "clients": [],
+  "shutdown_state": "disarmed"
+}
+```
+
+`clients` should be populated only from low-complexity NUT/upsd-visible data. Do not add custom client agents for V1.
+
+### Proposed optional `network` object
+
+```json
+{
+  "available": true,
+  "gateway_ok": true,
+  "router_ok": true,
+  "latency_ms": 2.1,
+  "severity": "ok"
+}
+```
+
+Render as `NET OK/DOWN/UNK` on HOME. If not implemented, use `UNK`.
+
+### Proposed optional `proxmox` fields
+
+```json
+{
+  "available": true,
+  "severity": "ok",
+  "node_name": "pve-mini",
+  "api_latency_ms": 25,
+  "node_online": true,
+  "cpu_usage_percent": 18,
+  "ram_usage_percent": 46,
+  "cpu_temperature_c": 58,
+  "storage_usage_percent": 62,
+  "vms_running": 8,
+  "lxcs_running": 4,
+  "running_vms": ["ha", "docker"],
+  "running_lxcs": ["hermes", "services"],
+  "zfs": {
+    "status": "ONLINE",
+    "pools": [
+      {"name": "rpool", "status": "ONLINE", "capacity_percent": 62, "errors": 0}
+    ]
+  },
+  "smart": {
+    "status": "OK",
+    "failing_count": 0,
+    "warning_count": 0,
+    "max_temperature_c": null
+  },
+  "shutdown_state": "disarmed",
+  "shutdown_policy": "not_active",
+  "last_error": null
+}
+```
+
+### Proposed optional `homeassistant` fields
+
+```json
+{
+  "available": true,
+  "mqtt": true,
+  "severity": "ok",
+  "api_latency_ms": 20,
+  "mqtt_last_publish_age_seconds": 12,
+  "power_entities_ok": true,
+  "z2m": {
+    "available": true,
+    "state": "online",
+    "topic_base": "zigbee2mqtt"
+  },
+  "coordinator": {
+    "available": true,
+    "type": "Sonoff Dongle-M Ethernet",
+    "state": "online"
+  },
+  "last_error": null
+}
+```
+
+### Proposed optional `m5stack` fields
+
+```json
+{
+  "available": true,
+  "severity": "ok",
+  "temperature_c": 42.4,
+  "ram_available_mb": 695,
+  "ram_usage_percent": null,
+  "disk_free_gb": 20.0,
+  "uptime_seconds": 86400,
+  "services": {
+    "llm-sys": "active",
+    "power-sentinel-api": "active",
+    "power-sentinel-stackflow-unit": "active",
+    "nut-server": "active"
+  },
+  "stackflow_ok": true,
+  "openai_ok": true,
+  "chat_smoke_ok": false,
+  "last_chat_smoke_age_seconds": null
+}
+```
+
+### Backend metadata
+
+```json
+{
+  "backend_version": "unknown",
+  "generated_at": "2026-05-18T17:00:00Z",
+  "data_sources": {
+    "nut": "live",
+    "ha": "live",
+    "proxmox": "unavailable",
+    "m5stack": "live"
+  }
+}
+```
+
+Transport counters remain firmware-local because the backend cannot know whether the CoreS3 received the response.
+
+## Implementation priority
+
+Recommended next implementation sequence:
+
+1. Extend backend parsing for easy NUT fields already present in `upsc`:
+   - model
+   - battery voltage
+   - nominal W
+   - estimated load W
+   - beeper status
+   - transfer reason
+   - driver
+   - NUT service state if cheap
+2. Restructure CoreS3 tabs to `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
+3. Implement V1a functional UI:
+   - sections/cards
+   - bars
+   - HOME dense overview
+   - M5S transport/debug
+4. Then polish toward V1b modern UI:
+   - improved spacing
+   - consistent pills
+   - better bar styling
+   - visual severity top bar
+5. Add PVE read-only API integration.
+6. Add HA/Z2M/coordinator read-only checks.
+7. Only after stable read-only behavior, design shutdown dry-run.
+
+No real shutdown automation belongs in this V1 display spec.
