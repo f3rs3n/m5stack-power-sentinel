@@ -223,9 +223,30 @@ CoreS3
 -> CoreS3 display
 ```
 
-## Deprecated implementation removed from repo
+## Deprecated implementation removed from repo and deployed module
 
-The old direct serial bridge (`power-sentinel-serial-bridge.py`, its systemd unit, tests, and PS1 probe helper) was removed from the repository after StackFlow was verified. The choice is deliberate: preserving `llm_sys` avoids UART contention and keeps the vendor StackFlow/assistant path available.
+The old direct serial bridge (`power-sentinel-serial-bridge.py`, its systemd unit, tests, and PS1 probe helper) was removed from the repository after StackFlow was verified. The deployed LLM Module was also cleaned after a stale active `power-sentinel-serial-bridge.service` was found still running and contending for `/dev/ttyS1`.
+
+The stale deployed bridge symptom on the CoreS3 was:
+
+```text
+Serial RX StackFlow: PS1 ERR unknown_command 0
+StackFlow JSON parse error: InvalidInput
+```
+
+The fix was:
+
+```bash
+systemctl disable --now power-sentinel-serial-bridge.service
+rm -f /etc/systemd/system/power-sentinel-serial-bridge.service \
+      /etc/systemd/system/multi-user.target.wants/power-sentinel-serial-bridge.service \
+      /usr/local/bin/power-sentinel-serial-bridge
+systemctl daemon-reload
+systemctl restart llm-sys
+systemctl restart power-sentinel-stackflow-unit
+```
+
+After cleanup, only `llm_sys` owns `/dev/ttyS1`, and CoreS3 polling returned online with increasing poll OK counts. The choice is deliberate: preserving `llm_sys` avoids UART contention and keeps the vendor StackFlow/assistant path available.
 
 ## Related docs
 
