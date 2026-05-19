@@ -38,7 +38,7 @@ ssh root@192.168.2.202 'journalctl -u power-sentinel-stackflow-unit -f'
 /etc/m5stack-ha-publish.json          # 0600 root:root, contains MQTT credentials
 ```
 
-`m5stack-ha-publish` now shells out to `mosquitto_pub` instead of using a hand-rolled MQTT packet client. To avoid leaking passwords through argv, it creates a temporary `XDG_CONFIG_HOME/mosquitto_pub` option file with `0600` permissions and sends payloads via stdin (`mosquitto_pub -s`). The Power Sentinel API uses the same option-file pattern with `mosquitto_sub`.
+`m5stack-ha-publish` now shells out to `mosquitto_pub` instead of using a hand-rolled MQTT packet client. To avoid leaking passwords through argv, it creates a temporary `XDG_CONFIG_HOME/mosquitto_pub` option file with `0600` permissions and sends payloads via stdin (`mosquitto_pub -s`). Credentials must come from the root-only config file; the publisher intentionally does not expose a password CLI flag. The Power Sentinel API uses the same option-file pattern with `mosquitto_sub`.
 
 Useful read-only probes from the LLM Module:
 

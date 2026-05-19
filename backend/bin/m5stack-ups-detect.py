@@ -1,17 +1,31 @@
 #!/usr/bin/env python3
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
 
 
-def run(title, cmd, timeout=12):
+def redact_nut_config(text):
+    text = re.sub(r"(?im)^(\s*password\s*=\s*).*$", r"\1[REDACTED]", text)
+    text = re.sub(
+        r"(?im)^(\s*MONITOR\s+\S+\s+\S+\s+\S+\s+)\S+(\s+\S+\s*)$",
+        r"\1[REDACTED]\2",
+        text,
+    )
+    return text
+
+
+def run(title, cmd, timeout=12, redact=None):
     print(f"\n### {title}")
     print("$ " + " ".join(cmd))
     try:
         cp = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
         out = cp.stdout.strip()
         err = cp.stderr.strip()
+        if redact:
+            out = redact(out)
+            err = redact(err)
         if out:
             print(out)
         if err:
@@ -35,7 +49,7 @@ def main():
     run("NUT scanner USB", ["nut-scanner", "-U"], timeout=30)
     run("NUT installed commands", ["sh", "-c", "for c in upsc upsdrvctl upsd upsmon nut-scanner; do printf '%s=' \"$c\"; command -v \"$c\" || true; done"])
     run("NUT service state", ["sh", "-c", "for s in nut-server nut-monitor nut-driver; do echo -- $s; systemctl is-enabled $s 2>/dev/null || true; systemctl is-active $s 2>/dev/null || true; done"])
-    run("NUT config files", ["sh", "-c", "for f in /etc/nut/nut.conf /etc/nut/ups.conf /etc/nut/upsd.conf /etc/nut/upsd.users /etc/nut/upsmon.conf; do echo -- $f; test -f $f && sed -n '1,80p' $f | sed -E 's/(password[[:space:]]*=).*/\\1 [REDACTED]/I' || true; done"])
+    run("NUT config files", ["sh", "-c", "for f in /etc/nut/nut.conf /etc/nut/ups.conf /etc/nut/upsd.conf /etc/nut/upsd.users /etc/nut/upsmon.conf; do echo -- $f; test -f $f && sed -n '1,80p' $f || true; done"], redact=redact_nut_config)
 
 
 if __name__ == "__main__":

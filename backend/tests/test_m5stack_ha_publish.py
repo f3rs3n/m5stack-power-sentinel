@@ -1,5 +1,7 @@
 import importlib.util
 import pathlib
+import subprocess
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "bin" / "m5stack-ha-publish.py"
@@ -11,6 +13,13 @@ def load_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_cli_help_does_not_offer_password_argument():
+    cp = subprocess.run([sys.executable, str(MODULE_PATH), "--help"], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+
+    assert cp.returncode == 0
+    assert "--password" not in cp.stdout
 
 
 def test_mosquitto_pub_command_keeps_password_out_of_argv_and_uses_stdin_payload():

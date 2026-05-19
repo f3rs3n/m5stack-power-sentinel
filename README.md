@@ -30,7 +30,7 @@ backend/
   systemd/    systemd unit/timer files
   tests/      backend tests
 firmware/
-  core-s3-display/  CoreS3 firmware project, planned PlatformIO + M5Unified/M5GFX
+  core-s3-display/  CoreS3 PlatformIO firmware project using M5Unified/M5GFX/LVGL
 docs/
   plans/      project plans and phase checklists
   architecture/
@@ -48,21 +48,18 @@ Already completed on the physical module:
 - LLM/OpenAI-compatible API baseline stable;
 - local LLM healthcheck installed;
 - MQTT/Home Assistant discovery for LLM module health installed and verified;
-- NUT packages installed, but NUT services intentionally disabled until UPS USB OTG cable arrives;
-- read-only UPS detection script prepared;
+- UPS connected over USB OTG and served by NUT as `homelab_ups`;
+- NUT telemetry active: `nut-server` and `nut-driver` are active, while `nut-monitor` is currently disabled/inactive on both the M5Stack primary and Proxmox secondary;
+- Proxmox NUT secondary readiness proven, then deliberately disarmed;
 - StackFlow transport verified: CoreS3 sends `work_id: "sentinel"` summaries over the internal UART, `llm_sys` routes to `ipc:///tmp/rpc.sentinel`, and the display renders live data.
 
 See:
 
-- `docs/plans/homelab-power-sentinel-plan-2026-05-15.md`
+- `docs/operations/current-state.md`
+- `docs/operations/backend-ops.md`
 
-## Near-term phases
+## Current next steps
 
-1. Deploy Power Sentinel API V0 and use `/api/v1/summary` as the CoreS3/frontend contract.
-2. Connect UPS via USB OTG and run discovery.
-3. Configure NUT server as `homelab_ups`.
-4. Replace current UPS-unavailable state with real NUT data.
-5. Build UPS MQTT/Home Assistant integration.
-6. Build CoreS3 display firmware.
-7. Add Home Assistant automations.
-8. Add Proxmox NUT client readiness, then deliberately enable/test the M5Stack primary monitor first and the Proxmox secondary monitor after that.
+1. Keep the Standard NUT shutdown path staged/disarmed until the final deliberate arming step.
+2. Continue polish/verification of the CoreS3 display and Home Assistant/Zigbee2MQTT read-only status.
+3. When ready, deliberately re-enable `nut-monitor` on the M5Stack primary first, then on Proxmox secondary, with live verification after each step.

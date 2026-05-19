@@ -220,7 +220,6 @@ def main():
     ap.add_argument("--port", type=int, default=None)
     ap.add_argument("--prefix", default=None)
     ap.add_argument("--username", default=None)
-    ap.add_argument("--password", default=None)
     ap.add_argument("--chat", action="store_true", help="include slower chat smoke test")
     ap.add_argument("--no-discovery", action="store_true")
     args = ap.parse_args()
@@ -230,7 +229,7 @@ def main():
     port = args.port or int(cfg.get("port", DEFAULT_PORT))
     prefix = args.prefix or cfg.get("prefix") or DEFAULT_PREFIX
     username = args.username if args.username is not None else cfg.get("username")
-    password = args.password if args.password is not None else cfg.get("password")
+    password = cfg.get("password")
 
     data = run_healthcheck(include_chat=args.chat)
     state_topic = f"{prefix}/state"

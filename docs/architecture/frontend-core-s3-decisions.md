@@ -1,6 +1,6 @@
 # CoreS3 frontend decisions
 
-Status: draft / approved for V0 exploration
+Status: superseded by the implemented V1 firmware. Kept as historical design rationale only; current runtime state lives in `docs/operations/current-state.md` and current page contract in `docs/architecture/core-s3-pages-v1.md`.
 
 ## Goal
 

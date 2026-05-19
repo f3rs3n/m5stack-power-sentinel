@@ -94,7 +94,7 @@ The discovery scripts and the old direct probe/bridge protocol were removed from
 
 ## Current transport target
 
-The final Power Sentinel frontend uses internal UART over WiFi HTTP when the stack is physically assembled, but it speaks official StackFlow JSON through `llm_sys` rather than opening `/dev/ttyS1` from a parallel Linux process.
+The final Power Sentinel frontend uses the internal stacked UART when the stack is physically assembled. It speaks official StackFlow JSON through `llm_sys` rather than opening `/dev/ttyS1` from a parallel Linux process.
 
 CoreS3 firmware uses the vendor-tested UART instance and pins:
 

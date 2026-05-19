@@ -6,6 +6,12 @@ secrets/
 *.key
 *.pem
 id_*
+power-sentinel.json
+m5stack-ha-publish.json
+upsd.users
+upsmon.conf
+*.local.json
+*.local.conf
 
 # Runtime state
 run/
