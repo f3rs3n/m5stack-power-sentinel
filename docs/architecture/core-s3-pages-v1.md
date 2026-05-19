@@ -252,10 +252,10 @@ Do not hard-code these as `OK` clients unless NUT actually exposes them as conne
 
 Shutdown policy:
 
-- Real shutdown strategy is Standard NUT, not Proxmox API orchestration.
+- Real shutdown strategy is Standard NUT, not custom shutdown orchestration.
 - `nut-monitor` remains disabled until Standard NUT primary/secondary config is deliberately armed.
 - Power Sentinel is dashboard/dry-run observer only.
-- NUT page should show `Shutdown DRY-RUN`, owner `upsmon`, primary/secondary readiness, low-battery thresholds, and explicit `api orch OFF`.
+- NUT page should show `Shutdown DRY-RUN`, owner `upsmon`, primary/secondary readiness, client inventory state, and low-battery thresholds.
 
 ## PVE tab
 

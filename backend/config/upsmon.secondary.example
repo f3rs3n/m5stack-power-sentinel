@@ -1,6 +1,6 @@
-# Sanitized example for /etc/nut/upsmon.conf on the Proxmox host.
-# This is the secondary upsmon role: Proxmox reads UPS state from the M5Stack LLM Module
-# and shuts itself down locally when standard NUT LOWBATT/FSD logic requires it.
+# Sanitized example for /etc/nut/upsmon.conf on any secondary client host.
+# A secondary upsmon host reads UPS state from the M5Stack LLM Module and shuts
+# itself down locally when standard NUT LOWBATT/FSD logic requires it.
 # Do not enable until tested deliberately. Install with owner root:nut and mode 0640.
 
 MONITOR homelab_ups@192.168.2.202 1 upsmon_secondary CHANGE_ME_SECONDARY_SECRET secondary

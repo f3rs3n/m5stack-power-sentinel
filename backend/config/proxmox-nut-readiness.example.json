@@ -1,7 +1,0 @@
-{
-  "target_host": "192.168.2.99",
-  "package_installed": false,
-  "upsc_reachable": false,
-  "config_present": false,
-  "monitor_active": false
-}

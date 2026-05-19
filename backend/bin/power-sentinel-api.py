@@ -43,8 +43,7 @@ MQTT_FALLBACK_CONFIG = os.environ.get("POWER_SENTINEL_MQTT_FALLBACK_CONFIG", "/e
 ZIGBEE2MQTT_BASE_TOPIC = os.environ.get("POWER_SENTINEL_Z2M_BASE_TOPIC", "zigbee2mqtt")
 NETWORK_PROBE_HOST = os.environ.get("POWER_SENTINEL_NETWORK_PROBE_HOST", "1.1.1.1")
 NETWORK_PROBE_PORT = int(os.environ.get("POWER_SENTINEL_NETWORK_PROBE_PORT", "53"))
-PROXMOX_NUT_TARGET_HOST = os.environ.get("POWER_SENTINEL_PROXMOX_NUT_TARGET_HOST", PROXMOX_HOST)
-PROXMOX_NUT_READINESS_FILE = os.environ.get("POWER_SENTINEL_PROXMOX_NUT_READINESS_FILE", "/etc/power-sentinel-proxmox-nut-readiness.json")
+NUT_CLIENTS_FILE = os.environ.get("POWER_SENTINEL_NUT_CLIENTS_FILE", "/etc/power-sentinel-nut-clients.json")
 
 
 def iso_utc(ts: float | int | None = None) -> str:
@@ -320,28 +319,27 @@ def load_nut_status() -> dict[str, Any]:
     }
 
 
-def client_list_mentions_target(clients: list[Any], target_host: str) -> bool:
-    target = str(target_host)
+def client_list_mentions_target(clients: list[Any], target: str | None) -> bool:
+    needle = str(target or "").strip().lower()
+    if not needle:
+        return False
     for client in clients:
-        text = str(client)
-        if target and target in text:
-            return True
-        if "proxmox" in text.lower() or "pve" in text.lower():
+        if needle in str(client).lower():
             return True
     return False
 
 
-def summarize_proxmox_nut_secondary(
-    target_host: str,
-    nut: dict[str, Any],
-    *,
-    package_installed: bool | None = None,
-    upsc_reachable: bool | None = None,
-    config_present: bool | None = None,
-    monitor_active: bool | None = None,
-) -> dict[str, Any]:
+def summarize_nut_client(client: dict[str, Any], nut: dict[str, Any]) -> dict[str, Any]:
     clients = nut.get("clients", []) if isinstance(nut.get("clients"), list) else []
-    connected = client_list_mentions_target(clients, target_host)
+    name = str(client.get("name") or client.get("hostname") or client.get("host") or "unknown")
+    host = str(client.get("host") or "")
+    role = str(client.get("role") or "secondary")
+    matchers = [name, host, str(client.get("hostname") or "")]
+    connected = any(client_list_mentions_target(clients, matcher) for matcher in matchers)
+    package_installed = client.get("package_installed")
+    upsc_reachable = client.get("upsc_reachable")
+    config_present = client.get("config_present")
+    monitor_active = client.get("monitor_active")
     configured = bool(config_present) or connected or bool(monitor_active)
     armed = bool(monitor_active and connected)
     if armed:
@@ -355,7 +353,9 @@ def summarize_proxmox_nut_secondary(
     else:
         state = "not_configured"
     return {
-        "target_host": target_host,
+        "name": name,
+        "host": host or None,
+        "role": role,
         "package_installed": package_installed,
         "reachable_via_upsc": upsc_reachable,
         "configured": configured,
@@ -365,24 +365,42 @@ def summarize_proxmox_nut_secondary(
     }
 
 
-def load_proxmox_nut_readiness(path: str = PROXMOX_NUT_READINESS_FILE) -> dict[str, Any]:
+def load_nut_clients(path: str = NUT_CLIENTS_FILE) -> list[dict[str, Any]]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
-        return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
-        return {}
+        return []
+    if isinstance(data, dict):
+        raw_clients = data.get("clients", [])
+    elif isinstance(data, list):
+        raw_clients = data
+    else:
+        raw_clients = []
+    return [client for client in raw_clients if isinstance(client, dict)]
 
 
-def summarize_standard_nut_shutdown(ups: dict[str, Any], nut: dict[str, Any], secondary: dict[str, Any] | None = None) -> dict[str, Any]:
+def summarize_nut_clients(clients: list[dict[str, Any]], nut: dict[str, Any]) -> list[dict[str, Any]]:
+    return [summarize_nut_client(client, nut) for client in clients]
+
+
+def nut_client_summary(clients: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "total": len(clients),
+        "secondary_total": sum(1 for client in clients if client.get("role") == "secondary"),
+        "connected": sum(1 for client in clients if client.get("connected_as_upsmon")),
+        "armed": sum(1 for client in clients if client.get("armed")),
+    }
+
+
+def summarize_standard_nut_shutdown(ups: dict[str, Any], nut: dict[str, Any], clients: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     raw = ups.get("raw", {}) if isinstance(ups.get("raw"), dict) else {}
     monitor_active = bool(nut.get("monitor_active"))
     primary_ready = bool(ups.get("available") and nut.get("server_active") and nut.get("driver_active") and nut.get("mode") == "netserver")
-    clients = nut.get("clients", []) if isinstance(nut.get("clients"), list) else []
-    client_count = nut.get("client_count")
-    if secondary is None:
-        secondary = summarize_proxmox_nut_secondary(PROXMOX_NUT_TARGET_HOST, nut)
-    secondary_ready = bool(secondary.get("connected_as_upsmon") or secondary.get("armed"))
+    raw_clients = clients or []
+    summarized_clients = summarize_nut_clients(raw_clients, nut)
+    summary = nut_client_summary(summarized_clients)
+    secondary_ready = any(client.get("role") == "secondary" and (client.get("connected_as_upsmon") or client.get("armed")) for client in summarized_clients)
     if ups.get("low_battery"):
         would_shutdown = True
         reason = "UPS low battery; standard NUT upsmon would initiate shutdown"
@@ -400,22 +418,18 @@ def summarize_standard_nut_shutdown(ups: dict[str, Any], nut: dict[str, Any], se
         "mode": "dry-run",
         "armed": monitor_active,
         "real_shutdown_owner": "upsmon",
-        "proxmox_api_orchestration": False,
-        "proxmox_secondary": secondary,
         "primary_ready": primary_ready,
         "primary_monitor_active": monitor_active,
         "secondary_ready": secondary_ready,
+        "nut_clients": summarized_clients,
+        "nut_client_summary": summary,
         "would_shutdown": would_shutdown,
         "reason": reason,
         "thresholds": {
             "battery_charge_low_percent": as_int(raw.get("battery.charge.low")),
             "battery_runtime_low_seconds": as_int(raw.get("battery.runtime.low")),
         },
-        "targets": [
-            {"name": "m5stack-llm", "role": "primary", "state": "armed" if monitor_active else "not armed"},
-            {"name": "proxmox", "role": "secondary", "state": "detected" if secondary_ready else "not detected"},
-        ],
-        "next_step": "Configure and test upsmon primary/secondary before enabling real shutdown" if not monitor_active else "Standard NUT upsmon is active",
+        "next_step": "Configure and test upsmon clients before enabling real shutdown" if not monitor_active else "Standard NUT upsmon is active",
     }
 
 
@@ -834,16 +848,8 @@ def build_summary(
     if zigbee2mqtt is None:
         zigbee2mqtt = load_zigbee2mqtt()
     if shutdown is None:
-        readiness = load_proxmox_nut_readiness()
-        secondary = summarize_proxmox_nut_secondary(
-            readiness.get("target_host", PROXMOX_NUT_TARGET_HOST),
-            nut,
-            package_installed=readiness.get("package_installed"),
-            upsc_reachable=readiness.get("upsc_reachable"),
-            config_present=readiness.get("config_present"),
-            monitor_active=readiness.get("monitor_active"),
-        )
-        shutdown = summarize_standard_nut_shutdown(ups, nut, secondary)
+        nut_clients = load_nut_clients()
+        shutdown = summarize_standard_nut_shutdown(ups, nut, nut_clients)
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []

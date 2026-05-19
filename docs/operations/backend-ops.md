@@ -144,8 +144,8 @@ backend/config/ups.conf.example
 backend/config/upsd.conf.example
 backend/config/upsd.users.standard-nut.example
 backend/config/upsmon.primary.example
-backend/config/upsmon.secondary-proxmox.example
-backend/config/proxmox-nut-readiness.example.json
+backend/config/upsmon.secondary.example
+backend/config/nut-clients.example.json
 ```
 
 The live API summary should now show:
@@ -158,24 +158,24 @@ severity: ok
 shutdown.strategy: standard-nut
 shutdown.mode: dry-run
 shutdown.real_shutdown_owner: upsmon
-shutdown.proxmox_api_orchestration: false
-shutdown.proxmox_secondary.state: not_configured | reachable_via_upsc | connected_as_upsmon | armed
+shutdown.nut_clients[0].state: not_configured | reachable_via_upsc | connected_as_upsmon | armed
 ```
 
-## Proxmox NUT secondary readiness
+## NUT client readiness
 
-Point 8 is intentionally non-destructive. It discovers whether Proxmox can become a Standard NUT secondary, but it does not enable `nut-monitor`, does not edit Proxmox config, and does not trigger FSD/shutdown.
+Point 8 is intentionally non-destructive. It discovers whether secondary hosts can become Standard NUT clients, but it does not enable `nut-monitor`, does not edit active client shutdown config, and does not trigger FSD/shutdown.
 
-Discovery from Hermes now uses the dedicated SSH host alias:
+Discovery from Hermes uses a host-specific SSH alias for the first secondary host:
 
 ```text
-pve-power-sentinel -> root@192.168.2.99 with ~/.ssh/proxmox_power_sentinel_ed25519
+pve-power-sentinel -> root@192.168.2.99
 ```
 
-Current Proxmox read-only readiness result:
+Current first-client read-only readiness result:
 
 ```text
-host: pve
+name: pve
+host: 192.168.2.99
 OS: Debian GNU/Linux 13 (trixie)
 kernel: 7.0.2-4-pve
 nut-client: installed (2.8.1-5)
@@ -203,48 +203,40 @@ no active TCP client on :3493 at discovery time
 /etc/nut/upsd.users still contains only examples/comments, no active upsmon users yet
 ```
 
-Because Proxmox has `nut-client` installed and `upsc` can read the M5Stack NUT server, the live readiness file on the LLM Module is:
-
-```json
-"shutdown": {
-  "proxmox_secondary": {
-    "target_host": "192.168.2.99",
-    "package_installed": true,
-    "reachable_via_upsc": true,
-    "configured": false,
-    "connected_as_upsmon": false,
-    "armed": false,
-    "state": "reachable_via_upsc"
-  }
-}
-```
-
-State meanings:
-
-- `not_configured`: no readiness file and no observed Proxmox upsmon client.
-- `reachable_via_upsc`: Proxmox has `upsc`/`nut-client` and can read `homelab_ups@192.168.2.202`, but upsmon is not connected.
-- `connected_as_upsmon`: the M5Stack NUT server sees a Proxmox/PVE client connection on port 3493; not necessarily armed.
-- `armed`: Proxmox readiness says `monitor_active=true` and the M5Stack NUT server sees the Proxmox upsmon client.
-
-Optional manual readiness file on the LLM Module:
-
-```text
-/etc/power-sentinel-proxmox-nut-readiness.json
-```
-
-Sanitized example:
+Because the first secondary host has `nut-client` installed and `upsc` can read the M5Stack NUT server, the live client inventory file on the LLM Module is:
 
 ```json
 {
-  "target_host": "192.168.2.99",
-  "package_installed": true,
-  "upsc_reachable": true,
-  "config_present": false,
-  "monitor_active": false
+  "clients": [
+    {
+      "name": "pve",
+      "host": "192.168.2.99",
+      "role": "secondary",
+      "package_installed": true,
+      "upsc_reachable": true,
+      "config_present": false,
+      "monitor_active": false
+    }
+  ]
 }
 ```
 
-Manual Proxmox commands for Martino, still read-only/non-destructive:
+The API exposes the corresponding summary under `shutdown.nut_clients[]` and aggregate counts under `shutdown.nut_client_summary`.
+
+State meanings:
+
+- `not_configured`: no client inventory entry and no observed NUT upsmon client.
+- `reachable_via_upsc`: a secondary host has `upsc`/`nut-client` and can read `homelab_ups@192.168.2.202`, but upsmon is not connected.
+- `connected_as_upsmon`: the M5Stack NUT server sees a NUT client connection on port 3493; not necessarily armed.
+- `armed`: that client's inventory says `monitor_active=true` and the M5Stack NUT server sees the NUT upsmon client.
+
+Optional client inventory file on the LLM Module:
+
+```text
+/etc/power-sentinel-nut-clients.json
+```
+
+Manual discovery commands for a secondary host, still read-only/non-destructive:
 
 ```bash
 command -v upsc || true

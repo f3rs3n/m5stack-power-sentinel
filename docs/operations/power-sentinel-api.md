@@ -66,17 +66,16 @@ Shutdown policy is explicitly Standard NUT and dry-run/observer in Power Sentine
 - `shutdown.strategy=standard-nut`
 - `shutdown.mode=dry-run`
 - `shutdown.real_shutdown_owner=upsmon`
-- `shutdown.proxmox_api_orchestration=false`
 - `shutdown.primary_ready`, `shutdown.primary_monitor_active`, `shutdown.secondary_ready`
-- `shutdown.proxmox_secondary.state`: `not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, or `armed`
-- `shutdown.proxmox_secondary.package_installed`: whether Proxmox-side `nut-client`/`upsc` was observed; `null` when not yet discovered
-- `shutdown.proxmox_secondary.reachable_via_upsc`: whether Proxmox can run `upsc homelab_ups@192.168.2.202`; `null` when not yet discovered
-- `shutdown.proxmox_secondary.connected_as_upsmon`: whether the M5Stack NUT server sees Proxmox/PVE as a connected client
-- `shutdown.proxmox_secondary.armed`: true only when readiness says Proxmox `nut-monitor` is active and the NUT server sees the Proxmox upsmon client
+- `shutdown.nut_clients[0].state`: `not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, or `armed`
+- `shutdown.nut_clients[0].package_installed`: whether secondary-host `nut-client`/`upsc` was observed; `null` when not yet discovered
+- `shutdown.nut_clients[0].reachable_via_upsc`: whether a configured NUT client can run `upsc homelab_ups@192.168.2.202`; `null` when not yet discovered
+- `shutdown.nut_clients[0].connected_as_upsmon`: whether the M5Stack NUT server sees a configured NUT client as connected
+- `shutdown.nut_clients[0].armed`: true only when readiness says the client `nut-monitor` is active and the NUT server sees the NUT upsmon client
 - `shutdown.would_shutdown`, `shutdown.reason`
 - `shutdown.thresholds.battery_charge_low_percent`, `shutdown.thresholds.battery_runtime_low_seconds`
 
-Power Sentinel does not perform Proxmox shutdown orchestration. Real shutdown, when armed later, belongs to NUT `upsmon` primary/secondary roles.
+Power Sentinel does not perform custom shutdown orchestration. Real shutdown, when armed later, belongs to NUT `upsmon` primary/secondary roles.
 
 Other sections:
 
@@ -157,7 +156,7 @@ The `proxmox` summary object includes:
 - `smart.status`, `smart.failing_count`, `smart.warning_count`
 - `vm.running_count`, `vm.running_names[]`
 - `lxc.running_count`, `lxc.running_names[]`
-- `shutdown_state=disarmed` as a compatibility/read-only display field only. Proxmox shutdown is Standard NUT secondary `upsmon`, not Power Sentinel API orchestration.
+- `shutdown_state=disarmed` as a compatibility/read-only display field only. Real host shutdown is Standard NUT secondary `upsmon`.
 - `problems[]`
 
 Environment overrides:
@@ -178,6 +177,7 @@ POWER_SENTINEL_PROXMOX_TOKEN_SECRET
 POWER_SENTINEL_PROXMOX_VERIFY_SSL
 POWER_SENTINEL_NETWORK_PROBE_HOST
 POWER_SENTINEL_NETWORK_PROBE_PORT
+POWER_SENTINEL_NUT_CLIENTS_FILE
 POWER_SENTINEL_CONFIG
 ```
 

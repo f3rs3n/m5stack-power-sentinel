@@ -214,13 +214,14 @@ def test_build_summary_includes_nut_service_state_when_available():
     }
 
 
-def test_proxmox_nut_secondary_readiness_distinguishes_discovery_states():
+def test_nut_client_readiness_is_generic_and_distinguishes_discovery_states():
     api = load_module()
 
-    not_configured = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": []})
-    reachable = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": []}, upsc_reachable=True, package_installed=True, config_present=False)
-    connected = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": ["192.168.2.99"]}, upsc_reachable=True, package_installed=True, config_present=True, monitor_active=False)
-    armed = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": ["192.168.2.99"]}, upsc_reachable=True, package_installed=True, config_present=True, monitor_active=True)
+    base = {"name": "pve", "host": "192.168.2.99", "role": "secondary"}
+    not_configured = api.summarize_nut_client(base, {"clients": []})
+    reachable = api.summarize_nut_client(base | {"upsc_reachable": True, "package_installed": True, "config_present": False}, {"clients": []})
+    connected = api.summarize_nut_client(base | {"upsc_reachable": True, "package_installed": True, "config_present": True, "monitor_active": False}, {"clients": ["192.168.2.99"]})
+    armed = api.summarize_nut_client(base | {"upsc_reachable": True, "package_installed": True, "config_present": True, "monitor_active": True}, {"clients": ["192.168.2.99"]})
 
     assert not_configured["state"] == "not_configured"
     assert not_configured["reachable_via_upsc"] is None
@@ -230,10 +231,11 @@ def test_proxmox_nut_secondary_readiness_distinguishes_discovery_states():
     assert connected["state"] == "connected_as_upsmon"
     assert armed["state"] == "armed"
     assert armed["configured"] is True
-    assert armed["target_host"] == "192.168.2.99"
+    assert armed["host"] == "192.168.2.99"
+    assert armed["name"] == "pve"
 
 
-def test_standard_nut_shutdown_dry_run_reports_readiness_without_proxmox_orchestration():
+def test_standard_nut_shutdown_dry_run_reports_generic_client_readiness():
     api = load_module()
     ups = api.parse_upsc_output(
         """
@@ -254,26 +256,26 @@ battery.runtime.low: 120
         "shutdown_state": "disarmed",
     }
 
-    shutdown = api.summarize_standard_nut_shutdown(ups, nut)
+    shutdown = api.summarize_standard_nut_shutdown(ups, nut, clients=[{"name": "pve", "host": "192.168.2.99", "role": "secondary", "package_installed": True, "upsc_reachable": True}])
 
     assert shutdown["strategy"] == "standard-nut"
     assert shutdown["mode"] == "dry-run"
     assert shutdown["armed"] is False
     assert shutdown["real_shutdown_owner"] == "upsmon"
-    assert shutdown["proxmox_api_orchestration"] is False
     assert shutdown["primary_ready"] is True
     assert shutdown["primary_monitor_active"] is False
     assert shutdown["secondary_ready"] is False
     assert shutdown["would_shutdown"] is False
     assert shutdown["reason"] == "UPS online"
     assert shutdown["thresholds"] == {"battery_charge_low_percent": 10, "battery_runtime_low_seconds": 120}
-    assert shutdown["targets"][0] == {"name": "m5stack-llm", "role": "primary", "state": "not armed"}
-    assert shutdown["targets"][1] == {"name": "proxmox", "role": "secondary", "state": "not detected"}
+    assert shutdown["nut_clients"][0]["name"] == "pve"
+    assert shutdown["nut_clients"][0]["state"] == "reachable_via_upsc"
+    assert shutdown["nut_client_summary"] == {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0}
 
 
 def test_standard_nut_shutdown_dry_run_would_shutdown_on_low_battery_only():
     api = load_module()
-    nut = {"server_active": True, "driver_active": True, "monitor_active": False, "mode": "netserver", "client_count": 1, "clients": ["proxmox"], "shutdown_state": "disarmed"}
+    nut = {"server_active": True, "driver_active": True, "monitor_active": False, "mode": "netserver", "client_count": 1, "clients": ["pve"], "shutdown_state": "disarmed"}
 
     on_battery = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OB\nbattery.runtime: 600"), nut)
     low_battery = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OB LB\nbattery.runtime: 90"), nut)
@@ -303,7 +305,7 @@ def test_build_summary_exposes_standard_nut_shutdown_contract():
 
     assert summary["shutdown"]["strategy"] == "standard-nut"
     assert summary["shutdown"]["mode"] == "dry-run"
-    assert summary["shutdown"]["proxmox_api_orchestration"] is False
+    assert "nut_clients" in summary["shutdown"]
     assert "shutdown" not in summary["problems"]
 
 

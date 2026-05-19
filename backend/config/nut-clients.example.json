@@ -1,0 +1,13 @@
+{
+  "clients": [
+    {
+      "name": "pve",
+      "host": "192.168.2.99",
+      "role": "secondary",
+      "package_installed": true,
+      "upsc_reachable": true,
+      "config_present": false,
+      "monitor_active": false
+    }
+  ]
+}

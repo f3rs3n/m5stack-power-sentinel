@@ -114,8 +114,8 @@ backend/config/ups.conf.example
 backend/config/upsd.conf.example
 backend/config/upsd.users.standard-nut.example
 backend/config/upsmon.primary.example
-backend/config/upsmon.secondary-proxmox.example
-backend/config/proxmox-nut-readiness.example.json
+backend/config/upsmon.secondary.example
+backend/config/nut-clients.example.json
 ```
 
 ## Current backend
@@ -187,15 +187,14 @@ zigbee2mqtt.devices: total=29 interviewed=29 disabled=0
 shutdown.strategy: standard-nut
 shutdown.mode: dry-run
 shutdown.real_shutdown_owner: upsmon
-shutdown.proxmox_api_orchestration: false
 shutdown.primary_ready: true
 shutdown.primary_monitor_active: false
 shutdown.secondary_ready: false
-shutdown.proxmox_secondary.state: reachable_via_upsc
-shutdown.proxmox_secondary.package_installed: true
-shutdown.proxmox_secondary.reachable_via_upsc: true
-shutdown.proxmox_secondary.connected_as_upsmon: false
-shutdown.proxmox_secondary.armed: false
+shutdown.nut_clients[0].state: reachable_via_upsc
+shutdown.nut_clients[0].package_installed: true
+shutdown.nut_clients[0].reachable_via_upsc: true
+shutdown.nut_clients[0].connected_as_upsmon: false
+shutdown.nut_clients[0].armed: false
 shutdown.would_shutdown: false
 shutdown.reason: UPS online
 problems: []
@@ -209,7 +208,7 @@ mode: 600
 owner: root:root
 ```
 
-Do not print or commit the token secret. The token is read-only and the service has no shutdown action. Real shutdown is delegated to Standard NUT, not Proxmox API orchestration.
+Do not print or commit the token secret. The token is read-only and the service has no shutdown action. Real shutdown is delegated to Standard NUT, not custom shutdown orchestration.
 
 ## Current firmware state
 
@@ -243,7 +242,7 @@ The firmware currently has:
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, Zigbee2MQTT state/version, coordinator type/firmware, and Zigbee device totals from the MQTT-first Z2M backend summary. If `homeassistant/status` is unavailable because the birth topic is not retained, the UI says `HA birth topic not retained` instead of presenting this as a failure.
-- NUT tab now shows Standard NUT shutdown dry-run state: strategy, owner `upsmon`, primary readiness, Proxmox secondary readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), NUT low-battery thresholds, and explicit Proxmox API orchestration `OFF`.
+- NUT tab now shows Standard NUT shutdown dry-run state: strategy, owner `upsmon`, primary readiness, generic NUT client readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), and NUT low-battery thresholds.
 - PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts. CPU/RAM/storage bars are explicitly labelled after the first hardware flash showed that a single unlabeled bar was ambiguous; missing Proxmox CPU temperature is rendered as `Temp n/a`.
 - M5S tab treats missing/not-run chat smoke as `n/a`, not `FAIL`; StackFlow/OpenAI health remain the primary live checks.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.

@@ -131,12 +131,15 @@ struct ShutdownState {
   bool primaryReady = false;
   bool primaryMonitorActive = false;
   bool secondaryReady = false;
-  bool proxmoxApiOrchestration = false;
-  char secondaryState[28] = "not_configured";
-  char secondaryTarget[32] = "unknown";
-  int secondaryPackageInstalled = -1;
-  int secondaryReachableViaUpsc = -1;
-  bool secondaryConnectedAsUpsmon = false;
+  char clientState[28] = "not_configured";
+  char clientName[24] = "none";
+  int clientTotal = 0;
+  int clientSecondaryTotal = 0;
+  int clientConnected = 0;
+  int clientArmed = 0;
+  int clientPackageInstalled = -1;
+  int clientReachableViaUpsc = -1;
+  bool clientConnectedAsUpsmon = false;
   char strategy[24] = "standard-nut";
   char mode[16] = "dry-run";
   char owner[16] = "upsmon";
@@ -349,7 +352,6 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.shutdown.primaryReady = sd["primary_ready"] | false;
   state.shutdown.primaryMonitorActive = sd["primary_monitor_active"] | false;
   state.shutdown.secondaryReady = sd["secondary_ready"] | false;
-  state.shutdown.proxmoxApiOrchestration = sd["proxmox_api_orchestration"] | false;
   safeCopy(state.shutdown.strategy, sizeof(state.shutdown.strategy), sd["strategy"] | "standard-nut");
   safeCopy(state.shutdown.mode, sizeof(state.shutdown.mode), sd["mode"] | "dry-run");
   safeCopy(state.shutdown.owner, sizeof(state.shutdown.owner), sd["real_shutdown_owner"] | "upsmon");
@@ -357,12 +359,26 @@ void parseSummary(const String &json, bool fromNetwork) {
   JsonObjectConst thresholds = sd["thresholds"].as<JsonObjectConst>();
   state.shutdown.chargeLowPercent = jsonInt(thresholds["battery_charge_low_percent"], -1);
   state.shutdown.runtimeLowSeconds = jsonInt(thresholds["battery_runtime_low_seconds"], -1);
-  JsonObjectConst secondary = sd["proxmox_secondary"].as<JsonObjectConst>();
-  safeCopy(state.shutdown.secondaryState, sizeof(state.shutdown.secondaryState), secondary["state"] | "not_configured");
-  safeCopy(state.shutdown.secondaryTarget, sizeof(state.shutdown.secondaryTarget), secondary["target_host"] | "unknown");
-  state.shutdown.secondaryPackageInstalled = jsonTriBool(secondary["package_installed"]);
-  state.shutdown.secondaryReachableViaUpsc = jsonTriBool(secondary["reachable_via_upsc"]);
-  state.shutdown.secondaryConnectedAsUpsmon = secondary["connected_as_upsmon"] | false;
+  JsonObjectConst clientSummary = sd["nut_client_summary"].as<JsonObjectConst>();
+  state.shutdown.clientTotal = jsonInt(clientSummary["total"], 0);
+  state.shutdown.clientSecondaryTotal = jsonInt(clientSummary["secondary_total"], 0);
+  state.shutdown.clientConnected = jsonInt(clientSummary["connected"], 0);
+  state.shutdown.clientArmed = jsonInt(clientSummary["armed"], 0);
+  JsonArrayConst nutClients = sd["nut_clients"].as<JsonArrayConst>();
+  if (!nutClients.isNull() && nutClients.size() > 0) {
+    JsonObjectConst client = nutClients[0].as<JsonObjectConst>();
+    safeCopy(state.shutdown.clientName, sizeof(state.shutdown.clientName), client["name"] | "client");
+    safeCopy(state.shutdown.clientState, sizeof(state.shutdown.clientState), client["state"] | "not_configured");
+    state.shutdown.clientPackageInstalled = jsonTriBool(client["package_installed"]);
+    state.shutdown.clientReachableViaUpsc = jsonTriBool(client["reachable_via_upsc"]);
+    state.shutdown.clientConnectedAsUpsmon = client["connected_as_upsmon"] | false;
+  } else {
+    safeCopy(state.shutdown.clientName, sizeof(state.shutdown.clientName), "none");
+    safeCopy(state.shutdown.clientState, sizeof(state.shutdown.clientState), "not_configured");
+    state.shutdown.clientPackageInstalled = -1;
+    state.shutdown.clientReachableViaUpsc = -1;
+    state.shutdown.clientConnectedAsUpsmon = false;
+  }
 
   JsonObjectConst z2m = doc["zigbee2mqtt"].as<JsonObjectConst>();
   state.zigbee2mqtt.available = z2m["available"] | false;
@@ -663,13 +679,13 @@ void renderNut() {
   addMetricRow(shutdownCard, "strategy", line);
   snprintf(line, sizeof(line), "mode %s   armed %s", strcmp(state.shutdown.mode, "dry-run") == 0 ? "DRY-RUN" : state.shutdown.mode, state.shutdown.armed ? "YES" : "NO");
   addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "secondary %s", state.shutdown.secondaryState);
+  snprintf(line, sizeof(line), "clients %d/%d connected", state.shutdown.clientConnected, state.shutdown.clientTotal);
   addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "pkg %s   reachable_via_upsc %s", triText(state.shutdown.secondaryPackageInstalled), triText(state.shutdown.secondaryReachableViaUpsc));
+  snprintf(line, sizeof(line), "%s %s", state.shutdown.clientName, state.shutdown.clientState);
   addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "connected_as_upsmon %s", state.shutdown.secondaryConnectedAsUpsmon ? "yes" : "no");
+  snprintf(line, sizeof(line), "pkg %s   reachable_via_upsc %s", triText(state.shutdown.clientPackageInstalled), triText(state.shutdown.clientReachableViaUpsc));
   addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "api orch %s", state.shutdown.proxmoxApiOrchestration ? "ON" : "OFF");
+  snprintf(line, sizeof(line), "connected_as_upsmon %s", state.shutdown.clientConnectedAsUpsmon ? "yes" : "no");
   addLine(shutdownCard, line);
   snprintf(line, sizeof(line), "LOW %s%% / %ss", intOrUnknown(state.shutdown.chargeLowPercent, battery, sizeof(battery)), intOrUnknown(state.shutdown.runtimeLowSeconds, runtime, sizeof(runtime)));
   addLine(shutdownCard, line);
