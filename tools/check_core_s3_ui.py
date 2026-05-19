@@ -42,6 +42,10 @@ def main() -> int:
         return fail("HOME severity badge should render uppercase OK/WARN/CRITICAL text")
     if 'NetworkState' not in text or 'state.network.available' not in text or 'NET %s' not in text:
         return fail("HOME must render NET from the real network probe, not a placeholder")
+    required_sleep = ["enterDisplaySleep", "wakeDisplay", "addHomeSleepButton", "SLEEP", "psDisplaySetBrightness(0)"]
+    for needle in required_sleep:
+        if needle not in text:
+            return fail(f"HOME display sleep control missing {needle}")
     required_v1b = {
         "applyAppTheme()": "V1b should apply a global modern theme",
         "makeHeroCard(": "V1b should use a hero card for the HOME overview",

@@ -181,6 +181,9 @@ uint32_t fetchOkCount = 0;
 uint32_t fetchFailCount = 0;
 uint32_t lastFetchDurationMs = 0;
 uint32_t stackflowRequestId = 0;
+bool displayAsleep = false;
+
+constexpr uint8_t kDisplayAwakeBrightness = 160;
 
 lv_color_t buf1[kScreenW * 24];
 lv_color_t buf2[kScreenW * 24];
@@ -433,10 +436,33 @@ void myDispFlush(lv_display_t *disp, const lv_area_t *area, uint8_t *pxMap) {
   lv_display_flush_ready(disp);
 }
 
+void enterDisplaySleep() {
+  displayAsleep = true;
+  psDisplaySetBrightness(0);
+  Serial.println("Display sleep: brightness off; touch anywhere to wake");
+}
+
+void wakeDisplay() {
+  if (!displayAsleep) return;
+  displayAsleep = false;
+  psDisplaySetBrightness(kDisplayAwakeBrightness);
+  Serial.println("Display wake: brightness restored");
+}
+
+void onSleepButtonClicked(lv_event_t *event) {
+  if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
+  enterDisplaySleep();
+}
+
 void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
   int32_t x = 0;
   int32_t y = 0;
   if (psTouchPressed(&x, &y)) {
+    if (displayAsleep) {
+      wakeDisplay();
+      data->state = LV_INDEV_STATE_REL;
+      return;
+    }
     data->state = LV_INDEV_STATE_PR;
     data->point.x = x;
     data->point.y = y;
@@ -539,6 +565,26 @@ void addStatusPillRow(lv_obj_t *parent, const char *a, lv_color_t ca, const char
   addBadge(row, c, cc);
 }
 
+void addHomeSleepButton(lv_obj_t *parent) {
+  lv_obj_t *button = lv_button_create(parent);
+  lv_obj_set_width(button, lv_pct(100));
+  lv_obj_set_height(button, 34);
+  lv_obj_set_style_radius(button, 12, 0);
+  lv_obj_set_style_bg_color(button, lv_color_hex(0x1f2937), 0);
+  lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(button, 1, 0);
+  lv_obj_set_style_border_color(button, lv_color_hex(0x4b5563), 0);
+  lv_obj_set_style_shadow_width(button, 8, 0);
+  lv_obj_set_style_shadow_opa(button, LV_OPA_60, 0);
+  lv_obj_add_event_cb(button, onSleepButtonClicked, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *label = lv_label_create(button);
+  lv_label_set_text(label, "SLEEP DISPLAY");
+  lv_obj_set_style_text_color(label, lv_color_hex(0xe5e7eb), 0);
+  lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+  lv_obj_center(label);
+}
+
 void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
   lv_obj_t *bar = lv_bar_create(parent);
   lv_obj_set_width(bar, lv_pct(100));
@@ -624,6 +670,7 @@ void renderHome() {
   addMetricRow(card, "local", line);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
   addLine(card, line);
+  addHomeSleepButton(card);
 }
 
 void renderNut() {
@@ -1070,7 +1117,7 @@ void setup() {
   psM5Begin(false);
 #endif
   psDisplaySetRotation(1);
-  psDisplaySetBrightness(160);
+  psDisplaySetBrightness(kDisplayAwakeBrightness);
 
   initLvgl();
   initUi();
