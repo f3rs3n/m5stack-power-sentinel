@@ -11,7 +11,7 @@ Primary responsibilities:
 - expose a local API for the CoreS3 display;
 - publish MQTT retained state and Home Assistant Discovery;
 - serve as NUT source for Proxmox/Home Assistant/other clients;
-- remain an observer/dry-run dashboard for shutdown policy; real shutdown is Standard NUT via `upsmon`, not custom shutdown orchestration.
+- remain an observer/readiness dashboard for shutdown policy; real shutdown is Standard NUT via `upsmon`, not custom shutdown orchestration.
 
 ## Data contract direction
 
@@ -54,8 +54,6 @@ Planned schema:
     "shutdown_state": "disarmed"
   },
   "shutdown": {
-    "strategy": "standard-nut",
-    "mode": "dry-run",
     "real_shutdown_owner": "upsmon",
     "primary_ready": true,
     "primary_monitor_active": false,

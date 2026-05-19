@@ -17,7 +17,7 @@ Important principles:
 
 - The M5Stack is the primary UPS state source.
 - Home Assistant is a consumer/automation layer, not required for the CoreS3 UPS page.
-- Proxmox shutdown will stay read-only/dry-run until explicitly approved and tested.
+- Proxmox shutdown stays disarmed until Standard NUT client monitoring is explicitly enabled and tested.
 - Do not commit secrets or local credentials.
 - The CoreS3 uses the internal stacked UART through vendor StackFlow/`llm_sys`, not a parallel `/dev/ttyS1` reader. This preserves vendor services and avoids UART contention.
 
@@ -65,4 +65,4 @@ See:
 5. Build UPS MQTT/Home Assistant integration.
 6. Build CoreS3 display firmware.
 7. Add Home Assistant automations.
-8. Add Proxmox NUT client in read-only mode, then dry-run shutdown, then real shutdown only after explicit approval.
+8. Add Proxmox NUT client readiness, then deliberately enable/test the M5Stack primary monitor first and the Proxmox secondary monitor after that.

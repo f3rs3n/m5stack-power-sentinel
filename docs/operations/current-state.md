@@ -92,7 +92,7 @@ nut-driver: static/active
 nut-monitor: disabled/inactive
 ```
 
-`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but no real shutdown is armed. The accepted real shutdown strategy is Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox). Power Sentinel is only a dashboard/dry-run observer and must not orchestrate Proxmox shutdown through the Proxmox API.
+`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but no real shutdown is armed. Shutdown is handled only by Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox). Power Sentinel is only a dashboard/readiness observer and must not orchestrate Proxmox shutdown through the Proxmox API.
 
 Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host, but `nut-monitor.service` remains disabled/inactive on both. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
 
@@ -186,8 +186,6 @@ zigbee2mqtt.version: 2.10.1
 zigbee2mqtt.coordinator.type: EmberZNet
 zigbee2mqtt.coordinator.firmware: 7.4.5 [GA]
 zigbee2mqtt.devices: total=29 interviewed=29 disabled=0
-shutdown.strategy: standard-nut
-shutdown.mode: dry-run
 shutdown.real_shutdown_owner: upsmon
 shutdown.primary_ready: true
 shutdown.primary_monitor_active: false
@@ -245,7 +243,7 @@ The firmware currently has:
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, Zigbee2MQTT state/version, coordinator type/firmware, and Zigbee device totals from the MQTT-first Z2M backend summary. If `homeassistant/status` is unavailable because the birth topic is not retained, the UI says `HA birth topic not retained` instead of presenting this as a failure.
-- NUT tab now shows Standard NUT shutdown dry-run state: strategy, owner `upsmon`, primary readiness, generic NUT client readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), and NUT low-battery thresholds.
+- NUT tab now shows NUT shutdown readiness: owner `upsmon`, primary readiness, generic NUT client readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), and NUT low-battery thresholds.
 - PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts. CPU/RAM/storage bars are explicitly labelled after the first hardware flash showed that a single unlabeled bar was ambiguous; missing Proxmox CPU temperature is rendered as `Temp n/a`.
 - M5S tab treats missing/not-run chat smoke as `n/a`, not `FAIL`; StackFlow/OpenAI health remain the primary live checks.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.

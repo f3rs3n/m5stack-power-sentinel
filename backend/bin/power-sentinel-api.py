@@ -414,8 +414,6 @@ def summarize_standard_nut_shutdown(ups: dict[str, Any], nut: dict[str, Any], cl
         would_shutdown = False
         reason = "UPS unavailable"
     return {
-        "strategy": "standard-nut",
-        "mode": "dry-run",
         "armed": monitor_active,
         "real_shutdown_owner": "upsmon",
         "primary_ready": primary_ready,

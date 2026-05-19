@@ -140,8 +140,6 @@ struct ShutdownState {
   int clientPackageInstalled = -1;
   int clientReachableViaUpsc = -1;
   bool clientConnectedAsUpsmon = false;
-  char strategy[24] = "standard-nut";
-  char mode[16] = "dry-run";
   char owner[16] = "upsmon";
   char reason[96] = "waiting";
   int chargeLowPercent = -1;
@@ -352,8 +350,6 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.shutdown.primaryReady = sd["primary_ready"] | false;
   state.shutdown.primaryMonitorActive = sd["primary_monitor_active"] | false;
   state.shutdown.secondaryReady = sd["secondary_ready"] | false;
-  safeCopy(state.shutdown.strategy, sizeof(state.shutdown.strategy), sd["strategy"] | "standard-nut");
-  safeCopy(state.shutdown.mode, sizeof(state.shutdown.mode), sd["mode"] | "dry-run");
   safeCopy(state.shutdown.owner, sizeof(state.shutdown.owner), sd["real_shutdown_owner"] | "upsmon");
   safeCopy(state.shutdown.reason, sizeof(state.shutdown.reason), sd["reason"] | "waiting");
   JsonObjectConst thresholds = sd["thresholds"].as<JsonObjectConst>();
@@ -673,11 +669,11 @@ void renderNut() {
   snprintf(line, sizeof(line), "client list: %s", state.nut.clients);
   addLine(nutCard, line);
 
-  lv_obj_t *shutdownCard = makeCard(nutTab, "Shutdown DRY-RUN");
+  lv_obj_t *shutdownCard = makeCard(nutTab, "NUT shutdown readiness");
   addBadge(shutdownCard, state.shutdown.wouldShutdown ? "WOULD SHUTDOWN" : "NO ACTION", state.shutdown.wouldShutdown ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN));
-  snprintf(line, sizeof(line), "%s   owner %s", state.shutdown.strategy, state.shutdown.owner);
-  addMetricRow(shutdownCard, "strategy", line);
-  snprintf(line, sizeof(line), "mode %s   armed %s", strcmp(state.shutdown.mode, "dry-run") == 0 ? "DRY-RUN" : state.shutdown.mode, state.shutdown.armed ? "YES" : "NO");
+  snprintf(line, sizeof(line), "owner %s   armed %s", state.shutdown.owner, state.shutdown.armed ? "YES" : "NO");
+  addMetricRow(shutdownCard, "owner", line);
+  snprintf(line, sizeof(line), "primary monitor %s", state.shutdown.primaryMonitorActive ? "active" : "off");
   addLine(shutdownCard, line);
   snprintf(line, sizeof(line), "clients %d/%d connected", state.shutdown.clientConnected, state.shutdown.clientTotal);
   addLine(shutdownCard, line);
@@ -771,7 +767,7 @@ void renderProxmox() {
   addMetricRow(card, "storage health", line);
   snprintf(line, sizeof(line), "VM %s run   CT %s run", intOrUnknown(state.proxmox.vmRunningCount, cpu, sizeof(cpu)), intOrUnknown(state.proxmox.lxcRunningCount, ram, sizeof(ram)));
   addMetricRow(card, "workloads", line);
-  snprintf(line, sizeof(line), "NUT dry-run %s   armed %s", state.shutdown.wouldShutdown ? "WOULD" : "idle", state.shutdown.armed ? "YES" : "NO");
+  snprintf(line, sizeof(line), "NUT monitor %s   armed %s", state.shutdown.wouldShutdown ? "WOULD" : "idle", state.shutdown.armed ? "YES" : "NO");
   addLine(card, line);
 
   lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");

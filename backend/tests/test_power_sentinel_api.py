@@ -235,7 +235,7 @@ def test_nut_client_readiness_is_generic_and_distinguishes_discovery_states():
     assert armed["name"] == "pve"
 
 
-def test_standard_nut_shutdown_dry_run_reports_generic_client_readiness():
+def test_standard_nut_shutdown_reports_generic_client_readiness_without_ambiguous_mode_fields():
     api = load_module()
     ups = api.parse_upsc_output(
         """
@@ -258,8 +258,8 @@ battery.runtime.low: 120
 
     shutdown = api.summarize_standard_nut_shutdown(ups, nut, clients=[{"name": "pve", "host": "192.168.2.99", "role": "secondary", "package_installed": True, "upsc_reachable": True}])
 
-    assert shutdown["strategy"] == "standard-nut"
-    assert shutdown["mode"] == "dry-run"
+    assert "strategy" not in shutdown
+    assert "mode" not in shutdown
     assert shutdown["armed"] is False
     assert shutdown["real_shutdown_owner"] == "upsmon"
     assert shutdown["primary_ready"] is True
@@ -273,7 +273,7 @@ battery.runtime.low: 120
     assert shutdown["nut_client_summary"] == {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0}
 
 
-def test_standard_nut_shutdown_dry_run_would_shutdown_on_low_battery_only():
+def test_standard_nut_shutdown_would_shutdown_on_low_battery_only():
     api = load_module()
     nut = {"server_active": True, "driver_active": True, "monitor_active": False, "mode": "netserver", "client_count": 1, "clients": ["pve"], "shutdown_state": "disarmed"}
 
@@ -303,8 +303,8 @@ def test_build_summary_exposes_standard_nut_shutdown_contract():
         zigbee2mqtt=api.summarize_zigbee2mqtt_payloads("zigbee2mqtt", '{"state":"online"}', '{"coordinator": {"type": "ember"}}', "[]"),
     )
 
-    assert summary["shutdown"]["strategy"] == "standard-nut"
-    assert summary["shutdown"]["mode"] == "dry-run"
+    assert "strategy" not in summary["shutdown"]
+    assert "mode" not in summary["shutdown"]
     assert "nut_clients" in summary["shutdown"]
     assert "shutdown" not in summary["problems"]
 

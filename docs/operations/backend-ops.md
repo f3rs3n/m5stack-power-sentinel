@@ -125,7 +125,7 @@ nut-monitor: disabled/inactive
 /etc/nut/nut.conf: MODE=netserver
 ```
 
-`nut-server` is enabled so UPS telemetry survives reboot. `nut-monitor` remains disabled for now. The approved real shutdown strategy is Standard NUT: `upsmon` primary on the M5Stack LLM Module and `upsmon` secondary on Proxmox. Power Sentinel remains a dashboard/dry-run observer; it does not orchestrate Proxmox shutdown via API.
+`nut-server` is enabled so UPS telemetry survives reboot. `nut-monitor` remains disabled for now. Shutdown is handled only by Standard NUT: `upsmon` primary on the M5Stack LLM Module and `upsmon` secondary on clients such as Proxmox. Power Sentinel remains a dashboard/readiness observer; it does not orchestrate Proxmox shutdown via API.
 
 Useful NUT commands:
 
@@ -155,8 +155,6 @@ ups.available: true
 ups.status: OL
 ups.status_label: Online
 severity: ok
-shutdown.strategy: standard-nut
-shutdown.mode: dry-run
 shutdown.real_shutdown_owner: upsmon
 shutdown.nut_clients[0].state: not_configured | reachable_via_upsc | connected_as_upsmon | armed
 ```

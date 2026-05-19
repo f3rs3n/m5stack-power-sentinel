@@ -726,7 +726,7 @@ Obiettivo: spegnimento ordinato homelab durante blackout usando `upsmon`.
 Ruoli desiderati:
 1. M5Stack LLM Module: `usbhid-ups` + `upsd` + futuro `upsmon primary`.
 2. Proxmox: futuro `upsmon secondary` che legge `homelab_ups@192.168.2.202` e spegne localmente il nodo.
-3. Power Sentinel: dashboard/dry-run/observer; non invia comandi di shutdown via Proxmox API.
+3. Power Sentinel: dashboard/readiness observer; non invia comandi di shutdown via Proxmox API.
 
 Sequenza desiderata:
 1. UPS passa ON BATTERY.
@@ -742,9 +742,9 @@ Sequenza desiderata:
 
 Regole:
 - Prima read-only.
-- Poi dry-run/log-only in Power Sentinel.
 - Poi configurazione Standard NUT non armata/templates.
-- Poi micro-test controllato.
+- Poi micro-test controllato del monitor primary.
+- Poi micro-test controllato del monitor secondary Proxmox.
 - Shutdown reale solo dopo conferma esplicita.
 
 ---
@@ -793,7 +793,7 @@ ssh root@192.168.2.202 '/usr/local/bin/m5stack-ups-detect'
 ssh root@192.168.2.202 'apt-get install -s nut nut-server nut-client'
 ```
 
-4. Installare se dry-run ok.
+4. Installare solo dopo verifica pacchetti/config e conferma esplicita.
 5. Eseguire:
 
 ```bash

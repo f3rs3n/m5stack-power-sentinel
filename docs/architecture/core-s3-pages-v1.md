@@ -252,10 +252,10 @@ Do not hard-code these as `OK` clients unless NUT actually exposes them as conne
 
 Shutdown policy:
 
-- Real shutdown strategy is Standard NUT, not custom shutdown orchestration.
+- Real shutdown path is Standard NUT, not custom shutdown orchestration.
 - `nut-monitor` remains disabled until Standard NUT primary/secondary config is deliberately armed.
-- Power Sentinel is dashboard/dry-run observer only.
-- NUT page should show `Shutdown DRY-RUN`, owner `upsmon`, primary/secondary readiness, client inventory state, and low-battery thresholds.
+- Power Sentinel is dashboard/readiness observer only.
+- NUT page should show NUT shutdown readiness, owner `upsmon`, primary/secondary readiness, client inventory state, and low-battery thresholds.
 
 ## PVE tab
 
@@ -292,7 +292,7 @@ Top PVE section:
 - LXC/CT running count
 - Shutdown path: `Standard NUT` / `via upsmon`
 
-Do not show Proxmox API shutdown triggers in V1. Avoid implying an armed shutdown policy before Standard NUT dry-run/readiness is understood.
+Do not show Proxmox API shutdown triggers in V1. Avoid implying an armed shutdown policy before Standard NUT readiness is understood.
 
 VM/LXC section:
 
@@ -670,6 +670,6 @@ Recommended next implementation sequence:
    - visual severity top bar
 5. Add PVE read-only API integration.
 6. Add HA/Z2M/coordinator read-only checks.
-7. Only after stable read-only behavior, design shutdown dry-run.
+7. Only after stable read-only behavior, deliberately enable/test Standard NUT monitors in stages.
 
 No real shutdown automation belongs in this V1 display spec.

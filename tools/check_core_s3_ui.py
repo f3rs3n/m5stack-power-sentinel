@@ -57,7 +57,7 @@ def main() -> int:
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE read-only UI missing {needle}")
-    required_pve_clarity = ["CPU", "RAM", "Temp n/a", "Storage", "RAM bar", "CPU bar", "NUT dry-run"]
+    required_pve_clarity = ["CPU", "RAM", "Temp n/a", "Storage", "RAM bar", "CPU bar", "NUT monitor"]
     for needle in required_pve_clarity:
         if needle not in text:
             return fail(f"PVE UI lacks display clarity marker {needle}")
@@ -67,10 +67,14 @@ def main() -> int:
     for needle in required_ha_z2m:
         if needle not in text:
             return fail(f"HA/Z2M UI missing {needle}")
-    required_shutdown = ["ShutdownState", "strategy", "standard-nut", "DRY-RUN", "upsmon", "nutClients", "clientSummary", "reachable_via_upsc", "connected_as_upsmon"]
+    required_shutdown = ["ShutdownState", "owner", "upsmon", "primary monitor", "nutClients", "clientSummary", "reachable_via_upsc", "connected_as_upsmon"]
     for needle in required_shutdown:
         if needle not in text:
-            return fail(f"Standard NUT shutdown UI missing {needle}")
+            return fail(f"NUT shutdown/readiness UI missing {needle}")
+    forbidden_shutdown = ["strategy", "standard-nut", "DRY-RUN", "dry-run", "state.shutdown.mode", "state.shutdown.strategy"]
+    for needle in forbidden_shutdown:
+        if needle in text:
+            return fail(f"NUT UI still contains ambiguous shutdown wording {needle}")
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")
