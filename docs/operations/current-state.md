@@ -191,9 +191,9 @@ shutdown.proxmox_api_orchestration: false
 shutdown.primary_ready: true
 shutdown.primary_monitor_active: false
 shutdown.secondary_ready: false
-shutdown.proxmox_secondary.state: not_configured
-shutdown.proxmox_secondary.package_installed: unknown (Hermes SSH to Proxmox currently denied)
-shutdown.proxmox_secondary.reachable_via_upsc: unknown (needs Proxmox-side probe)
+shutdown.proxmox_secondary.state: reachable_via_upsc
+shutdown.proxmox_secondary.package_installed: true
+shutdown.proxmox_secondary.reachable_via_upsc: true
 shutdown.proxmox_secondary.connected_as_upsmon: false
 shutdown.proxmox_secondary.armed: false
 shutdown.would_shutdown: false

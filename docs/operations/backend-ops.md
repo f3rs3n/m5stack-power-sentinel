@@ -166,14 +166,33 @@ shutdown.proxmox_secondary.state: not_configured | reachable_via_upsc | connecte
 
 Point 8 is intentionally non-destructive. It discovers whether Proxmox can become a Standard NUT secondary, but it does not enable `nut-monitor`, does not edit Proxmox config, and does not trigger FSD/shutdown.
 
-Discovery attempted from Hermes:
+Discovery from Hermes now uses the dedicated SSH host alias:
 
 ```text
-ssh root@192.168.2.99: blocked by SSH auth / host-key state
-ssh martino@192.168.2.99: blocked by SSH auth
-ssh root@pve.warpzone.info: blocked by SSH auth
-ssh martino@pve.warpzone.info: blocked by SSH auth
+pve-power-sentinel -> root@192.168.2.99 with ~/.ssh/proxmox_power_sentinel_ed25519
 ```
+
+Current Proxmox read-only readiness result:
+
+```text
+host: pve
+OS: Debian GNU/Linux 13 (trixie)
+kernel: 7.0.2-4-pve
+nut-client: installed (2.8.1-5)
+upsc: /usr/bin/upsc
+upsmon: /usr/sbin/upsmon
+TCP 192.168.2.202:3493: OK
+upsc homelab_ups@192.168.2.202 ups.status: OL
+battery.charge: 100
+battery.runtime: 372
+ups.load: 38
+nut-monitor: disabled/inactive after explicit safety disable
+nut.target: disabled/inactive after explicit safety disable
+/etc/nut/nut.conf: MODE=none
+/etc/nut/upsmon.conf: no MONITOR lines yet
+```
+
+Note: Debian's `nut-client` package created/enabled `nut-monitor`/`nut.target` symlinks during install, but they were inactive. They were immediately disabled again with `systemctl disable --now ...` before any upsmon configuration existed. No shutdown path was armed.
 
 Discovery confirmed from the M5Stack LLM Module:
 
@@ -184,18 +203,18 @@ no active TCP client on :3493 at discovery time
 /etc/nut/upsd.users still contains only examples/comments, no active upsmon users yet
 ```
 
-Because Hermes currently cannot SSH into Proxmox, package/config checks on Proxmox remain unknown until Martino either grants SSH access or runs the commands manually on Proxmox. The backend exposes a conservative readiness object:
+Because Proxmox has `nut-client` installed and `upsc` can read the M5Stack NUT server, the live readiness file on the LLM Module is:
 
 ```json
 "shutdown": {
   "proxmox_secondary": {
     "target_host": "192.168.2.99",
-    "package_installed": null,
-    "reachable_via_upsc": null,
+    "package_installed": true,
+    "reachable_via_upsc": true,
     "configured": false,
     "connected_as_upsmon": false,
     "armed": false,
-    "state": "not_configured"
+    "state": "reachable_via_upsc"
   }
 }
 ```
