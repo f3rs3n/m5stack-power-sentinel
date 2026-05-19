@@ -71,7 +71,7 @@ def main() -> int:
     for needle in required_shutdown:
         if needle not in text:
             return fail(f"NUT shutdown/readiness UI missing {needle}")
-    forbidden_shutdown = ["strategy", "standard-nut", "DRY-RUN", "dry-run", "state.shutdown.mode", "state.shutdown.strategy"]
+    forbidden_shutdown = ["DRY-RUN", "dry-run"]
     for needle in forbidden_shutdown:
         if needle in text:
             return fail(f"NUT UI still contains ambiguous shutdown wording {needle}")

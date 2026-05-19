@@ -61,7 +61,7 @@ The summary also exposes the low-complexity NUT service state needed by the Core
 - `nut.clients`
 - `nut.shutdown_state`
 
-Shutdown readiness is reported for Standard NUT. Power Sentinel does not expose its own shutdown mode or strategy because there is only one supported path: NUT `upsmon` primary/secondary.
+Shutdown readiness is reported for Standard NUT. Power Sentinel exposes only NUT `upsmon` primary/secondary readiness.
 
 - `shutdown.real_shutdown_owner=upsmon`
 - `shutdown.primary_ready`, `shutdown.primary_monitor_active`, `shutdown.secondary_ready`
@@ -73,7 +73,7 @@ Shutdown readiness is reported for Standard NUT. Power Sentinel does not expose 
 - `shutdown.would_shutdown`, `shutdown.reason`
 - `shutdown.thresholds.battery_charge_low_percent`, `shutdown.thresholds.battery_runtime_low_seconds`
 
-Power Sentinel does not perform custom shutdown orchestration. Real shutdown belongs to NUT `upsmon` primary/secondary roles; enabling `nut-monitor` is the meaningful state transition, not a Power Sentinel API mode switch.
+Power Sentinel does not perform custom shutdown orchestration. Real shutdown belongs to NUT `upsmon` primary/secondary roles; enabling `nut-monitor` is the meaningful state transition.
 
 Other sections:
 
