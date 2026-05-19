@@ -121,11 +121,11 @@ Current service policy:
 ```text
 nut-server: enabled/active
 nut-driver: static/active
-nut-monitor: disabled/inactive
+nut-monitor: enabled/active on the M5Stack primary
 /etc/nut/nut.conf: MODE=netserver
 ```
 
-`nut-server` is enabled so UPS telemetry survives reboot. `nut-monitor` remains disabled for now. Shutdown is handled only by Standard NUT: `upsmon` primary on the M5Stack LLM Module and `upsmon` secondary on clients such as Proxmox. Power Sentinel remains a dashboard/readiness observer; it does not orchestrate Proxmox shutdown via API.
+`nut-server` is enabled so UPS telemetry survives reboot. `nut-monitor` is enabled on the M5Stack primary only. Shutdown is handled only by Standard NUT: `upsmon` primary on the M5Stack LLM Module and `upsmon` secondary on clients such as Proxmox. Power Sentinel remains a dashboard/readiness observer; it does not orchestrate Proxmox shutdown via API.
 
 Useful NUT commands:
 
@@ -156,12 +156,14 @@ ups.status: OL
 ups.status_label: Online
 severity: ok
 shutdown.real_shutdown_owner: upsmon
+shutdown.primary_monitor_active: true
+shutdown.armed: true
 shutdown.nut_clients[0].state: not_configured | reachable_via_upsc | connected_as_upsmon | armed
 ```
 
 ## NUT client readiness
 
-Point 8 is intentionally non-destructive. It discovers whether secondary hosts can become Standard NUT clients, but it does not enable `nut-monitor`, does not edit active client shutdown config, and does not trigger FSD/shutdown.
+The primary monitor on the M5Stack is active. Secondary client readiness remains staged: do not enable the Proxmox `nut-monitor`, and do not trigger FSD/shutdown, until the separate secondary test.
 
 Discovery from Hermes uses a host-specific SSH alias for the first secondary host:
 
@@ -197,9 +199,8 @@ Discovery confirmed from the M5Stack LLM Module:
 ```text
 upsc homelab_ups@localhost ups.status: OL
 upsd listens on 127.0.0.1:3493 and 192.168.2.202:3493
-no active TCP client on :3493 at discovery time
 /etc/nut/upsd.users contains generated upsmon_primary/upsmon_secondary monitor users
-/etc/nut/upsmon.conf contains a prepared primary MONITOR line, but nut-monitor is disabled/inactive
+/etc/nut/upsmon.conf contains the active primary MONITOR line
 ```
 
 Compatibility note: the M5Stack LLM Module currently runs NUT 2.7.4, whose config keywords are `master`/`slave`. Those deployed keywords map to the Standard NUT primary/secondary roles used in docs, UI, and API prose.

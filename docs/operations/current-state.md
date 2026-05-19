@@ -89,12 +89,12 @@ Current verified NUT service state:
 ```text
 nut-server: enabled/active
 nut-driver: static/active
-nut-monitor: disabled/inactive
+nut-monitor: enabled/active on the M5Stack primary
 ```
 
-`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but no real shutdown is armed. Shutdown is handled only by Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox). Power Sentinel is only a dashboard/readiness observer and must not orchestrate Proxmox shutdown through the Proxmox API.
+`nut-monitor` is now enabled on the M5Stack primary only. Shutdown is handled only by Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox). Power Sentinel is only a dashboard/readiness observer and must not orchestrate Proxmox shutdown through the Proxmox API.
 
-Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host, but `nut-monitor.service` remains disabled/inactive on both. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
+Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host. The M5Stack primary monitor is active; the first secondary host remains disabled/inactive until a separate deliberate secondary test. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
 
 Verified live UPS values after connection:
 
@@ -188,7 +188,8 @@ zigbee2mqtt.coordinator.firmware: 7.4.5 [GA]
 zigbee2mqtt.devices: total=29 interviewed=29 disabled=0
 shutdown.real_shutdown_owner: upsmon
 shutdown.primary_ready: true
-shutdown.primary_monitor_active: false
+shutdown.primary_monitor_active: true
+shutdown.armed: true
 shutdown.secondary_ready: false
 shutdown.nut_clients[0].state: reachable_via_upsc
 shutdown.nut_clients[0].package_installed: true
