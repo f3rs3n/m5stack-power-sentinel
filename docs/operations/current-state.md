@@ -92,7 +92,9 @@ nut-driver: static/active
 nut-monitor: disabled/inactive
 ```
 
-`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but no real shutdown is armed. The accepted real shutdown strategy is Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on Proxmox). Power Sentinel is only a dashboard/dry-run observer and must not orchestrate Proxmox shutdown through the Proxmox API.
+`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but no real shutdown is armed. The accepted real shutdown strategy is Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox). Power Sentinel is only a dashboard/dry-run observer and must not orchestrate Proxmox shutdown through the Proxmox API.
+
+Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host, but `nut-monitor.service` remains disabled/inactive on both. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
 
 Verified live UPS values after connection:
 
@@ -193,6 +195,7 @@ shutdown.secondary_ready: false
 shutdown.nut_clients[0].state: reachable_via_upsc
 shutdown.nut_clients[0].package_installed: true
 shutdown.nut_clients[0].reachable_via_upsc: true
+shutdown.nut_clients[0].configured: true
 shutdown.nut_clients[0].connected_as_upsmon: false
 shutdown.nut_clients[0].armed: false
 shutdown.would_shutdown: false

@@ -188,11 +188,11 @@ battery.runtime: 372
 ups.load: 38
 nut-monitor: disabled/inactive after explicit safety disable
 nut.target: disabled/inactive after explicit safety disable
-/etc/nut/nut.conf: MODE=none
-/etc/nut/upsmon.conf: no MONITOR lines yet
+/etc/nut/nut.conf: MODE=netclient
+/etc/nut/upsmon.conf: MONITOR prepared for homelab_ups@192.168.2.202 as upsmon_secondary, but the service is not enabled/started
 ```
 
-Note: Debian's `nut-client` package created/enabled `nut-monitor`/`nut.target` symlinks during install, but they were inactive. They were immediately disabled again with `systemctl disable --now ...` before any upsmon configuration existed. No shutdown path was armed.
+Note: Debian's `nut-client` package created/enabled `nut-monitor`/`nut.target` symlinks during install, but they were inactive. They were immediately disabled again with `systemctl disable --now ...`; after preparing `upsmon.conf`, the service was explicitly kept disabled/inactive. No shutdown path is armed.
 
 Discovery confirmed from the M5Stack LLM Module:
 
@@ -200,8 +200,11 @@ Discovery confirmed from the M5Stack LLM Module:
 upsc homelab_ups@localhost ups.status: OL
 upsd listens on 127.0.0.1:3493 and 192.168.2.202:3493
 no active TCP client on :3493 at discovery time
-/etc/nut/upsd.users still contains only examples/comments, no active upsmon users yet
+/etc/nut/upsd.users contains generated upsmon_primary/upsmon_secondary monitor users
+/etc/nut/upsmon.conf contains a prepared primary MONITOR line, but nut-monitor is disabled/inactive
 ```
+
+Compatibility note: the M5Stack LLM Module currently runs NUT 2.7.4, whose config keywords are `master`/`slave`. Those deployed keywords map to the Standard NUT primary/secondary roles used in docs, UI, and API prose.
 
 Because the first secondary host has `nut-client` installed and `upsc` can read the M5Stack NUT server, the live client inventory file on the LLM Module is:
 
@@ -214,7 +217,7 @@ Because the first secondary host has `nut-client` installed and `upsc` can read 
       "role": "secondary",
       "package_installed": true,
       "upsc_reachable": true,
-      "config_present": false,
+      "config_present": true,
       "monitor_active": false
     }
   ]

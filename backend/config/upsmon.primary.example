@@ -1,8 +1,9 @@
 # Sanitized example for /etc/nut/upsmon.conf on the M5Stack LLM Module.
 # This is the primary upsmon role because the UPS is physically connected here.
 # Do not enable until tested deliberately. Install with owner root:nut and mode 0640.
+# NUT 2.7.4 uses the legacy keyword "master" for the primary role.
 
-MONITOR homelab_ups@localhost 1 upsmon_primary CHANGE_ME_PRIMARY_SECRET primary
+MONITOR homelab_ups@localhost 1 upsmon_primary CHANGE_ME_PRIMARY_SECRET master
 MINSUPPLIES 1
 SHUTDOWNCMD "/sbin/shutdown -h +0"
 NOTIFYCMD /usr/sbin/upssched

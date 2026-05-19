@@ -1,10 +1,13 @@
 # Sanitized example for /etc/nut/upsd.users on the USB-attached NUT server.
 # Do not commit real passwords. Install with owner root:nut and mode 0640.
+# Martino's M5Stack LLM Module currently runs NUT 2.7.4, whose config
+# keywords are still master/slave. Treat these as the Standard NUT
+# primary/secondary roles in project docs and UI.
 
 [upsmon_primary]
     password = CHANGE_ME_PRIMARY_SECRET
-    upsmon primary
+    upsmon master
 
 [upsmon_secondary]
     password = CHANGE_ME_SECONDARY_SECRET
-    upsmon secondary
+    upsmon slave

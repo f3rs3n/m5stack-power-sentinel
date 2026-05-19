@@ -2,8 +2,10 @@
 # A secondary upsmon host reads UPS state from the M5Stack LLM Module and shuts
 # itself down locally when standard NUT LOWBATT/FSD logic requires it.
 # Do not enable until tested deliberately. Install with owner root:nut and mode 0640.
+# Use the legacy keyword "slave" for compatibility with the M5Stack server's
+# NUT 2.7.4 terminology. This is the Standard NUT secondary role.
 
-MONITOR homelab_ups@192.168.2.202 1 upsmon_secondary CHANGE_ME_SECONDARY_SECRET secondary
+MONITOR homelab_ups@192.168.2.202 1 upsmon_secondary CHANGE_ME_SECONDARY_SECRET slave
 MINSUPPLIES 1
 SHUTDOWNCMD "/sbin/shutdown -h +0"
 POLLFREQ 5
