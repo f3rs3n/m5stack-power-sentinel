@@ -214,6 +214,25 @@ def test_build_summary_includes_nut_service_state_when_available():
     }
 
 
+def test_proxmox_nut_secondary_readiness_distinguishes_discovery_states():
+    api = load_module()
+
+    not_configured = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": []})
+    reachable = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": []}, upsc_reachable=True, package_installed=True, config_present=False)
+    connected = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": ["192.168.2.99"]}, upsc_reachable=True, package_installed=True, config_present=True, monitor_active=False)
+    armed = api.summarize_proxmox_nut_secondary(target_host="192.168.2.99", nut={"clients": ["192.168.2.99"]}, upsc_reachable=True, package_installed=True, config_present=True, monitor_active=True)
+
+    assert not_configured["state"] == "not_configured"
+    assert not_configured["reachable_via_upsc"] is None
+    assert not_configured["connected_as_upsmon"] is False
+    assert not_configured["armed"] is False
+    assert reachable["state"] == "reachable_via_upsc"
+    assert connected["state"] == "connected_as_upsmon"
+    assert armed["state"] == "armed"
+    assert armed["configured"] is True
+    assert armed["target_host"] == "192.168.2.99"
+
+
 def test_standard_nut_shutdown_dry_run_reports_readiness_without_proxmox_orchestration():
     api = load_module()
     ups = api.parse_upsc_output(

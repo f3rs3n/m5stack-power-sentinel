@@ -145,6 +145,7 @@ backend/config/upsd.conf.example
 backend/config/upsd.users.standard-nut.example
 backend/config/upsmon.primary.example
 backend/config/upsmon.secondary-proxmox.example
+backend/config/proxmox-nut-readiness.example.json
 ```
 
 The live API summary should now show:
@@ -158,4 +159,79 @@ shutdown.strategy: standard-nut
 shutdown.mode: dry-run
 shutdown.real_shutdown_owner: upsmon
 shutdown.proxmox_api_orchestration: false
+shutdown.proxmox_secondary.state: not_configured | reachable_via_upsc | connected_as_upsmon | armed
+```
+
+## Proxmox NUT secondary readiness
+
+Point 8 is intentionally non-destructive. It discovers whether Proxmox can become a Standard NUT secondary, but it does not enable `nut-monitor`, does not edit Proxmox config, and does not trigger FSD/shutdown.
+
+Discovery attempted from Hermes:
+
+```text
+ssh root@192.168.2.99: blocked by SSH auth / host-key state
+ssh martino@192.168.2.99: blocked by SSH auth
+ssh root@pve.warpzone.info: blocked by SSH auth
+ssh martino@pve.warpzone.info: blocked by SSH auth
+```
+
+Discovery confirmed from the M5Stack LLM Module:
+
+```text
+upsc homelab_ups@localhost ups.status: OL
+upsd listens on 127.0.0.1:3493 and 192.168.2.202:3493
+no active TCP client on :3493 at discovery time
+/etc/nut/upsd.users still contains only examples/comments, no active upsmon users yet
+```
+
+Because Hermes currently cannot SSH into Proxmox, package/config checks on Proxmox remain unknown until Martino either grants SSH access or runs the commands manually on Proxmox. The backend exposes a conservative readiness object:
+
+```json
+"shutdown": {
+  "proxmox_secondary": {
+    "target_host": "192.168.2.99",
+    "package_installed": null,
+    "reachable_via_upsc": null,
+    "configured": false,
+    "connected_as_upsmon": false,
+    "armed": false,
+    "state": "not_configured"
+  }
+}
+```
+
+State meanings:
+
+- `not_configured`: no readiness file and no observed Proxmox upsmon client.
+- `reachable_via_upsc`: Proxmox has `upsc`/`nut-client` and can read `homelab_ups@192.168.2.202`, but upsmon is not connected.
+- `connected_as_upsmon`: the M5Stack NUT server sees a Proxmox/PVE client connection on port 3493; not necessarily armed.
+- `armed`: Proxmox readiness says `monitor_active=true` and the M5Stack NUT server sees the Proxmox upsmon client.
+
+Optional manual readiness file on the LLM Module:
+
+```text
+/etc/power-sentinel-proxmox-nut-readiness.json
+```
+
+Sanitized example:
+
+```json
+{
+  "target_host": "192.168.2.99",
+  "package_installed": true,
+  "upsc_reachable": true,
+  "config_present": false,
+  "monitor_active": false
+}
+```
+
+Manual Proxmox commands for Martino, still read-only/non-destructive:
+
+```bash
+command -v upsc || true
+dpkg-query -W nut-client nut-server nut 2>/dev/null || true
+timeout 3 bash -lc '</dev/tcp/192.168.2.202/3493' && echo tcp_3493_ok || echo tcp_3493_fail
+upsc homelab_ups@192.168.2.202 ups.status
+systemctl is-enabled nut-monitor 2>/dev/null || true
+systemctl is-active nut-monitor 2>/dev/null || true
 ```

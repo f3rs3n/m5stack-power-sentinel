@@ -67,7 +67,7 @@ def main() -> int:
     for needle in required_ha_z2m:
         if needle not in text:
             return fail(f"HA/Z2M UI missing {needle}")
-    required_shutdown = ["ShutdownState", "strategy", "standard-nut", "DRY-RUN", "upsmon", "proxmoxApiOrchestration"]
+    required_shutdown = ["ShutdownState", "strategy", "standard-nut", "DRY-RUN", "upsmon", "proxmoxApiOrchestration", "secondaryState", "reachable_via_upsc", "connected_as_upsmon"]
     for needle in required_shutdown:
         if needle not in text:
             return fail(f"Standard NUT shutdown UI missing {needle}")

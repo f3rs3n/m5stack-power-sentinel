@@ -132,6 +132,11 @@ struct ShutdownState {
   bool primaryMonitorActive = false;
   bool secondaryReady = false;
   bool proxmoxApiOrchestration = false;
+  char secondaryState[28] = "not_configured";
+  char secondaryTarget[32] = "unknown";
+  int secondaryPackageInstalled = -1;
+  int secondaryReachableViaUpsc = -1;
+  bool secondaryConnectedAsUpsmon = false;
   char strategy[24] = "standard-nut";
   char mode[16] = "dry-run";
   char owner[16] = "upsmon";
@@ -223,6 +228,16 @@ int jsonInt(JsonVariantConst v, int fallback) {
 
 float jsonFloat(JsonVariantConst v, float fallback) {
   return v.isNull() ? fallback : v.as<float>();
+}
+
+int jsonTriBool(JsonVariantConst v) {
+  if (v.isNull()) return -1;
+  return v.as<bool>() ? 1 : 0;
+}
+
+const char *triText(int value) {
+  if (value < 0) return "unknown";
+  return value > 0 ? "yes" : "no";
 }
 
 void parseSummary(const String &json, bool fromNetwork) {
@@ -342,6 +357,12 @@ void parseSummary(const String &json, bool fromNetwork) {
   JsonObjectConst thresholds = sd["thresholds"].as<JsonObjectConst>();
   state.shutdown.chargeLowPercent = jsonInt(thresholds["battery_charge_low_percent"], -1);
   state.shutdown.runtimeLowSeconds = jsonInt(thresholds["battery_runtime_low_seconds"], -1);
+  JsonObjectConst secondary = sd["proxmox_secondary"].as<JsonObjectConst>();
+  safeCopy(state.shutdown.secondaryState, sizeof(state.shutdown.secondaryState), secondary["state"] | "not_configured");
+  safeCopy(state.shutdown.secondaryTarget, sizeof(state.shutdown.secondaryTarget), secondary["target_host"] | "unknown");
+  state.shutdown.secondaryPackageInstalled = jsonTriBool(secondary["package_installed"]);
+  state.shutdown.secondaryReachableViaUpsc = jsonTriBool(secondary["reachable_via_upsc"]);
+  state.shutdown.secondaryConnectedAsUpsmon = secondary["connected_as_upsmon"] | false;
 
   JsonObjectConst z2m = doc["zigbee2mqtt"].as<JsonObjectConst>();
   state.zigbee2mqtt.available = z2m["available"] | false;
@@ -642,7 +663,11 @@ void renderNut() {
   addMetricRow(shutdownCard, "strategy", line);
   snprintf(line, sizeof(line), "mode %s   armed %s", strcmp(state.shutdown.mode, "dry-run") == 0 ? "DRY-RUN" : state.shutdown.mode, state.shutdown.armed ? "YES" : "NO");
   addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "primary %s   proxmox %s", state.shutdown.primaryReady ? "ready" : "missing", state.shutdown.secondaryReady ? "seen" : "not seen");
+  snprintf(line, sizeof(line), "secondary %s", state.shutdown.secondaryState);
+  addLine(shutdownCard, line);
+  snprintf(line, sizeof(line), "pkg %s   reachable_via_upsc %s", triText(state.shutdown.secondaryPackageInstalled), triText(state.shutdown.secondaryReachableViaUpsc));
+  addLine(shutdownCard, line);
+  snprintf(line, sizeof(line), "connected_as_upsmon %s", state.shutdown.secondaryConnectedAsUpsmon ? "yes" : "no");
   addLine(shutdownCard, line);
   snprintf(line, sizeof(line), "api orch %s", state.shutdown.proxmoxApiOrchestration ? "ON" : "OFF");
   addLine(shutdownCard, line);
