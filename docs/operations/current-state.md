@@ -92,7 +92,7 @@ nut-driver: static/active
 nut-monitor: disabled/inactive
 ```
 
-`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but has no autonomous shutdown policy armed yet. Proxmox shutdown remains `disarmed`.
+`nut-monitor` is intentionally disabled for now: the appliance exposes/serves UPS data but no real shutdown is armed. The accepted real shutdown strategy is Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on Proxmox). Power Sentinel is only a dashboard/dry-run observer and must not orchestrate Proxmox shutdown through the Proxmox API.
 
 Verified live UPS values after connection:
 
@@ -112,6 +112,9 @@ Sanitized example configs are in:
 backend/config/nut.conf.example
 backend/config/ups.conf.example
 backend/config/upsd.conf.example
+backend/config/upsd.users.standard-nut.example
+backend/config/upsmon.primary.example
+backend/config/upsmon.secondary-proxmox.example
 ```
 
 ## Current backend
@@ -167,7 +170,7 @@ proxmox.zfs.status: ONLINE
 proxmox.smart.status: OK
 proxmox.vm.running_names: ["haos"]
 proxmox.lxc.running_names: ["docker", "hermes"]
-proxmox.shutdown_state: disarmed
+proxmox.shutdown_state: disarmed (compatibility/display only; real shutdown path is NUT secondary upsmon)
 network.available: true
 network.default_route: true
 network.probe: tcp
@@ -180,6 +183,15 @@ zigbee2mqtt.version: 2.10.1
 zigbee2mqtt.coordinator.type: EmberZNet
 zigbee2mqtt.coordinator.firmware: 7.4.5 [GA]
 zigbee2mqtt.devices: total=29 interviewed=29 disabled=0
+shutdown.strategy: standard-nut
+shutdown.mode: dry-run
+shutdown.real_shutdown_owner: upsmon
+shutdown.proxmox_api_orchestration: false
+shutdown.primary_ready: true
+shutdown.primary_monitor_active: false
+shutdown.secondary_ready: false
+shutdown.would_shutdown: false
+shutdown.reason: UPS online
 problems: []
 ```
 
@@ -191,7 +203,7 @@ mode: 600
 owner: root:root
 ```
 
-Do not print or commit the token secret. The token is read-only and the service has no shutdown action yet.
+Do not print or commit the token secret. The token is read-only and the service has no shutdown action. Real shutdown is delegated to Standard NUT, not Proxmox API orchestration.
 
 ## Current firmware state
 
@@ -225,7 +237,8 @@ The firmware currently has:
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, Zigbee2MQTT state/version, coordinator type/firmware, and Zigbee device totals from the MQTT-first Z2M backend summary.
-- PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts, with shutdown state still `disarmed`.
+- NUT tab now shows Standard NUT shutdown dry-run state: strategy, owner `upsmon`, primary readiness, Proxmox secondary detection, NUT low-battery thresholds, and explicit Proxmox API orchestration `OFF`.
+- PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts. Shutdown line points to NUT rather than implying Proxmox API control.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
 - Internal UART StackFlow transport enabled by default:
 

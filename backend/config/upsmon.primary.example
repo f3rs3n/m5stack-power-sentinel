@@ -1,0 +1,22 @@
+# Sanitized example for /etc/nut/upsmon.conf on the M5Stack LLM Module.
+# This is the primary upsmon role because the UPS is physically connected here.
+# Do not enable until tested deliberately. Install with owner root:nut and mode 0640.
+
+MONITOR homelab_ups@localhost 1 upsmon_primary CHANGE_ME_PRIMARY_SECRET primary
+MINSUPPLIES 1
+SHUTDOWNCMD "/sbin/shutdown -h +0"
+NOTIFYCMD /usr/sbin/upssched
+POLLFREQ 5
+POLLFREQALERT 5
+HOSTSYNC 15
+DEADTIME 15
+POWERDOWNFLAG /run/nut/killpower
+FINALDELAY 5
+
+NOTIFYFLAG ONLINE SYSLOG
+NOTIFYFLAG ONBATT SYSLOG
+NOTIFYFLAG LOWBATT SYSLOG+WALL
+NOTIFYFLAG FSD SYSLOG+WALL
+NOTIFYFLAG SHUTDOWN SYSLOG+WALL
+NOTIFYFLAG COMMOK SYSLOG
+NOTIFYFLAG COMMBAD SYSLOG

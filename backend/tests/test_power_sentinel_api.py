@@ -194,6 +194,80 @@ def test_build_summary_includes_nut_service_state_when_available():
     }
 
 
+def test_standard_nut_shutdown_dry_run_reports_readiness_without_proxmox_orchestration():
+    api = load_module()
+    ups = api.parse_upsc_output(
+        """
+ups.status: OL
+battery.charge: 100
+battery.charge.low: 10
+battery.runtime: 384
+battery.runtime.low: 120
+""".strip()
+    )
+    nut = {
+        "server_active": True,
+        "driver_active": True,
+        "monitor_active": False,
+        "mode": "netserver",
+        "client_count": 0,
+        "clients": [],
+        "shutdown_state": "disarmed",
+    }
+
+    shutdown = api.summarize_standard_nut_shutdown(ups, nut)
+
+    assert shutdown["strategy"] == "standard-nut"
+    assert shutdown["mode"] == "dry-run"
+    assert shutdown["armed"] is False
+    assert shutdown["real_shutdown_owner"] == "upsmon"
+    assert shutdown["proxmox_api_orchestration"] is False
+    assert shutdown["primary_ready"] is True
+    assert shutdown["primary_monitor_active"] is False
+    assert shutdown["secondary_ready"] is False
+    assert shutdown["would_shutdown"] is False
+    assert shutdown["reason"] == "UPS online"
+    assert shutdown["thresholds"] == {"battery_charge_low_percent": 10, "battery_runtime_low_seconds": 120}
+    assert shutdown["targets"][0] == {"name": "m5stack-llm", "role": "primary", "state": "not armed"}
+    assert shutdown["targets"][1] == {"name": "proxmox", "role": "secondary", "state": "not detected"}
+
+
+def test_standard_nut_shutdown_dry_run_would_shutdown_on_low_battery_only():
+    api = load_module()
+    nut = {"server_active": True, "driver_active": True, "monitor_active": False, "mode": "netserver", "client_count": 1, "clients": ["proxmox"], "shutdown_state": "disarmed"}
+
+    on_battery = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OB\nbattery.runtime: 600"), nut)
+    low_battery = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OB LB\nbattery.runtime: 90"), nut)
+
+    assert on_battery["would_shutdown"] is False
+    assert on_battery["reason"] == "UPS on battery, waiting for NUT LOWBATT/FSD"
+    assert low_battery["would_shutdown"] is True
+    assert low_battery["reason"] == "UPS low battery; standard NUT upsmon would initiate shutdown"
+
+
+def test_build_summary_exposes_standard_nut_shutdown_contract():
+    api = load_module()
+    nut = {"server_active": True, "driver_active": True, "monitor_active": False, "mode": "netserver", "client_count": 0, "clients": [], "shutdown_state": "disarmed"}
+
+    summary = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True},
+        ups=api.parse_upsc_output("ups.status: OL\nbattery.charge.low: 10\nbattery.runtime.low: 120"),
+        nut=nut,
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        pve=api.summarize_proxmox_data("pve", 1, {"status": "online"}, [], [], [], []),
+        network={"available": True, "severity": "ok", "default_route": True, "probe": "tcp", "target": "1.1.1.1:53"},
+        mqtt={"available": True, "severity": "ok", "broker": "192.168.2.200:1883"},
+        homeassistant_mqtt={"status": "unknown", "source": "mqtt", "status_topic": "homeassistant/status"},
+        zigbee2mqtt=api.summarize_zigbee2mqtt_payloads("zigbee2mqtt", '{"state":"online"}', '{"coordinator": {"type": "ember"}}', "[]"),
+    )
+
+    assert summary["shutdown"]["strategy"] == "standard-nut"
+    assert summary["shutdown"]["mode"] == "dry-run"
+    assert summary["shutdown"]["proxmox_api_orchestration"] is False
+    assert "shutdown" not in summary["problems"]
+
+
 def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     api = load_module()
 

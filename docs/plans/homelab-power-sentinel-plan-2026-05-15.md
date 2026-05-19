@@ -707,7 +707,7 @@ Automazioni minime:
 - Notifica immediata.
 
 7. UPS low battery / runtime basso
-- Notifica critica e possibile avvio shutdown orchestration.
+- Notifica critica; shutdown reale demandato a Standard NUT (`upsmon`), non a orchestrazione Power Sentinel/Proxmox API.
 
 8. Temperatura M5Stack alta
 - Soglia iniziale: >70 C per 5 minuti.
@@ -717,27 +717,33 @@ Automazioni minime:
 
 ---
 
-## 10. Fase shutdown orchestration
+## 10. Fase shutdown Standard NUT
 
-Obiettivo: spegnimento ordinato homelab durante blackout.
+Decisione aggiornata: lo shutdown reale sara' Standard NUT, non orchestrazione Power Sentinel/Proxmox API.
+
+Obiettivo: spegnimento ordinato homelab durante blackout usando `upsmon`.
+
+Ruoli desiderati:
+1. M5Stack LLM Module: `usbhid-ups` + `upsd` + futuro `upsmon primary`.
+2. Proxmox: futuro `upsmon secondary` che legge `homelab_ups@192.168.2.202` e spegne localmente il nodo.
+3. Power Sentinel: dashboard/dry-run/observer; non invia comandi di shutdown via Proxmox API.
 
 Sequenza desiderata:
 1. UPS passa ON BATTERY.
-2. M5Stack rileva e aggiorna NUT/MQTT/display.
-3. Home Assistant e Proxmox ricevono evento.
-4. Se runtime basso o LOW BATTERY:
-   - spegnere servizi non critici;
-   - fermare VM/container;
-   - spegnere Proxmox;
-   - lasciare M5Stack vivo fino all'ultimo.
-5. Al ritorno corrente:
-   - Proxmox riparte;
-   - HA riparte;
-   - M5Stack continua o riparte rapidamente.
+2. M5Stack aggiorna NUT/MQTT/display.
+3. Se NUT segnala LOWBATT/FSD, `upsmon` coordina lo shutdown standard:
+   - i secondary, incluso Proxmox, si spengono localmente;
+   - il primary M5Stack si spegne secondo la propria config;
+   - killpower UPS resta fuori scope V1 salvo test esplicito futuro.
+4. Al ritorno corrente:
+   - UPS torna ONLINE;
+   - Proxmox/HA ripartono secondo firmware/BIOS/policy host;
+   - M5Stack riparte o resta operativo secondo alimentazione disponibile.
 
 Regole:
 - Prima read-only.
-- Poi dry-run/log-only.
+- Poi dry-run/log-only in Power Sentinel.
+- Poi configurazione Standard NUT non armata/templates.
 - Poi micro-test controllato.
 - Shutdown reale solo dopo conferma esplicita.
 
@@ -837,7 +843,7 @@ ssh root@192.168.2.202 'ss -tulpn | grep -E ":(22|23|111|10001|8000|3493)\b" || 
 1. Driver UPS effettivo: da scoprire dopo collegamento USB.
 2. Intervallo MQTT UPS: 30s o 60s.
 3. Modalita' display CoreS3: seriale, HTTP locale, MQTT diretto o altro.
-4. Proxmox: quando passare da read-only a shutdown reale.
+4. Proxmox: quando configurare `upsmon secondary` Standard NUT e come testare shutdown locale.
 5. Home Assistant: usare solo MQTT o anche integrazione NUT nativa.
 6. Soglie UPS reali: runtime minimo, battery %, low battery policy.
 
@@ -848,7 +854,7 @@ ssh root@192.168.2.202 'ss -tulpn | grep -E ":(22|23|111|10001|8000|3493)\b" || 
 - Non inserire segreti nei piani.
 - Non abilitare shutdown reale senza conferma esplicita.
 - Non trasformare subito il M5Stack in single point of failure senza test.
-- NUT server sul M5Stack e' sensato, ma Proxmox shutdown va introdotto per gradi.
+- NUT server sul M5Stack e' sensato; Proxmox shutdown reale deve passare da `upsmon secondary`, non da API Proxmox custom.
 - Home Assistant deve essere consumatore/automatore, non prerequisito per sapere se l'UPS e' vivo.
 - CoreS3 deve avere almeno pagina UPS autonoma.
 - Ogni nuova integrazione deve avere healthcheck, MQTT state e verifica retained.

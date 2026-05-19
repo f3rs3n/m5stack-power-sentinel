@@ -1,0 +1,10 @@
+# Sanitized example for /etc/nut/upsd.users on the USB-attached NUT server.
+# Do not commit real passwords. Install with owner root:nut and mode 0640.
+
+[upsmon_primary]
+    password = CHANGE_ME_PRIMARY_SECRET
+    upsmon primary
+
+[upsmon_secondary]
+    password = CHANGE_ME_SECONDARY_SECRET
+    upsmon secondary

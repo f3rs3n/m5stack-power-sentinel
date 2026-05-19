@@ -252,9 +252,10 @@ Do not hard-code these as `OK` clients unless NUT actually exposes them as conne
 
 Shutdown policy:
 
-- `nut-monitor` remains disabled in V1.
-- No autonomous shutdown is armed in V1.
-- NUT page may show `Shutdown: DISARMED` only if it is unambiguous.
+- Real shutdown strategy is Standard NUT, not Proxmox API orchestration.
+- `nut-monitor` remains disabled until Standard NUT primary/secondary config is deliberately armed.
+- Power Sentinel is dashboard/dry-run observer only.
+- NUT page should show `Shutdown DRY-RUN`, owner `upsmon`, primary/secondary readiness, low-battery thresholds, and explicit `api orch OFF`.
 
 ## PVE tab
 
@@ -266,7 +267,7 @@ Scope:
 - No cluster model in V1.
 - Read-only API integration.
 - No shutdown actions in V1.
-- Shutdown policy display remains explicitly disarmed/not active.
+- Shutdown policy display points to Standard NUT / `upsmon`; do not imply Proxmox API shutdown control.
 
 Security/config direction:
 
@@ -289,9 +290,9 @@ Top PVE section:
 - SMART/disk health status
 - VM running count
 - LXC/CT running count
-- Shutdown state: `DISARMED` / `not active`
+- Shutdown path: `Standard NUT` / `via upsmon`
 
-Do not show shutdown triggers in V1. Avoid implying an armed shutdown policy before dry-run exists.
+Do not show Proxmox API shutdown triggers in V1. Avoid implying an armed shutdown policy before Standard NUT dry-run/readiness is understood.
 
 VM/LXC section:
 
@@ -329,7 +330,7 @@ Temp 58C     Storage 62%
 ZFS ONLINE   SMART OK
 VM 8 run     CT 4 run
 
-Shutdown DISARMED
+Shutdown via NUT
 
 VMs: ha, docker, ... +5
 CTs: hermes, services, ... +2

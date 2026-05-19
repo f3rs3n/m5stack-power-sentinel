@@ -61,6 +61,10 @@ def main() -> int:
     for needle in required_ha_z2m:
         if needle not in text:
             return fail(f"HA/Z2M UI missing {needle}")
+    required_shutdown = ["ShutdownState", "strategy", "standard-nut", "DRY-RUN", "upsmon", "proxmoxApiOrchestration"]
+    for needle in required_shutdown:
+        if needle not in text:
+            return fail(f"Standard NUT shutdown UI missing {needle}")
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")

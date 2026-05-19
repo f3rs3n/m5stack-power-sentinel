@@ -125,6 +125,21 @@ struct Zigbee2MqttState {
   int deviceDisabled = -1;
 };
 
+struct ShutdownState {
+  bool armed = false;
+  bool wouldShutdown = false;
+  bool primaryReady = false;
+  bool primaryMonitorActive = false;
+  bool secondaryReady = false;
+  bool proxmoxApiOrchestration = false;
+  char strategy[24] = "standard-nut";
+  char mode[16] = "dry-run";
+  char owner[16] = "upsmon";
+  char reason[96] = "waiting";
+  int chargeLowPercent = -1;
+  int runtimeLowSeconds = -1;
+};
+
 struct NetworkState {
   bool available = false;
   bool defaultRoute = false;
@@ -146,6 +161,7 @@ struct SummaryState {
   ServiceState ha;
   ProxmoxState proxmox;
   Zigbee2MqttState zigbee2mqtt;
+  ShutdownState shutdown;
   NetworkState network;
   ServiceState m5stack;
   char problems[192] = "No active problems";
@@ -311,6 +327,21 @@ void parseSummary(const String &json, bool fromNetwork) {
     }
     safeCopy(state.proxmox.lxcNames, sizeof(state.proxmox.lxcNames), joined.c_str());
   }
+
+  JsonObjectConst sd = doc["shutdown"].as<JsonObjectConst>();
+  state.shutdown.armed = sd["armed"] | false;
+  state.shutdown.wouldShutdown = sd["would_shutdown"] | false;
+  state.shutdown.primaryReady = sd["primary_ready"] | false;
+  state.shutdown.primaryMonitorActive = sd["primary_monitor_active"] | false;
+  state.shutdown.secondaryReady = sd["secondary_ready"] | false;
+  state.shutdown.proxmoxApiOrchestration = sd["proxmox_api_orchestration"] | false;
+  safeCopy(state.shutdown.strategy, sizeof(state.shutdown.strategy), sd["strategy"] | "standard-nut");
+  safeCopy(state.shutdown.mode, sizeof(state.shutdown.mode), sd["mode"] | "dry-run");
+  safeCopy(state.shutdown.owner, sizeof(state.shutdown.owner), sd["real_shutdown_owner"] | "upsmon");
+  safeCopy(state.shutdown.reason, sizeof(state.shutdown.reason), sd["reason"] | "waiting");
+  JsonObjectConst thresholds = sd["thresholds"].as<JsonObjectConst>();
+  state.shutdown.chargeLowPercent = jsonInt(thresholds["battery_charge_low_percent"], -1);
+  state.shutdown.runtimeLowSeconds = jsonInt(thresholds["battery_runtime_low_seconds"], -1);
 
   JsonObjectConst z2m = doc["zigbee2mqtt"].as<JsonObjectConst>();
   state.zigbee2mqtt.available = z2m["available"] | false;
@@ -605,6 +636,20 @@ void renderNut() {
   snprintf(line, sizeof(line), "client list: %s", state.nut.clients);
   addLine(nutCard, line);
 
+  lv_obj_t *shutdownCard = makeCard(nutTab, "Shutdown DRY-RUN");
+  addBadge(shutdownCard, state.shutdown.wouldShutdown ? "WOULD SHUTDOWN" : "NO ACTION", state.shutdown.wouldShutdown ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN));
+  snprintf(line, sizeof(line), "%s   owner %s", state.shutdown.strategy, state.shutdown.owner);
+  addMetricRow(shutdownCard, "strategy", line);
+  snprintf(line, sizeof(line), "mode %s   armed %s", strcmp(state.shutdown.mode, "dry-run") == 0 ? "DRY-RUN" : state.shutdown.mode, state.shutdown.armed ? "YES" : "NO");
+  addLine(shutdownCard, line);
+  snprintf(line, sizeof(line), "primary %s   proxmox %s", state.shutdown.primaryReady ? "ready" : "missing", state.shutdown.secondaryReady ? "seen" : "not seen");
+  addLine(shutdownCard, line);
+  snprintf(line, sizeof(line), "api orch %s", state.shutdown.proxmoxApiOrchestration ? "ON" : "OFF");
+  addLine(shutdownCard, line);
+  snprintf(line, sizeof(line), "LOW %s%% / %ss", intOrUnknown(state.shutdown.chargeLowPercent, battery, sizeof(battery)), intOrUnknown(state.shutdown.runtimeLowSeconds, runtime, sizeof(runtime)));
+  addLine(shutdownCard, line);
+  addLine(shutdownCard, state.shutdown.reason);
+
   lv_obj_t *details = makeCard(nutTab, "UPS details");
   char battV[24];
   char outV[24];
@@ -673,7 +718,7 @@ void renderProxmox() {
   addMetricRow(card, "storage health", line);
   snprintf(line, sizeof(line), "VM %s run   CT %s run", intOrUnknown(state.proxmox.vmRunningCount, cpu, sizeof(cpu)), intOrUnknown(state.proxmox.lxcRunningCount, ram, sizeof(ram)));
   addMetricRow(card, "workloads", line);
-  snprintf(line, sizeof(line), "Shutdown %s", state.proxmox.shutdownState);
+  snprintf(line, sizeof(line), "Shutdown via NUT");
   addLine(card, line);
 
   lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");

@@ -309,6 +309,48 @@ def load_nut_status() -> dict[str, Any]:
     }
 
 
+def summarize_standard_nut_shutdown(ups: dict[str, Any], nut: dict[str, Any]) -> dict[str, Any]:
+    raw = ups.get("raw", {}) if isinstance(ups.get("raw"), dict) else {}
+    monitor_active = bool(nut.get("monitor_active"))
+    primary_ready = bool(ups.get("available") and nut.get("server_active") and nut.get("driver_active") and nut.get("mode") == "netserver")
+    clients = nut.get("clients", []) if isinstance(nut.get("clients"), list) else []
+    client_count = nut.get("client_count")
+    secondary_ready = bool((isinstance(client_count, int) and client_count > 0) or clients)
+    if ups.get("low_battery"):
+        would_shutdown = True
+        reason = "UPS low battery; standard NUT upsmon would initiate shutdown"
+    elif ups.get("on_battery"):
+        would_shutdown = False
+        reason = "UPS on battery, waiting for NUT LOWBATT/FSD"
+    elif ups.get("available"):
+        would_shutdown = False
+        reason = "UPS online"
+    else:
+        would_shutdown = False
+        reason = "UPS unavailable"
+    return {
+        "strategy": "standard-nut",
+        "mode": "dry-run",
+        "armed": monitor_active,
+        "real_shutdown_owner": "upsmon",
+        "proxmox_api_orchestration": False,
+        "primary_ready": primary_ready,
+        "primary_monitor_active": monitor_active,
+        "secondary_ready": secondary_ready,
+        "would_shutdown": would_shutdown,
+        "reason": reason,
+        "thresholds": {
+            "battery_charge_low_percent": as_int(raw.get("battery.charge.low")),
+            "battery_runtime_low_seconds": as_int(raw.get("battery.runtime.low")),
+        },
+        "targets": [
+            {"name": "m5stack-llm", "role": "primary", "state": "armed" if monitor_active else "not armed"},
+            {"name": "proxmox", "role": "secondary", "state": "detected" if secondary_ready else "not detected"},
+        ],
+        "next_step": "Configure and test upsmon primary/secondary before enabling real shutdown" if not monitor_active else "Standard NUT upsmon is active",
+    }
+
+
 def unavailable_ups() -> dict[str, Any]:
     return {
         "available": False,
@@ -697,6 +739,7 @@ def build_summary(
     mqtt: dict[str, Any] | None = None,
     homeassistant_mqtt: dict[str, Any] | None = None,
     zigbee2mqtt: dict[str, Any] | None = None,
+    shutdown: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if now is None:
         now = time.time()
@@ -722,6 +765,8 @@ def build_summary(
         homeassistant_mqtt = load_homeassistant_mqtt_status()
     if zigbee2mqtt is None:
         zigbee2mqtt = load_zigbee2mqtt()
+    if shutdown is None:
+        shutdown = summarize_standard_nut_shutdown(ups, nut)
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []
@@ -801,6 +846,7 @@ def build_summary(
             "shutdown_state": nut.get("shutdown_state", "unknown"),
         },
         "proxmox": pve,
+        "shutdown": shutdown,
         "network": {
             "available": bool(network.get("available")),
             "severity": network.get("severity", "ok" if network.get("available") else "warn"),
