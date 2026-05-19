@@ -36,12 +36,12 @@ def main() -> int:
             return fail(f"missing renderer {renderer}()")
     if text.count("addPercentBar(") < 5:
         return fail("V1a functional UI should render multiple bars for HOME/NUT metrics")
-    if 'NET UNK' not in text:
-        return fail("HOME must render NET UNK until a real network probe exists")
-    if 'state.proxmox.available ? "OK" : "UNK"' in text:
-        return fail("HOME NET status must not be derived from Proxmox reachability")
-    if "state.ha.available && state.ha.mqtt" not in text:
+    if 'state.ha.available && state.ha.mqtt' not in text:
         return fail("HOME HA status must require both HA API and MQTT in V1a")
+    if 'severityText()' not in text:
+        return fail("HOME severity badge should render uppercase OK/WARN/CRITICAL text")
+    if 'NetworkState' not in text or 'state.network.available' not in text or 'NET %s' not in text:
+        return fail("HOME must render NET from the real network probe, not a placeholder")
     required_v1b = {
         "applyAppTheme()": "V1b should apply a global modern theme",
         "makeHeroCard(": "V1b should use a hero card for the HOME overview",

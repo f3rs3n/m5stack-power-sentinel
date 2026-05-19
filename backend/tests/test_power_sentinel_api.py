@@ -34,6 +34,7 @@ def test_build_summary_has_stable_v1_contract():
         },
         ups=None,
         checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        network={"available": True, "severity": "ok", "default_route": True, "probe": "tcp", "target": "1.1.1.1:53"},
         pve=api.summarize_proxmox_data(
             node="pve-mini",
             latency_ms=10,
@@ -55,6 +56,7 @@ def test_build_summary_has_stable_v1_contract():
     assert summary["proxmox"]["available"] is True
     assert summary["proxmox"]["severity"] == "ok"
     assert summary["proxmox"]["shutdown_state"] == "disarmed"
+    assert summary["network"] == {"available": True, "severity": "ok", "default_route": True, "probe": "tcp", "target": "1.1.1.1:53"}
     assert summary["m5stack"]["temperature_c"] == 45.4
     assert summary["m5stack"]["stackflow_ok"] is True
     assert summary["m5stack"]["openai_ok"] is True
@@ -265,6 +267,32 @@ def test_build_summary_uses_pve_read_only_payload_and_global_criticality():
     assert summary["proxmox"]["node"] == "pve-mini"
     assert summary["proxmox"]["zfs"]["status"] == "DEGRADED"
     assert "ZFS DEGRADED" in summary["problems"]
+
+
+def test_build_summary_reports_network_probe_and_warns_when_internet_unavailable():
+    api = load_module()
+
+    summary = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True},
+        ups=api.parse_upsc_output("ups.status: OL"),
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        network={"available": False, "severity": "warn", "default_route": True, "probe": "tcp", "target": "1.1.1.1:53"},
+        pve=api.summarize_proxmox_data(
+            node="pve-mini",
+            latency_ms=10,
+            node_status={"status": "online", "cpu": 0.1, "mem": 1, "maxmem": 2},
+            qemu=[],
+            lxc=[],
+            zfs=[],
+            disks=[],
+        ),
+    )
+
+    assert summary["network"]["available"] is False
+    assert summary["network"]["target"] == "1.1.1.1:53"
+    assert summary["severity"] == "warn"
+    assert "Internet/network probe failed" in summary["problems"]
 
 
 def test_http_json_response_is_valid_for_summary_endpoint():

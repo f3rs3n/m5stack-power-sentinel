@@ -45,7 +45,7 @@ La UI LVGL V1a segue la specifica `docs/architecture/core-s3-pages-v1.md` e ha c
 4. `HA` - raggiungibilità Home Assistant API e MQTT.
 5. `M5S` - stato M5Stack/System più diagnostica trasporto, firmware, schema, UART e contatori poll.
 
-V1b aggiunge un polish moderno senza asset pesanti: tema scuro coerente, hero card HOME, font hierarchy Montserrat, card con radius/shadow sottile, metric row strutturate, status pill compatte e barre percentuali più consistenti.
+V1b aggiunge un polish moderno senza asset pesanti: tema scuro coerente, hero card HOME, font hierarchy Montserrat, card con radius/shadow sottile, metric row strutturate, status pill compatte e barre percentuali più consistenti. La HOME mostra il badge severity in maiuscolo (`OK`/`WARN`/`CRITICAL`) e il campo `NET` deriva dal probe `network` del backend sul Linux del modulo LLM, non da Proxmox.
 
 Non c'è più un payload demo/sample plausibile all'avvio. Finché non arriva il primo summary live, lo stato è esplicitamente `boot` / `offline` / `waiting`.
 

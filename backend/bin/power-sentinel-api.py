@@ -38,6 +38,8 @@ PROXMOX_TOKEN_ID = os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_ID")
 PROXMOX_TOKEN_SECRET = os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_SECRET")
 PROXMOX_VERIFY_SSL = os.environ.get("POWER_SENTINEL_PROXMOX_VERIFY_SSL", "0").lower() in ("1", "true", "yes")
 POWER_SENTINEL_CONFIG = os.environ.get("POWER_SENTINEL_CONFIG", "/etc/power-sentinel.json")
+NETWORK_PROBE_HOST = os.environ.get("POWER_SENTINEL_NETWORK_PROBE_HOST", "1.1.1.1")
+NETWORK_PROBE_PORT = int(os.environ.get("POWER_SENTINEL_NETWORK_PROBE_PORT", "53"))
 
 
 def iso_utc(ts: float | int | None = None) -> str:
@@ -52,6 +54,32 @@ def tcp_check(host: str, port: int, timeout: float = 0.75) -> bool:
             return True
     except OSError:
         return False
+
+
+def has_default_route(path: str = "/proc/net/route") -> bool:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            next(fh, None)
+            for line in fh:
+                fields = line.split()
+                if len(fields) >= 4 and fields[1] == "00000000" and int(fields[3], 16) & 0x2:
+                    return True
+    except (OSError, ValueError):
+        return False
+    return False
+
+
+def load_network_status() -> dict[str, Any]:
+    default_route = has_default_route()
+    target = f"{NETWORK_PROBE_HOST}:{NETWORK_PROBE_PORT}"
+    available = default_route and tcp_check(NETWORK_PROBE_HOST, NETWORK_PROBE_PORT, timeout=0.75)
+    return {
+        "available": available,
+        "severity": "ok" if available else "warn",
+        "default_route": default_route,
+        "probe": "tcp",
+        "target": target,
+    }
 
 
 def run_json_command(cmd: list[str], timeout: float = 8.0) -> dict[str, Any] | None:
@@ -525,6 +553,7 @@ def build_summary(
     checks: dict[str, bool] | None = None,
     nut: dict[str, Any] | None = None,
     pve: dict[str, Any] | None = None,
+    network: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if now is None:
         now = time.time()
@@ -542,6 +571,8 @@ def build_summary(
         nut = load_nut_status()
     if pve is None:
         pve = load_proxmox()
+    if network is None:
+        network = load_network_status()
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []
@@ -561,6 +592,8 @@ def build_summary(
         problems.append("MQTT broker unreachable")
     if not checks.get("proxmox", False):
         problems.append("Proxmox API unreachable")
+    if not network.get("available", False):
+        problems.append("Internet/network probe failed")
     for problem in pve.get("problems", []):
         if problem not in problems:
             problems.append(problem)
@@ -602,6 +635,13 @@ def build_summary(
             "shutdown_state": nut.get("shutdown_state", "unknown"),
         },
         "proxmox": pve,
+        "network": {
+            "available": bool(network.get("available")),
+            "severity": network.get("severity", "ok" if network.get("available") else "warn"),
+            "default_route": bool(network.get("default_route")),
+            "probe": network.get("probe", "tcp"),
+            "target": network.get("target"),
+        },
         "m5stack": {
             "available": health is not None,
             "severity": "ok" if m5_overall else "critical",

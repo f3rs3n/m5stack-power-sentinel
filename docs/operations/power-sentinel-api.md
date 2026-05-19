@@ -66,7 +66,8 @@ Other sections:
 - M5Stack section tries to read `/usr/local/bin/m5stack-healthcheck --json`;
 - Home Assistant reachability uses TCP `192.168.2.200:8123`;
 - MQTT reachability uses TCP `192.168.2.200:1883`;
-- Proxmox still keeps a cheap TCP reachability check for availability, but the `proxmox` summary object can now use read-only Proxmox API data when a token is configured.
+- Proxmox still keeps a cheap TCP reachability check for availability, but the `proxmox` summary object can now use read-only Proxmox API data when a token is configured;
+- Internet/network status uses the LLM Module Linux default-route table plus a short TCP probe to `1.1.1.1:53` by default, exposed as the `network` summary object for the HOME `NET` indicator.
 
 ## Proxmox read-only integration
 
@@ -128,6 +129,8 @@ POWER_SENTINEL_PROXMOX_NODE
 POWER_SENTINEL_PROXMOX_TOKEN_ID
 POWER_SENTINEL_PROXMOX_TOKEN_SECRET
 POWER_SENTINEL_PROXMOX_VERIFY_SSL
+POWER_SENTINEL_NETWORK_PROBE_HOST
+POWER_SENTINEL_NETWORK_PROBE_PORT
 POWER_SENTINEL_CONFIG
 ```
 

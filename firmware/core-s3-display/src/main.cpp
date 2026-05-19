@@ -112,6 +112,14 @@ struct ProxmoxState {
   float cpuTempC = 0.0f;
 };
 
+struct NetworkState {
+  bool available = false;
+  bool defaultRoute = false;
+  char severity[12] = "unknown";
+  char probe[12] = "tcp";
+  char target[32] = "unknown";
+};
+
 struct SummaryState {
   char schema[32] = "power-sentinel.summary.v1";
   char timestamp[32] = "waiting";
@@ -124,6 +132,7 @@ struct SummaryState {
   NutState nut;
   ServiceState ha;
   ProxmoxState proxmox;
+  NetworkState network;
   ServiceState m5stack;
   char problems[192] = "No active problems";
 };
@@ -287,6 +296,13 @@ void parseSummary(const String &json, bool fromNetwork) {
     }
     safeCopy(state.proxmox.lxcNames, sizeof(state.proxmox.lxcNames), joined.c_str());
   }
+
+  JsonObjectConst net = doc["network"].as<JsonObjectConst>();
+  state.network.available = net["available"] | false;
+  state.network.defaultRoute = net["default_route"] | false;
+  safeCopy(state.network.severity, sizeof(state.network.severity), net["severity"] | "warn");
+  safeCopy(state.network.probe, sizeof(state.network.probe), net["probe"] | "tcp");
+  safeCopy(state.network.target, sizeof(state.network.target), net["target"] | "unknown");
 
   JsonObjectConst m5 = doc["m5stack"].as<JsonObjectConst>();
   state.m5stack.available = m5["available"] | false;
@@ -463,6 +479,13 @@ bool haFunctional() {
   return state.ha.available && state.ha.mqtt;
 }
 
+const char *severityText() {
+  if (strcmp(state.severity, "critical") == 0) return "CRITICAL";
+  if (strcmp(state.severity, "warn") == 0) return "WARN";
+  if (strcmp(state.severity, "ok") == 0) return "OK";
+  return "UNKNOWN";
+}
+
 const char *nutStatusBadge() {
   if (!state.ups.available || !state.nut.serverActive || !state.nut.driverActive) return "NUT UNK";
   if (state.ups.lowBattery) return "NUT CRIT";
@@ -474,7 +497,7 @@ void renderHome() {
   lv_obj_clean(homeTab);
   setupPage(homeTab);
   lv_obj_t *card = makeHeroCard(homeTab, "POWER SENTINEL");
-  addBadge(card, state.offline ? "STALE" : state.severity, state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : severityColor(state.severity));
+  addBadge(card, state.offline ? "STALE" : severityText(), state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : severityColor(state.severity));
   addLine(card, state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : (state.ups.available ? "GRID ONLINE" : "UPS UNAVAILABLE")));
 
   char line[128];
@@ -504,7 +527,7 @@ void renderHome() {
                    pvePill, state.proxmox.available ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED),
                    haPill, haFunctional() ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED));
 
-  snprintf(line, sizeof(line), "NET UNK   M5S %s", state.m5stack.available ? "OK" : "DOWN");
+  snprintf(line, sizeof(line), "NET %s   M5S %s", state.network.available ? "OK" : "DOWN", state.m5stack.available ? "OK" : "DOWN");
   addMetricRow(card, "local", line);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
   addLine(card, line);
