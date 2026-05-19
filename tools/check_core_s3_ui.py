@@ -57,6 +57,10 @@ def main() -> int:
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE read-only UI missing {needle}")
+    required_ha_z2m = ["Zigbee2MqttState", "state.zigbee2mqtt.available", "coordinatorType", "deviceTotal", "Z2M", "Coordinator"]
+    for needle in required_ha_z2m:
+        if needle not in text:
+            return fail(f"HA/Z2M UI missing {needle}")
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")

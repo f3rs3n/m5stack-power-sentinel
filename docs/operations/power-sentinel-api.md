@@ -67,7 +67,37 @@ Other sections:
 - Home Assistant reachability uses TCP `192.168.2.200:8123`;
 - MQTT reachability uses TCP `192.168.2.200:1883`;
 - Proxmox still keeps a cheap TCP reachability check for availability, but the `proxmox` summary object can now use read-only Proxmox API data when a token is configured;
-- Internet/network status uses the LLM Module Linux default-route table plus a short TCP probe to `1.1.1.1:53` by default, exposed as the `network` summary object for the HOME `NET` indicator.
+- Internet/network status uses the LLM Module Linux default-route table plus a short TCP probe to `1.1.1.1:53` by default, exposed as the `network` summary object for the HOME `NET` indicator;
+- MQTT/Zigbee2MQTT status uses `mosquitto_sub` with credentials loaded from root-only config files, not password arguments. The backend reads retained Z2M bridge topics for the `zigbee2mqtt` summary object.
+
+## MQTT / Zigbee2MQTT read-only integration
+
+The backend can reuse the existing M5Stack HA publisher credentials from:
+
+```text
+/etc/m5stack-ha-publish.json
+```
+
+or an explicit Power Sentinel MQTT config. `mosquitto-clients` is required on the LLM Module. Per the Mosquitto client man pages, username/password should be placed in client option files rather than passed as `-u`/`-P` command-line arguments; the backend creates temporary `0600` option files under a private `XDG_CONFIG_HOME` for each `mosquitto_sub` call.
+
+Read topics:
+
+```text
+homeassistant/status              # best-effort; not retained on this HA install, so often unknown
+zigbee2mqtt/bridge/state
+zigbee2mqtt/bridge/info
+zigbee2mqtt/bridge/devices
+```
+
+The `zigbee2mqtt` summary object includes:
+
+- `available`, `severity`, `state`, `base_topic`, `version`
+- `coordinator.available`, `coordinator.type`, `coordinator.ieee_address`, `coordinator.firmware`
+- `network.channel`, `network.pan_id`
+- `devices.total`, `devices.interviewed`, `devices.disabled`
+- `problems[]`
+
+No Home Assistant long-lived token is required for this V1 MQTT-first health view. HA itself is still TCP-checked on `8123`; the MQTT `homeassistant/status` value is exposed when retained/available, otherwise it is `unknown`.
 
 ## Proxmox read-only integration
 

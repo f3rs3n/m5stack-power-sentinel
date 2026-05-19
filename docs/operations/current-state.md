@@ -172,6 +172,14 @@ network.available: true
 network.default_route: true
 network.probe: tcp
 network.target: 1.1.1.1:53
+mqtt.available: true
+homeassistant.status: unknown    # homeassistant/status is not retained on the current HA install
+zigbee2mqtt.available: true
+zigbee2mqtt.state: online
+zigbee2mqtt.version: 2.10.1
+zigbee2mqtt.coordinator.type: EmberZNet
+zigbee2mqtt.coordinator.firmware: 7.4.5 [GA]
+zigbee2mqtt.devices: total=29 interviewed=29 disabled=0
 problems: []
 ```
 
@@ -216,6 +224,7 @@ The firmware currently has:
 - V1b modern polish: dark theme, HOME hero card, card radius/shadow, structured metric rows, status pills, and percent bars.
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
+- HA tab now shows HA core reachability, MQTT, Zigbee2MQTT state/version, coordinator type/firmware, and Zigbee device totals from the MQTT-first Z2M backend summary.
 - PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts, with shutdown state still `disarmed`.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
 - Internal UART StackFlow transport enabled by default:

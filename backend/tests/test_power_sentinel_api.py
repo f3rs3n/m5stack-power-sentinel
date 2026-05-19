@@ -52,7 +52,9 @@ def test_build_summary_has_stable_v1_contract():
     assert summary["ups"]["available"] is False
     assert summary["ups"]["status"] == "UNAVAILABLE"
     assert summary["ups"]["stale"] is True
-    assert summary["homeassistant"] == {"available": True, "severity": "ok", "mqtt": True}
+    assert summary["homeassistant"]["available"] is True
+    assert summary["homeassistant"]["severity"] == "ok"
+    assert summary["homeassistant"]["mqtt"] is True
     assert summary["proxmox"]["available"] is True
     assert summary["proxmox"]["severity"] == "ok"
     assert summary["proxmox"]["shutdown_state"] == "disarmed"
@@ -293,6 +295,76 @@ def test_build_summary_reports_network_probe_and_warns_when_internet_unavailable
     assert summary["network"]["target"] == "1.1.1.1:53"
     assert summary["severity"] == "warn"
     assert "Internet/network probe failed" in summary["problems"]
+
+
+def test_mosquitto_config_uses_option_file_style_and_keeps_password_out_of_argv():
+    api = load_module()
+    cfg = {"host": "192.168.2.200", "port": 1883, "username": "user", "password": "secret"}
+
+    lines = api.mosquitto_config_lines(cfg)
+    argv = api.mosquitto_sub_command("zigbee2mqtt/bridge/state", timeout=5)
+
+    assert "-P secret" in lines
+    assert "secret" not in " ".join(argv)
+    assert "-t" in argv
+    assert "zigbee2mqtt/bridge/state" in argv
+
+
+def test_summarize_zigbee2mqtt_payloads_reports_coordinator_and_device_counts():
+    api = load_module()
+
+    z2m = api.summarize_zigbee2mqtt_payloads(
+        base_topic="zigbee2mqtt",
+        state_payload='{"state":"online"}',
+        info_payload=json.dumps({
+            "version": "1.40.0",
+            "coordinator": {"type": "zStack3x0", "ieee_address": "0x00124b", "meta": {"revision": "20240710"}},
+            "config": {"advanced": {"channel": 11, "pan_id": 6754}},
+        }),
+        devices_payload=json.dumps([
+            {"friendly_name": "Coordinator", "type": "Coordinator", "disabled": False, "interview_completed": True},
+            {"friendly_name": "lamp", "disabled": False, "interview_completed": True},
+            {"friendly_name": "old_sensor", "disabled": True, "interview_completed": False},
+        ]),
+    )
+
+    assert z2m["available"] is True
+    assert z2m["state"] == "online"
+    assert z2m["severity"] == "ok"
+    assert z2m["version"] == "1.40.0"
+    assert z2m["coordinator"]["available"] is True
+    assert z2m["coordinator"]["type"] == "zStack3x0"
+    assert z2m["coordinator"]["firmware"] == "20240710"
+    assert z2m["devices"] == {"total": 3, "interviewed": 2, "disabled": 1}
+
+
+def test_build_summary_includes_mqtt_first_ha_and_zigbee2mqtt_status():
+    api = load_module()
+    mqtt = {"available": True, "severity": "ok", "broker": "192.168.2.200:1883"}
+    z2m = api.summarize_zigbee2mqtt_payloads(
+        base_topic="zigbee2mqtt",
+        state_payload='{"state":"online"}',
+        info_payload=json.dumps({"coordinator": {"type": "ember", "ieee_address": "0xabc"}}),
+        devices_payload="[]",
+    )
+
+    summary = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True},
+        ups=api.parse_upsc_output("ups.status: OL"),
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        mqtt=mqtt,
+        homeassistant_mqtt={"status": "unknown", "source": "mqtt", "status_topic": "homeassistant/status"},
+        zigbee2mqtt=z2m,
+        pve=api.summarize_proxmox_data("pve", 1, {"status": "online"}, [], [], [], []),
+        network={"available": True, "severity": "ok", "default_route": True, "probe": "tcp", "target": "1.1.1.1:53"},
+    )
+
+    assert summary["mqtt"]["available"] is True
+    assert summary["homeassistant"]["source"] == "mqtt"
+    assert summary["homeassistant"]["status"] == "unknown"
+    assert summary["zigbee2mqtt"]["available"] is True
+    assert summary["zigbee2mqtt"]["coordinator"]["available"] is True
 
 
 def test_http_json_response_is_valid_for_summary_endpoint():

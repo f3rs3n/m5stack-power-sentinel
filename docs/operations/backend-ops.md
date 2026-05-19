@@ -30,6 +30,35 @@ ssh root@192.168.2.202 'systemctl status power-sentinel-api power-sentinel-stack
 ssh root@192.168.2.202 'journalctl -u power-sentinel-stackflow-unit -f'
 ```
 
+## MQTT / HA / Zigbee2MQTT
+
+`mosquitto-clients` is installed on the LLM Module. The existing M5Stack HA publisher config remains the credential source:
+
+```text
+/etc/m5stack-ha-publish.json          # 0600 root:root, contains MQTT credentials
+```
+
+`m5stack-ha-publish` now shells out to `mosquitto_pub` instead of using a hand-rolled MQTT packet client. To avoid leaking passwords through argv, it creates a temporary `XDG_CONFIG_HOME/mosquitto_pub` option file with `0600` permissions and sends payloads via stdin (`mosquitto_pub -s`). The Power Sentinel API uses the same option-file pattern with `mosquitto_sub`.
+
+Useful read-only probes from the LLM Module:
+
+```bash
+# Use the script/API wrappers for real use; do not put MQTT passwords in shell history.
+/usr/local/bin/m5stack-ha-publish --no-discovery
+curl -s 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1' | python3 -m json.tool
+```
+
+Live observations:
+
+```text
+homeassistant/status: timed out / not retained -> summary homeassistant.status=unknown
+zigbee2mqtt/bridge/state: online
+zigbee2mqtt.version: 2.10.1
+coordinator.type: EmberZNet
+coordinator.firmware: 7.4.5 [GA]
+zigbee devices: total=29 interviewed=29 disabled=0
+```
+
 ## CoreS3 StackFlow transport
 
 The CoreS3 uses the internal stacked UART, but it does not own `/dev/ttyS1` directly. The vendor `llm_sys` service remains the UART owner and routes Power Sentinel requests to the custom StackFlow unit over ZeroMQ.

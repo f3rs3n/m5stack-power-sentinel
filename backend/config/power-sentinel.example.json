@@ -4,11 +4,15 @@
     "endpoint": "localhost"
   },
   "mqtt": {
+    "config_file": "/etc/m5stack-ha-publish.json",
     "host": "192.168.2.200",
     "port": 1883,
     "username": "m5stack_ups",
     "password": "CHANGE_ME",
     "prefix": "m5stack/ups"
+  },
+  "zigbee2mqtt": {
+    "base_topic": "zigbee2mqtt"
   },
   "api": {
     "bind_host": "192.168.2.202",

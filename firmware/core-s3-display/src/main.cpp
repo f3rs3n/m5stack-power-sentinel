@@ -112,6 +112,19 @@ struct ProxmoxState {
   float cpuTempC = 0.0f;
 };
 
+struct Zigbee2MqttState {
+  bool available = false;
+  char severity[12] = "unknown";
+  char stateText[20] = "unknown";
+  char version[24] = "unknown";
+  bool coordinatorAvailable = false;
+  char coordinatorType[32] = "unknown";
+  char coordinatorFirmware[32] = "unknown";
+  int deviceTotal = -1;
+  int deviceInterviewed = -1;
+  int deviceDisabled = -1;
+};
+
 struct NetworkState {
   bool available = false;
   bool defaultRoute = false;
@@ -132,6 +145,7 @@ struct SummaryState {
   NutState nut;
   ServiceState ha;
   ProxmoxState proxmox;
+  Zigbee2MqttState zigbee2mqtt;
   NetworkState network;
   ServiceState m5stack;
   char problems[192] = "No active problems";
@@ -254,6 +268,7 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.ha.available = ha["available"] | false;
   state.ha.mqtt = ha["mqtt"] | false;
   safeCopy(state.ha.severity, sizeof(state.ha.severity), ha["severity"] | "warn");
+  safeCopy(state.ha.shutdownState, sizeof(state.ha.shutdownState), ha["status"] | "unknown");
 
   JsonObjectConst px = doc["proxmox"].as<JsonObjectConst>();
   state.proxmox.available = px["available"] | false;
@@ -296,6 +311,20 @@ void parseSummary(const String &json, bool fromNetwork) {
     }
     safeCopy(state.proxmox.lxcNames, sizeof(state.proxmox.lxcNames), joined.c_str());
   }
+
+  JsonObjectConst z2m = doc["zigbee2mqtt"].as<JsonObjectConst>();
+  state.zigbee2mqtt.available = z2m["available"] | false;
+  safeCopy(state.zigbee2mqtt.severity, sizeof(state.zigbee2mqtt.severity), z2m["severity"] | "warn");
+  safeCopy(state.zigbee2mqtt.stateText, sizeof(state.zigbee2mqtt.stateText), z2m["state"] | "unknown");
+  safeCopy(state.zigbee2mqtt.version, sizeof(state.zigbee2mqtt.version), z2m["version"] | "unknown");
+  JsonObjectConst coord = z2m["coordinator"].as<JsonObjectConst>();
+  state.zigbee2mqtt.coordinatorAvailable = coord["available"] | false;
+  safeCopy(state.zigbee2mqtt.coordinatorType, sizeof(state.zigbee2mqtt.coordinatorType), coord["type"] | "unknown");
+  safeCopy(state.zigbee2mqtt.coordinatorFirmware, sizeof(state.zigbee2mqtt.coordinatorFirmware), coord["firmware"] | "unknown");
+  JsonObjectConst zdev = z2m["devices"].as<JsonObjectConst>();
+  state.zigbee2mqtt.deviceTotal = jsonInt(zdev["total"], -1);
+  state.zigbee2mqtt.deviceInterviewed = jsonInt(zdev["interviewed"], -1);
+  state.zigbee2mqtt.deviceDisabled = jsonInt(zdev["disabled"], -1);
 
   JsonObjectConst net = doc["network"].as<JsonObjectConst>();
   state.network.available = net["available"] | false;
@@ -597,9 +626,28 @@ void renderHa() {
   lv_obj_clean(haTab);
   setupPage(haTab);
   lv_obj_t *card = makeCard(haTab, "Home Assistant");
-  addBadge(card, state.ha.available ? "HA API OK" : "HA API DOWN", severityColor(state.ha.severity));
-  addLine(card, state.ha.available ? "Home Assistant API reachable" : "Home Assistant API unreachable");
-  addLine(card, state.ha.mqtt ? "MQTT broker reachable" : "MQTT broker unreachable");
+  addBadge(card, state.ha.available ? "HA OK" : "HA DOWN", severityColor(state.ha.severity));
+  char line[128];
+  snprintf(line, sizeof(line), "API %s   MQTT %s", state.ha.available ? "OK" : "DOWN", state.ha.mqtt ? "OK" : "DOWN");
+  addMetricRow(card, "core", line);
+  snprintf(line, sizeof(line), "HA MQTT status %s", state.ha.shutdownState);
+  addLine(card, line);
+
+  lv_obj_t *z2m = makeCard(haTab, "Z2M / Coordinator");
+  addBadge(z2m, state.zigbee2mqtt.available ? "Z2M OK" : "Z2M WARN", severityColor(state.zigbee2mqtt.severity));
+  snprintf(line, sizeof(line), "State %s   Version %s", state.zigbee2mqtt.stateText, state.zigbee2mqtt.version);
+  addLine(z2m, line);
+  snprintf(line, sizeof(line), "Coordinator %s", state.zigbee2mqtt.coordinatorAvailable ? "OK" : "UNKNOWN");
+  addMetricRow(z2m, "coordinator", line);
+  snprintf(line, sizeof(line), "%s   fw %s", state.zigbee2mqtt.coordinatorType, state.zigbee2mqtt.coordinatorFirmware);
+  addLine(z2m, line);
+  char total[24];
+  char interviewed[24];
+  snprintf(line, sizeof(line), "%s   %s interviewed", intOrUnknown(state.zigbee2mqtt.deviceTotal, total, sizeof(total)), intOrUnknown(state.zigbee2mqtt.deviceInterviewed, interviewed, sizeof(interviewed)));
+  addMetricRow(z2m, "devices", line);
+  char disabled[24];
+  snprintf(line, sizeof(line), "Disabled %s", intOrUnknown(state.zigbee2mqtt.deviceDisabled, disabled, sizeof(disabled)));
+  addLine(z2m, line);
 }
 
 void renderProxmox() {

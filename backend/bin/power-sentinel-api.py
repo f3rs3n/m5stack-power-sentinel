@@ -16,6 +16,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import tempfile
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -38,6 +39,8 @@ PROXMOX_TOKEN_ID = os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_ID")
 PROXMOX_TOKEN_SECRET = os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_SECRET")
 PROXMOX_VERIFY_SSL = os.environ.get("POWER_SENTINEL_PROXMOX_VERIFY_SSL", "0").lower() in ("1", "true", "yes")
 POWER_SENTINEL_CONFIG = os.environ.get("POWER_SENTINEL_CONFIG", "/etc/power-sentinel.json")
+MQTT_FALLBACK_CONFIG = os.environ.get("POWER_SENTINEL_MQTT_FALLBACK_CONFIG", "/etc/m5stack-ha-publish.json")
+ZIGBEE2MQTT_BASE_TOPIC = os.environ.get("POWER_SENTINEL_Z2M_BASE_TOPIC", "zigbee2mqtt")
 NETWORK_PROBE_HOST = os.environ.get("POWER_SENTINEL_NETWORK_PROBE_HOST", "1.1.1.1")
 NETWORK_PROBE_PORT = int(os.environ.get("POWER_SENTINEL_NETWORK_PROBE_PORT", "53"))
 
@@ -122,6 +125,58 @@ def proxmox_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
         "token_secret": os.environ.get("POWER_SENTINEL_PROXMOX_TOKEN_SECRET") or pve.get("token_secret") or pve.get("api_token_secret") or PROXMOX_TOKEN_SECRET,
         "verify_ssl": bool(pve.get("verify_ssl", PROXMOX_VERIFY_SSL)),
     }
+
+
+def mqtt_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    site = config or load_site_config()
+    mqtt = site.get("mqtt", {}) if isinstance(site, dict) else {}
+    if not isinstance(mqtt, dict):
+        mqtt = {}
+    fallback_path = mqtt.get("config_file") or MQTT_FALLBACK_CONFIG
+    fallback = load_site_config(fallback_path) if fallback_path else {}
+    return {
+        "host": os.environ.get("POWER_SENTINEL_MQTT_HOST") or mqtt.get("host") or fallback.get("host") or MQTT_HOST,
+        "port": int(os.environ.get("POWER_SENTINEL_MQTT_PORT") or mqtt.get("port") or fallback.get("port") or 1883),
+        "username": os.environ.get("POWER_SENTINEL_MQTT_USERNAME") or mqtt.get("username") or fallback.get("username"),
+        "password": os.environ.get("POWER_SENTINEL_MQTT_PASSWORD") or mqtt.get("password") or fallback.get("password"),
+    }
+
+
+def zigbee2mqtt_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    z2m = (config or load_site_config()).get("zigbee2mqtt", {})
+    if not isinstance(z2m, dict):
+        z2m = {}
+    return {"base_topic": os.environ.get("POWER_SENTINEL_Z2M_BASE_TOPIC") or z2m.get("base_topic") or ZIGBEE2MQTT_BASE_TOPIC}
+
+
+def mosquitto_config_lines(cfg: dict[str, Any]) -> str:
+    lines = [f"-h {cfg.get('host')}", f"-p {int(cfg.get('port', 1883))}"]
+    if cfg.get("username"):
+        lines.append(f"-u {cfg['username']}")
+    if cfg.get("password"):
+        lines.append(f"-P {cfg['password']}")
+    return "\n".join(lines) + "\n"
+
+
+def mosquitto_sub_command(topic: str, timeout: int = 3) -> list[str]:
+    return ["mosquitto_sub", "-C", "1", "-W", str(timeout), "-t", topic]
+
+
+def run_mosquitto_sub(cfg: dict[str, Any], topic: str, timeout: int = 3) -> str | None:
+    with tempfile.TemporaryDirectory(prefix="power-sentinel-mqtt-") as td:
+        config_path = os.path.join(td, "mosquitto_sub")
+        with open(config_path, "w", encoding="utf-8") as fh:
+            fh.write(mosquitto_config_lines(cfg))
+        os.chmod(config_path, 0o600)
+        env = os.environ.copy()
+        env["XDG_CONFIG_HOME"] = td
+        try:
+            cp = subprocess.run(mosquitto_sub_command(topic, timeout=timeout), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 2, check=False, env=env)
+        except (OSError, subprocess.SubprocessError):
+            return None
+    if cp.returncode != 0 or not cp.stdout.strip():
+        return None
+    return cp.stdout.strip()
 
 
 def as_int(value: str | None) -> int | None:
@@ -546,6 +601,91 @@ def load_proxmox() -> dict[str, Any]:
     return summarize_proxmox_data(node=node, latency_ms=latency_ms, node_status=node_status, qemu=qemu, lxc=lxc, zfs=zfs, disks=disks)
 
 
+def parse_mqtt_json(payload: str | None) -> Any:
+    if not payload:
+        return None
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return payload
+
+
+def summarize_zigbee2mqtt_payloads(base_topic: str, state_payload: str | None, info_payload: str | None, devices_payload: str | None) -> dict[str, Any]:
+    state_obj = parse_mqtt_json(state_payload)
+    if isinstance(state_obj, dict):
+        state = str(state_obj.get("state") or state_obj.get("status") or "unknown")
+    elif isinstance(state_obj, str):
+        state = state_obj.strip() or "unknown"
+    else:
+        state = "unknown"
+    info = parse_mqtt_json(info_payload)
+    if not isinstance(info, dict):
+        info = {}
+    devices = parse_mqtt_json(devices_payload)
+    if not isinstance(devices, list):
+        devices = []
+    coordinator = info.get("coordinator") if isinstance(info.get("coordinator"), dict) else {}
+    meta = coordinator.get("meta") if isinstance(coordinator.get("meta"), dict) else {}
+    firmware = meta.get("revision") or meta.get("fw_revision") or meta.get("version") or coordinator.get("firmware")
+    interviewed = 0
+    disabled = 0
+    for item in devices:
+        if not isinstance(item, dict):
+            continue
+        if item.get("disabled"):
+            disabled += 1
+        if item.get("interview_completed") or str(item.get("type", "")).lower() == "coordinator":
+            interviewed += 1
+    problems: list[str] = []
+    if state.lower() != "online":
+        problems.append(f"Zigbee2MQTT {state}")
+    if not coordinator:
+        problems.append("Zigbee2MQTT coordinator info unavailable")
+    available = state.lower() == "online"
+    advanced = info.get("config", {}).get("advanced", {}) if isinstance(info.get("config"), dict) else {}
+    return {
+        "available": available,
+        "severity": "warn" if problems else "ok",
+        "state": state,
+        "base_topic": base_topic,
+        "version": info.get("version"),
+        "coordinator": {
+            "available": bool(coordinator),
+            "type": coordinator.get("type"),
+            "ieee_address": coordinator.get("ieee_address"),
+            "firmware": firmware,
+        },
+        "network": {"channel": advanced.get("channel"), "pan_id": advanced.get("pan_id")},
+        "devices": {"total": len(devices), "interviewed": interviewed, "disabled": disabled},
+        "problems": problems,
+    }
+
+
+def load_mqtt_status() -> dict[str, Any]:
+    cfg = mqtt_config()
+    ok = tcp_check(str(cfg.get("host")), int(cfg.get("port", 1883)))
+    return {"available": ok, "severity": "ok" if ok else "critical", "broker": f"{cfg.get('host')}:{cfg.get('port')}"}
+
+
+def load_homeassistant_mqtt_status() -> dict[str, Any]:
+    cfg = mqtt_config()
+    payload = run_mosquitto_sub(cfg, "homeassistant/status", timeout=2)
+    status = "unknown"
+    if payload:
+        status = payload.strip().lower()
+    return {"status": status, "source": "mqtt", "status_topic": "homeassistant/status"}
+
+
+def load_zigbee2mqtt() -> dict[str, Any]:
+    cfg = mqtt_config()
+    zcfg = zigbee2mqtt_config()
+    base = str(zcfg.get("base_topic") or ZIGBEE2MQTT_BASE_TOPIC).strip("/")
+    state = run_mosquitto_sub(cfg, f"{base}/bridge/state", timeout=3)
+    info = run_mosquitto_sub(cfg, f"{base}/bridge/info", timeout=4)
+    devices = run_mosquitto_sub(cfg, f"{base}/bridge/devices", timeout=4)
+    return summarize_zigbee2mqtt_payloads(base, state, info, devices)
+
+
 def build_summary(
     now: float | int | None = None,
     health: dict[str, Any] | None = None,
@@ -554,6 +694,9 @@ def build_summary(
     nut: dict[str, Any] | None = None,
     pve: dict[str, Any] | None = None,
     network: dict[str, Any] | None = None,
+    mqtt: dict[str, Any] | None = None,
+    homeassistant_mqtt: dict[str, Any] | None = None,
+    zigbee2mqtt: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if now is None:
         now = time.time()
@@ -573,6 +716,12 @@ def build_summary(
         pve = load_proxmox()
     if network is None:
         network = load_network_status()
+    if mqtt is None:
+        mqtt = load_mqtt_status()
+    if homeassistant_mqtt is None:
+        homeassistant_mqtt = load_homeassistant_mqtt_status()
+    if zigbee2mqtt is None:
+        zigbee2mqtt = load_zigbee2mqtt()
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []
@@ -594,6 +743,14 @@ def build_summary(
         problems.append("Proxmox API unreachable")
     if not network.get("available", False):
         problems.append("Internet/network probe failed")
+    if not mqtt.get("available", False):
+        problems.append("MQTT broker unavailable")
+    ha_mqtt_status = str(homeassistant_mqtt.get("status", "unknown")).lower()
+    if ha_mqtt_status == "offline":
+        problems.append("Home Assistant MQTT status offline")
+    for problem in zigbee2mqtt.get("problems", []):
+        if problem not in problems:
+            problems.append(problem)
     for problem in pve.get("problems", []):
         if problem not in problems:
             problems.append(problem)
@@ -624,7 +781,16 @@ def build_summary(
             "stale": bool(ups.get("stale", False)),
             "age_seconds": ups.get("age_seconds"),
         },
-        "homeassistant": {"available": bool(checks.get("homeassistant")), "severity": "ok" if checks.get("homeassistant") else "warn", "mqtt": bool(checks.get("mqtt"))},
+        "homeassistant": {
+            "available": bool(checks.get("homeassistant")),
+            "severity": "ok" if checks.get("homeassistant") and ha_mqtt_status != "offline" else "warn",
+            "mqtt": bool(checks.get("mqtt")),
+            "status": homeassistant_mqtt.get("status", "unknown"),
+            "source": homeassistant_mqtt.get("source", "mqtt"),
+            "status_topic": homeassistant_mqtt.get("status_topic", "homeassistant/status"),
+        },
+        "mqtt": mqtt,
+        "zigbee2mqtt": zigbee2mqtt,
         "nut": {
             "server_active": nut.get("server_active"),
             "driver_active": nut.get("driver_active"),

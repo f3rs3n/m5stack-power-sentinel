@@ -2,10 +2,9 @@
 import argparse
 import json
 import os
-import socket
-import struct
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 DEFAULT_HOST = "192.168.2.200"
@@ -16,64 +15,37 @@ CLIENT_ID = "m5stack-llm-health"
 HEALTHCHECK = "/usr/local/bin/m5stack-healthcheck"
 
 
-def enc_remaining_length(n):
-    out = bytearray()
-    while True:
-        digit = n % 128
-        n //= 128
-        if n > 0:
-            digit |= 0x80
-        out.append(digit)
-        if n == 0:
-            return bytes(out)
+def mosquitto_config_lines(host, port, username=None, password=None):
+    lines = [f"-h {host}", f"-p {int(port)}"]
+    if username is not None:
+        lines.append(f"-u {username}")
+    if password is not None:
+        lines.append(f"-P {password}")
+    return "\n".join(lines) + "\n"
 
 
-def enc_str(s):
-    b = s.encode("utf-8")
-    return struct.pack("!H", len(b)) + b
+def mosquitto_pub_command(topic, retain=True):
+    cmd = ["mosquitto_pub", "-t", topic]
+    if retain:
+        cmd.append("-r")
+    cmd.append("-s")
+    return cmd
 
 
-class MqttClient:
-    def __init__(self, host, port, client_id, username=None, password=None):
-        self.host = host
-        self.port = port
-        self.client_id = client_id
-        self.username = username
-        self.password = password
-        self.sock = None
-
-    def connect(self):
-        self.sock = socket.create_connection((self.host, self.port), timeout=8)
-        flags = 0x02  # clean session
-        payload = enc_str(self.client_id)
-        if self.username is not None:
-            flags |= 0x80
-            payload += enc_str(self.username)
-        if self.password is not None:
-            flags |= 0x40
-            payload += enc_str(self.password)
-        vh = enc_str("MQTT") + bytes([4, flags, 0, 60])
-        pkt = bytes([0x10]) + enc_remaining_length(len(vh) + len(payload)) + vh + payload
-        self.sock.sendall(pkt)
-        resp = self.sock.recv(4)
-        if len(resp) < 4 or resp[0] != 0x20 or resp[3] != 0:
-            raise RuntimeError(f"MQTT CONNACK failed: {resp!r}")
-
-    def publish(self, topic, payload, retain=True):
-        if isinstance(payload, str):
-            payload = payload.encode("utf-8")
-        fixed = 0x30 | (0x01 if retain else 0x00)
-        body = enc_str(topic) + payload
-        pkt = bytes([fixed]) + enc_remaining_length(len(body)) + body
-        self.sock.sendall(pkt)
-
-    def disconnect(self):
-        if self.sock:
-            try:
-                self.sock.sendall(bytes([0xE0, 0x00]))
-            finally:
-                self.sock.close()
-                self.sock = None
+def mosquitto_publish(host, port, topic, payload, retain=True, username=None, password=None):
+    if isinstance(payload, str):
+        payload = payload.encode("utf-8")
+    with tempfile.TemporaryDirectory(prefix="m5stack-mqtt-") as td:
+        config_path = os.path.join(td, "mosquitto_pub")
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write(mosquitto_config_lines(host, port, username, password))
+        os.chmod(config_path, 0o600)
+        env = os.environ.copy()
+        env["XDG_CONFIG_HOME"] = td
+        cp = subprocess.run(mosquitto_pub_command(topic, retain=retain), input=payload, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, timeout=20, check=False)
+    if cp.returncode != 0:
+        err = cp.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"mosquitto_pub failed rc={cp.returncode}: {err}")
 
 
 def derive_summary(data):
@@ -265,26 +237,21 @@ def main():
     chat_topic = f"{prefix}/chat_state"
     availability_topic = f"{prefix}/availability"
 
-    mqtt = MqttClient(host, port, CLIENT_ID, username=username, password=password)
-    mqtt.connect()
-    try:
-        if not args.no_discovery:
-            for topic, payload in discovery_payloads(prefix):
-                mqtt.publish(topic, json.dumps(payload, separators=(",", ":")), retain=True)
-        mqtt.publish(availability_topic, "online", retain=True)
-        mqtt.publish(state_topic, json.dumps(data, separators=(",", ":")), retain=True)
-        if args.chat:
-            chat_payload = {
-                "timestamp": data.get("timestamp"),
-                "published_at": data.get("published_at"),
-                "overall_ok": data.get("overall_ok"),
-                "ok": bool(data.get("openai", {}).get("chat_smoke_content")),
-                "content": data.get("openai", {}).get("chat_smoke_content", ""),
-                "model_ids": data.get("openai", {}).get("model_ids", []),
-            }
-            mqtt.publish(chat_topic, json.dumps(chat_payload, separators=(",", ":")), retain=True)
-    finally:
-        mqtt.disconnect()
+    if not args.no_discovery:
+        for topic, payload in discovery_payloads(prefix):
+            mosquitto_publish(host, port, topic, json.dumps(payload, separators=(",", ":")), retain=True, username=username, password=password)
+    mosquitto_publish(host, port, availability_topic, "online", retain=True, username=username, password=password)
+    mosquitto_publish(host, port, state_topic, json.dumps(data, separators=(",", ":")), retain=True, username=username, password=password)
+    if args.chat:
+        chat_payload = {
+            "timestamp": data.get("timestamp"),
+            "published_at": data.get("published_at"),
+            "overall_ok": data.get("overall_ok"),
+            "ok": bool(data.get("openai", {}).get("chat_smoke_content")),
+            "content": data.get("openai", {}).get("chat_smoke_content", ""),
+            "model_ids": data.get("openai", {}).get("model_ids", []),
+        }
+        mosquitto_publish(host, port, chat_topic, json.dumps(chat_payload, separators=(",", ":")), retain=True, username=username, password=password)
 
     print(f"published {state_topic} overall_ok={data.get('overall_ok')} host={host}:{port}")
     return 0 if data.get("overall_ok") else 2
