@@ -432,7 +432,11 @@ def summarize_proxmox_data(
     cpu_percent = None
     if node_status.get("cpu") is not None:
         cpu_percent = int(round(float(node_status.get("cpu", 0)) * 100))
-    ram_percent = percent_ratio(node_status.get("mem"), node_status.get("maxmem"))
+    memory = node_status.get("memory") or {}
+    ram_percent = percent_ratio(
+        node_status.get("mem", memory.get("used")),
+        node_status.get("maxmem", memory.get("total")),
+    )
     rootfs = node_status.get("rootfs") or {}
     storage_percent = percent_ratio(rootfs.get("used"), rootfs.get("total"))
     zfs_info = zfs_summary(zfs)

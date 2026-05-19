@@ -196,7 +196,7 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     pve = api.summarize_proxmox_data(
         node="pve-mini",
         latency_ms=42,
-        node_status={"status": "online", "cpu": 0.18, "mem": 8 * 1024**3, "maxmem": 16 * 1024**3, "rootfs": {"used": 62, "total": 100}},
+        node_status={"status": "online", "cpu": 0.18, "memory": {"used": 8 * 1024**3, "total": 16 * 1024**3}, "rootfs": {"used": 62, "total": 100}},
         qemu=[{"name": "ha", "status": "running"}, {"name": "test", "status": "stopped"}, {"vmid": 101, "status": "running"}],
         lxc=[{"name": "hermes", "status": "running"}, {"name": "old", "status": "stopped"}],
         zfs=[{"name": "rpool", "health": "ONLINE", "alloc": 55, "size": 100}],
