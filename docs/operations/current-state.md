@@ -1,6 +1,6 @@
 # Power Sentinel current state
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 This file exists to survive chat/context compaction. It records the hardware facts, firmware decisions, and verified paths that must not be rediscovered unless hardware/firmware changes.
 
@@ -156,6 +156,35 @@ docs/operations/power-sentinel-api.md
 docs/operations/backend-ops.md
 ```
 
+Verified V1 backend state after Proxmox/network integration:
+
+```text
+proxmox.available: true
+proxmox.severity: ok
+proxmox.node: pve
+proxmox.node_status: online
+proxmox.zfs.status: ONLINE
+proxmox.smart.status: OK
+proxmox.vm.running_names: ["haos"]
+proxmox.lxc.running_names: ["docker", "hermes"]
+proxmox.shutdown_state: disarmed
+network.available: true
+network.default_route: true
+network.probe: tcp
+network.target: 1.1.1.1:53
+problems: []
+```
+
+The Proxmox API token lives only in root-owned runtime config on the LLM Module:
+
+```text
+/etc/power-sentinel.json
+mode: 600
+owner: root:root
+```
+
+Do not print or commit the token secret. The token is read-only and the service has no shutdown action yet.
+
 ## Current firmware state
 
 CoreS3 frontend:
@@ -183,7 +212,11 @@ Important LVGL/M5GFX integration detail:
 
 The firmware currently has:
 
-- LVGL tab UI for UPS, HA, PVE, M5, and transport/offline diagnostics.
+- Five LVGL tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
+- V1b modern polish: dark theme, HOME hero card, card radius/shadow, structured metric rows, status pills, and percent bars.
+- HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
+- HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
+- PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts, with shutdown state still `disarmed`.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
 - Internal UART StackFlow transport enabled by default:
 
