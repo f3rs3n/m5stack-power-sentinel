@@ -40,6 +40,18 @@ tools/        tooling and validation helpers
 assets/       UI mockups/icons/palettes
 ```
 
+## VSCode / PlatformIO flash workflow
+
+Martino normally pulls this repository from GitHub in VSCode on Windows and flashes the CoreS3 from there. Therefore the GitHub version must be directly buildable/flashable without private files.
+
+Current firmware behavior:
+
+- `firmware/core-s3-display/platformio.ini` pins `upload_port = COM4` and `monitor_port = COM4` for the current Windows/CoreS3 setup.
+- The firmware includes `include/power_sentinel_config.example.h` automatically when the ignored local `include/power_sentinel_config.h` is absent.
+- The default flash path uses the internal stacked UART/StackFlow transport, so no WiFi, MQTT, Home Assistant, Proxmox, or NUT secret is required at CoreS3 flash time.
+- WiFi credentials are only needed for the optional HTTP development fallback. If needed, copy `include/power_sentinel_config.example.h` to `include/power_sentinel_config.h` locally and fill `WIFI_SSID` / `WIFI_PASSWORD`; do not commit that file.
+- Runtime/backend secrets live on the LLM Module in root-only config files such as `/etc/power-sentinel.json`, `/etc/m5stack-ha-publish.json`, and NUT config. They are not firmware flash inputs.
+
 ## Current status
 
 Already completed on the physical module:
