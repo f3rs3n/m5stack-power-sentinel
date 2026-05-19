@@ -85,7 +85,7 @@ struct ServiceState {
   bool mqtt = false;
   bool stackflowOk = false;
   bool openaiOk = false;
-  bool chatSmokeOk = false;
+  int chatSmokeState = -1;
   char severity[12] = "unknown";
   char shutdownState[20] = "unknown";
   float temperatureC = 0.0f;
@@ -372,7 +372,7 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.m5stack.diskFreeGb = jsonFloat(m5["disk_free_gb"], 0);
   state.m5stack.stackflowOk = m5["stackflow_ok"] | false;
   state.m5stack.openaiOk = m5["openai_ok"] | false;
-  state.m5stack.chatSmokeOk = m5["chat_smoke_ok"] | false;
+  state.m5stack.chatSmokeState = m5["chat_smoke_ok"].isNull() ? -1 : (m5["chat_smoke_ok"].as<bool>() ? 1 : 0);
 
   JsonArrayConst problems = doc["problems"].as<JsonArrayConst>();
   if (problems.isNull() || problems.size() == 0) {
@@ -675,7 +675,11 @@ void renderHa() {
   char line[128];
   snprintf(line, sizeof(line), "API %s   MQTT %s", state.ha.available ? "OK" : "DOWN", state.ha.mqtt ? "OK" : "DOWN");
   addMetricRow(card, "core", line);
-  snprintf(line, sizeof(line), "HA MQTT status %s", state.ha.shutdownState);
+  if (strcmp(state.ha.shutdownState, "unknown") == 0) {
+    snprintf(line, sizeof(line), "HA birth topic not retained");
+  } else {
+    snprintf(line, sizeof(line), "HA birth topic %s", state.ha.shutdownState);
+  }
   addLine(card, line);
 
   lv_obj_t *z2m = makeCard(haTab, "Z2M / Coordinator");
@@ -706,19 +710,27 @@ void renderProxmox() {
   addMetricRow(card, "node / api", line);
   char cpu[24];
   char ram[24];
-  snprintf(line, sizeof(line), "%s   %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"), intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
-  addMetricRow(card, "cpu / ram", line);
+  snprintf(line, sizeof(line), "CPU %s   RAM %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"), intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
+  addMetricRow(card, "usage", line);
+  snprintf(line, sizeof(line), "CPU bar %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"));
+  addLine(card, line);
   addPercentBar(card, state.proxmox.cpuPercent, lv_palette_main(LV_PALETTE_BLUE));
+  snprintf(line, sizeof(line), "RAM bar %s", intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
+  addLine(card, line);
+  addPercentBar(card, state.proxmox.ramPercent, lv_palette_main(LV_PALETTE_PURPLE));
   char temp[24];
   char storage[24];
-  snprintf(line, sizeof(line), "%s   %s", floatOrUnknown(state.proxmox.cpuTempC, temp, sizeof(temp), " C"), intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
+  const char *tempText = state.proxmox.cpuTempC <= 0.0f ? "Temp n/a" : floatOrUnknown(state.proxmox.cpuTempC, temp, sizeof(temp), " C");
+  snprintf(line, sizeof(line), "%s   Storage %s", tempText, intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
   addMetricRow(card, "temp / storage", line);
+  snprintf(line, sizeof(line), "Storage bar %s", intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
+  addLine(card, line);
   addPercentBar(card, state.proxmox.storagePercent, lv_palette_main(LV_PALETTE_TEAL));
   snprintf(line, sizeof(line), "ZFS %s   SMART %s", state.proxmox.zfsStatus, state.proxmox.smartStatus);
   addMetricRow(card, "storage health", line);
   snprintf(line, sizeof(line), "VM %s run   CT %s run", intOrUnknown(state.proxmox.vmRunningCount, cpu, sizeof(cpu)), intOrUnknown(state.proxmox.lxcRunningCount, ram, sizeof(ram)));
   addMetricRow(card, "workloads", line);
-  snprintf(line, sizeof(line), "Shutdown via NUT");
+  snprintf(line, sizeof(line), "NUT dry-run %s   armed %s", state.shutdown.wouldShutdown ? "WOULD" : "idle", state.shutdown.armed ? "YES" : "NO");
   addLine(card, line);
 
   lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");
@@ -745,7 +757,8 @@ void renderM5s() {
   addLine(card, line);
   snprintf(line, sizeof(line), "StackFlow %s   OpenAI %s", state.m5stack.stackflowOk ? "OK" : "FAIL", state.m5stack.openaiOk ? "OK" : "FAIL");
   addLine(card, line);
-  snprintf(line, sizeof(line), "Chat smoke %s", state.m5stack.chatSmokeOk ? "OK" : "FAIL");
+  const char *chatSmokeText = state.m5stack.chatSmokeState < 0 ? "n/a" : (state.m5stack.chatSmokeState > 0 ? "OK" : "FAIL");
+  snprintf(line, sizeof(line), "Chat smoke %s", chatSmokeText);
   addLine(card, line);
 
   lv_obj_t *transport = makeCard(m5sTab, "Transport");

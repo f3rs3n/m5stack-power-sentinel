@@ -282,10 +282,10 @@ Top PVE section:
 - node name
 - API latency if available
 - node online status
-- CPU usage %
-- RAM usage %
-- CPU temperature
-- storage usage % if available
+- CPU usage % plus explicit CPU bar
+- RAM usage % plus explicit RAM bar
+- CPU temperature, rendered as `Temp n/a` when Proxmox API does not expose it
+- storage usage % plus explicit storage bar
 - ZFS status
 - SMART/disk health status
 - VM running count
@@ -325,7 +325,10 @@ PVE                 OK
 Node pve-mini
 
 CPU 18%      RAM 46%
-Temp 58C     Storage 62%
+CPU bar
+RAM bar
+Temp n/a     Storage 62%
+Storage bar
 
 ZFS ONLINE   SMART OK
 VM 8 run     CT 4 run

@@ -57,7 +57,13 @@ def main() -> int:
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE read-only UI missing {needle}")
-    required_ha_z2m = ["Zigbee2MqttState", "state.zigbee2mqtt.available", "coordinatorType", "deviceTotal", "Z2M", "Coordinator"]
+    required_pve_clarity = ["CPU", "RAM", "Temp n/a", "Storage", "RAM bar", "CPU bar", "NUT dry-run"]
+    for needle in required_pve_clarity:
+        if needle not in text:
+            return fail(f"PVE UI lacks display clarity marker {needle}")
+    if "Shutdown via NUT" in text:
+        return fail("PVE tab should not show ambiguous standalone 'Shutdown via NUT'")
+    required_ha_z2m = ["Zigbee2MqttState", "state.zigbee2mqtt.available", "coordinatorType", "deviceTotal", "Z2M", "Coordinator", "HA birth topic"]
     for needle in required_ha_z2m:
         if needle not in text:
             return fail(f"HA/Z2M UI missing {needle}")

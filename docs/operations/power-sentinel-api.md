@@ -109,7 +109,7 @@ The `zigbee2mqtt` summary object includes:
 - `devices.total`, `devices.interviewed`, `devices.disabled`
 - `problems[]`
 
-No Home Assistant long-lived token is required for this V1 MQTT-first health view. HA itself is still TCP-checked on `8123`; the MQTT `homeassistant/status` value is exposed when retained/available, otherwise it is `unknown`.
+No Home Assistant long-lived token is required for this V1 MQTT-first health view. HA itself is still TCP-checked on `8123`; the MQTT `homeassistant/status` value is exposed when retained/available, otherwise it is `unknown`. The CoreS3 UI should label that state as `HA birth topic not retained` rather than `HA MQTT status unknown`, because on this install it is informational rather than a failure.
 
 ## Proxmox read-only integration
 

@@ -164,6 +164,26 @@ driver.name: usbhid-ups
     assert summary["ups"]["driver"] == "usbhid-ups"
 
 
+def test_m5stack_chat_smoke_missing_or_not_run_is_unknown_not_failure():
+    api = load_module()
+
+    missing = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True, "ports": {"stackflow_10001": {"ok": True}, "openai_8000": {"ok": True}}, "openai": {"models": {"ok": True}}},
+        ups=api.parse_upsc_output("ups.status: OL"),
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+    )
+    not_run = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True, "ports": {"stackflow_10001": {"ok": True}, "openai_8000": {"ok": True}}, "chat_smoke": {"ok": False, "not_run": True}},
+        ups=api.parse_upsc_output("ups.status: OL"),
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+    )
+
+    assert missing["m5stack"]["chat_smoke_ok"] is None
+    assert not_run["m5stack"]["chat_smoke_ok"] is None
+
+
 def test_build_summary_includes_nut_service_state_when_available():
     api = load_module()
 

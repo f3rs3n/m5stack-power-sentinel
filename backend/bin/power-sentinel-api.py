@@ -98,6 +98,15 @@ def run_json_command(cmd: list[str], timeout: float = 8.0) -> dict[str, Any] | N
         return None
 
 
+def health_bool_or_unknown(health: dict[str, Any] | None, *path: str) -> bool | None:
+    value = health_value(health, *path, default=None)
+    if value is None:
+        return None
+    if isinstance(value, dict) and value.get("not_run"):
+        return None
+    return bool(value)
+
+
 def load_m5stack_health() -> dict[str, Any] | None:
     if not os.path.exists(HEALTHCHECK):
         return None
@@ -862,7 +871,7 @@ def build_summary(
             "disk_free_gb": first_health_value(health, [("system", "root_disk", "free_gb"), ("system", "root_disk_free_gb")]),
             "stackflow_ok": bool(first_health_value(health, [("ports", "stackflow_10001", "ok"), ("stackflow", "lsmode_ok"), ("apis", "stackflow")], default=False)),
             "openai_ok": bool(first_health_value(health, [("ports", "openai_8000", "ok"), ("openai", "models", "ok"), ("apis", "openai")], default=False)),
-            "chat_smoke_ok": bool(health_value(health, "chat_smoke", "ok", default=False)),
+            "chat_smoke_ok": None if health_value(health, "chat_smoke", "not_run", default=False) else health_bool_or_unknown(health, "chat_smoke", "ok"),
         },
         "problems": problems,
     }
