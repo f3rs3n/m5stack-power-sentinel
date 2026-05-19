@@ -84,17 +84,18 @@ NUT driver: usbhid-ups
 NUT UPS name: homelab_ups@localhost
 ```
 
-Current verified NUT service state:
+Current verified NUT service state after the controlled primary/secondary upsmon test and safety disable:
 
 ```text
 nut-server: enabled/active
 nut-driver: static/active
-nut-monitor: enabled/active on the M5Stack primary
+nut-monitor: disabled/inactive on the M5Stack primary
+Proxmox nut-monitor: disabled/inactive on the first secondary host
 ```
 
-`nut-monitor` is now enabled on the M5Stack primary only. Shutdown is handled only by Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox). Power Sentinel is only a dashboard/readiness observer and must not orchestrate Proxmox shutdown through the Proxmox API.
+`nut-monitor` was temporarily enabled on the M5Stack primary and then on the Proxmox secondary to prove the Standard NUT path. Both monitors have since been explicitly stopped and disabled for the current staged/safe state. Shutdown is handled only by Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox) when the monitors are deliberately re-enabled. Power Sentinel is only a dashboard/readiness observer and must not orchestrate Proxmox shutdown through the Proxmox API.
 
-Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host. The M5Stack primary monitor is active; the first secondary host remains disabled/inactive until a separate deliberate secondary test. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
+Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host. The controlled test verified that the M5Stack can run as `upsmon` primary and that Proxmox can connect as `upsmon` secondary; after the test, both `nut-monitor` services were disabled/inactive. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
 
 Verified live UPS values after connection:
 
@@ -188,8 +189,8 @@ zigbee2mqtt.coordinator.firmware: 7.4.5 [GA]
 zigbee2mqtt.devices: total=29 interviewed=29 disabled=0
 shutdown.real_shutdown_owner: upsmon
 shutdown.primary_ready: true
-shutdown.primary_monitor_active: true
-shutdown.armed: true
+shutdown.primary_monitor_active: false
+shutdown.armed: false
 shutdown.secondary_ready: false
 shutdown.nut_clients[0].state: reachable_via_upsc
 shutdown.nut_clients[0].package_installed: true
