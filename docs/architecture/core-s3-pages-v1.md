@@ -35,8 +35,8 @@ Navigation:
 
 - `HOME` is the default boot page.
 - Top-level navigation uses a compact left sidebar to preserve the scarce 240 px vertical space.
-- Sidebar labels should favor small monochrome/low-color icon or spia-style affordances plus short text (`H`, `N`, `P`, `HA`, `M5`).
-- Top-level tab switching is via the sidebar; horizontal gestures inside the content area belong to the current tab's card carousel, not to changing tabs.
+- Sidebar labels should favor small monochrome/low-color icon or spia-style affordances plus short text (`HM`, `NT`, `P`, `HA`, `M5`) until better custom icons are available.
+- Top-level tab switching is via the sidebar or vertical swipe through the left-sidebar tab stack; horizontal gestures inside the content area belong to the current tab's card carousel, not to changing tabs.
 - No automatic tab switch in V1.
 - No automatic return-to-HOME timer in V1.
 - No audible/beep alert in V1; visual alerts only.

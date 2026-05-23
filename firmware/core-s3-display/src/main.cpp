@@ -509,7 +509,7 @@ void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
   lv_obj_set_style_shadow_ofs_y(card, 3, 0);
   lv_obj_set_scroll_dir(card, LV_DIR_VER);
   lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_AUTO);
-  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+  lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
 }
 
 lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
@@ -629,6 +629,7 @@ void setupPage(lv_obj_t *tab) {
   lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER);
   lv_obj_set_scrollbar_mode(tab, LV_SCROLLBAR_MODE_AUTO);
   lv_obj_clear_flag(tab, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
+  lv_obj_add_flag(tab, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
 }
 
 const char *runtimeText(int seconds, char *buf, size_t bufSize) {
@@ -1194,10 +1195,11 @@ void initUi() {
   lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT);
   lv_tabview_set_tab_bar_size(tabview, 44);
   lv_obj_t *tabContent = lv_tabview_get_content(tabview);
-  lv_obj_clear_flag(tabContent, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scroll_dir(tabContent, LV_DIR_VER);
+  lv_obj_set_scroll_snap_y(tabContent, LV_SCROLL_SNAP_CENTER);
   applyAppTheme();
-  homeTab = lv_tabview_add_tab(tabview, LV_SYMBOL_HOME "\nH");
-  nutTab = lv_tabview_add_tab(tabview, LV_SYMBOL_CHARGE "\nN");
+  homeTab = lv_tabview_add_tab(tabview, LV_SYMBOL_HOME "\nHM");
+  nutTab = lv_tabview_add_tab(tabview, LV_SYMBOL_CHARGE "\nNT");
   proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nP");
   haTab = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI "\nHA");
   m5sTab = lv_tabview_add_tab(tabview, LV_SYMBOL_SETTINGS "\nM5");

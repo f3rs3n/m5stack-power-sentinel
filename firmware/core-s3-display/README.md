@@ -47,7 +47,7 @@ La UI LVGL V1 segue la specifica `docs/architecture/core-s3-pages-v1.md` e ha ci
 
 La direzione del prodotto non è più “solo UPS display”: lo stack è un server Linux autonomo multi-funzione con dashboard informative estensibili. Il CoreS3 è il front-panel pratico e moderno per UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, rete e M5Stack; futuri mini-dashboard o una companion tab LLM devono agganciarsi allo stesso contratto dati senza rompere le pagine esistenti.
 
-V1b/V1c/V1d aggiunge un polish moderno senza asset pesanti: tema scuro coerente, sidebar sinistra compatta con icone/label piccole, carousel orizzontale di card per ogni tab, hero card HOME, font hierarchy Montserrat, card con radius/shadow sottile, metric row strutturate, status pill compatte e barre percentuali più consistenti. La HOME mostra il badge severity in maiuscolo (`OK`/`WARN`/`CRITICAL`) e il campo `NET` deriva dal probe `network` del backend sul Linux del modulo LLM, non da Proxmox.
+V1b/V1c/V1d aggiunge un polish moderno senza asset pesanti: tema scuro coerente, sidebar sinistra compatta con icone/label piccole (`HM`, `NT`, `P`, `HA`, `M5`), carousel orizzontale di card per ogni tab, hero card HOME, font hierarchy Montserrat, card con radius/shadow sottile, metric row strutturate, status pill compatte e barre percentuali più consistenti. La HOME mostra il badge severity in maiuscolo (`OK`/`WARN`/`CRITICAL`) e il campo `NET` deriva dal probe `network` del backend sul Linux del modulo LLM, non da Proxmox.
 
 Non c'è più un payload demo/sample plausibile all'avvio. Finché non arriva il primo summary live, lo stato è esplicitamente `boot` / `offline` / `waiting`.
 

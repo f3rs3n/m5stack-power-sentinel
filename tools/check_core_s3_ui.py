@@ -34,6 +34,8 @@ def main() -> int:
     for marker, call in zip(EXPECTED_TAB_LABEL_MARKERS, tab_calls):
         if marker not in call:
             return fail(f"expected sidebar icon tab marker {marker}, found call {call}")
+    if "\\nHM" not in tab_calls[0] or "\\nNT" not in tab_calls[1]:
+        return fail("sidebar HOME/NUT labels should use HM/NT until better icons are available")
     for tab in FORBIDDEN_TABS:
         if f'lv_tabview_add_tab(tabview, "{tab}")' in text:
             return fail(f"legacy tab {tab!r} still present")
@@ -45,8 +47,10 @@ def main() -> int:
         "lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW)",
         "lv_obj_set_scroll_dir(tab, LV_DIR_HOR)",
         "lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER)",
-        "lv_obj_clear_flag(tabContent, LV_OBJ_FLAG_SCROLLABLE)",
+        "lv_obj_set_scroll_dir(tabContent, LV_DIR_VER)",
+        "lv_obj_set_scroll_snap_y(tabContent, LV_SCROLL_SNAP_CENTER)",
         "lv_obj_set_scroll_dir(card, LV_DIR_VER)",
+        "lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLL_CHAIN_VER)",
     ]
     for needle in required_horizontal_cards:
         if needle not in text:
