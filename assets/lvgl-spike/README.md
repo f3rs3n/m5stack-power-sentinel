@@ -48,7 +48,7 @@ Expected behavior for `npx lvgl-mcp-server`: it should start an MCP stdio server
 
 ## Hermes-driven render harness
 
-After Windows prerequisites and `npm install -g lvgl-mcp-server`, Hermes can render a fixture over SSH without a browser or MCP Inspector:
+After Windows prerequisites and `npm install -g lvgl-mcp-server`, Hermes can render a fixture over SSH without a browser or MCP Inspector. Use the global Windows SSH alias `doomtrain` for that host:
 
 ```powershell
 cd C:\Users\marti\Progetti\m5stack-power-sentinel\assets\lvgl-spike

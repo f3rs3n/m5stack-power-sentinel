@@ -73,6 +73,8 @@ Implemented and verified on the physical module:
 - backend API serving `power-sentinel.summary.v1` with live UPS/NUT, Proxmox, HA/MQTT/Zigbee2MQTT, network, M5Stack, and Standard NUT shutdown-readiness sections;
 - StackFlow transport verified: CoreS3 sends `work_id: "sentinel"` summaries over the internal UART, `llm_sys` routes to `ipc:///tmp/rpc.sentinel`, and the display renders live data;
 - CoreS3 LVGL UI implemented with five tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`, plus a HOME `SLEEP DISPLAY` control;
+- Proxmox read-only token now includes `VM.GuestAgent.Audit` so VM disk usage can be derived from QEMU guest-agent `get-fsinfo`; HAOS currently reports RAM from `/status/current` and HDD usage from `/mnt/data`, while read-only root filesystems such as HAOS `erofs` are ignored;
+- global SSH aliases in Martino's Hermes environment are `ssh pve`, `ssh m5stack`, and `ssh doomtrain` for Proxmox, the LLM Module, and the Windows workstation respectively;
 - LVGL MCP visual baseline workflow exists under `assets/lvgl-spike/` for 320x240 layout review.
 
 Still missing / future work:

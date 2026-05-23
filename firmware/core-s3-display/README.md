@@ -41,13 +41,15 @@ La UI LVGL V1 segue la specifica `docs/architecture/core-s3-pages-v1.md` e ha ci
 
 1. `HOME` - overview da scrivania con stato globale, UPS essentials, NUT/PVE/HA/NET/M5S e problemi principali.
 2. `NUT` - UPS essentials più card orizzontali per NUT server/client, readiness Standard NUT e dettagli UPS.
-3. `PVE` - integrazione Proxmox read-only: nodo, CPU/RAM/storage, ZFS, SMART e mini-card per VM/LXC running con barre CPU/RAM/HDD quando le metriche sono disponibili.
+3. `PVE` - integrazione Proxmox read-only: CPU/RAM/storage, ZFS, SMART e mini-card per VM/LXC running con barre CPU/RAM/HDD quando le metriche sono disponibili. La latenza API PVE non è più nella card PVE compatta: vive nella diagnostica `M5S`.
 4. `HA` - Home Assistant API, MQTT, aggiornamenti disponibili, Zigbee2MQTT e coordinatore; mostra `Z2M devices: interviewed/total` e non spreca spazio con versione Z2M o birth topic HA.
 5. `M5S` - stato M5Stack/System più diagnostica trasporto, firmware, schema, UART e contatori poll.
 
 La direzione del prodotto non è più “solo UPS display”: lo stack è un server Linux autonomo multi-funzione con dashboard informative estensibili. Il CoreS3 è il front-panel pratico e moderno per UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, rete e M5Stack; futuri mini-dashboard o una companion tab LLM devono agganciarsi allo stesso contratto dati senza rompere le pagine esistenti.
 
 V1b/V1c/V1d aggiunge un polish moderno senza asset pesanti: tema scuro coerente, sidebar sinistra compatta con icone/label piccole (`HM`, `NT`, `PV`, `HA`, `M5`), carousel orizzontale di card per ogni tab, hero card HOME, font hierarchy Montserrat, card con radius/shadow sottile, metric row strutturate, status pill compatte e barre percentuali più consistenti. La HOME mostra il badge severity in maiuscolo (`OK`/`WARN`/`CRITICAL`) e il campo `NET` deriva dal probe `network` del backend sul Linux del modulo LLM, non da Proxmox.
+
+Dettagli PVE attuali: la card principale mostra CPU/RAM/storage con totale RAM allineato a destra; le mini-card workload mostrano CPU/RAM/HDD con totale RAM/HDD a destra. Per le VM il backend corregge i dati Proxmox grezzi: RAM da `/status/current`, HDD da QEMU guest-agent fsinfo quando disponibile, ignorando valori `disk=0` non affidabili e filesystem HAOS read-only `erofs`.
 
 Non c'è più un payload demo/sample plausibile all'avvio. Finché non arriva il primo summary live, lo stato è esplicitamente `boot` / `offline` / `waiting`.
 
@@ -118,7 +120,7 @@ Primo flash consigliato: Windows + VS Code + PlatformIO.
 Log atteso:
 
 ```text
-Power Sentinel firmware build: stackflow-2026-05-18
+Power Sentinel firmware build: stackflow-2026-05-23-pve-polish
 Serial transport enabled: RX=18 TX=17 baud=115200 mode=stackflow
 Serial TX StackFlow sentinel.summary id=ps-N attempt 1/3
 StackFlow summary OK: <bytes> bytes

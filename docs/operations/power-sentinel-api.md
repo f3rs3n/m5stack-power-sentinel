@@ -143,11 +143,21 @@ The API reads these PVE endpoints only:
 
 - `/api2/json/nodes/{node}/status`
 - `/api2/json/nodes/{node}/qemu`
+- `/api2/json/nodes/{node}/qemu/{vmid}/status/current` for running VMs, best-effort enrichment
+- `/api2/json/nodes/{node}/qemu/{vmid}/agent/get-fsinfo` for running VMs with guest agent, best-effort disk-usage enrichment
 - `/api2/json/nodes/{node}/lxc`
 - `/api2/json/nodes/{node}/disks/zfs` best-effort
 - `/api2/json/nodes/{node}/disks/list` best-effort
 
 No SSH, no shutdown action, no `smartctl` custom script, and no expected-state model are used in this V1 read-only step.
+
+The Proxmox role used by `power-sentinel@pve!readonly` is still read-only, but includes `VM.GuestAgent.Audit` in addition to `Sys.Audit`, `VM.Audit`, and `Datastore.Audit`. This allows `get-fsinfo` without granting guest-agent file read/write or unrestricted command execution. Assign this role to both the owning user and the privilege-separated token; Proxmox token permissions are the intersection of both ACL sets.
+
+VM metric caveats implemented in the backend:
+
+- running VM RAM is taken from `/status/current` when available, because the list endpoint can report `mem > maxmem` for HAOS;
+- Proxmox VM list/status can report `disk=0` even for an active disk, so a VM `disk=0` is not treated as reliable usage unless guest-agent fsinfo supplies real filesystem numbers;
+- guest-agent fsinfo filters pseudo/read-only filesystems such as `tmpfs`, `squashfs`, `overlay`, and HAOS `erofs`; for HAOS the useful HDD metric currently comes from `/mnt/data`, not `/`.
 
 The `proxmox` summary object includes:
 
@@ -155,7 +165,7 @@ The `proxmox` summary object includes:
 - `cpu_percent`, `ram_percent`, `cpu_temp_c`, `storage_percent`
 - `zfs.status`, `zfs.pools[]`
 - `smart.status`, `smart.failing_count`, `smart.warning_count`
-- `vm.running_count`, `vm.running_names[]`, `vm.running_items[]` with running-only CPU/RAM/disk mini-metrics when Proxmox exposes them
+- `vm.running_count`, `vm.running_names[]`, `vm.running_items[]` with running-only CPU/RAM/disk mini-metrics. VM RAM is enriched from `/status/current`; VM disk usage is enriched from QEMU guest-agent fsinfo when available and otherwise remains `null` rather than showing a misleading `0%`.
 - `lxc.running_count`, `lxc.running_names[]`, `lxc.running_items[]` with running-only CPU/RAM/disk mini-metrics when Proxmox exposes them
 - `shutdown_state=disarmed` as a compatibility/read-only display field only. Real host shutdown is Standard NUT secondary `upsmon`.
 - `problems[]`

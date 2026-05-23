@@ -284,11 +284,9 @@ Security/config direction:
 Top PVE section:
 
 - `PVE OK/DOWN`
-- node name
-- API latency if available
-- node online status
+- node/API diagnostics are intentionally not in the compact PVE card; API latency moved to the M5S transport/debug card
 - CPU usage % plus percent bar, labelled simply `CPU N%`.
-- RAM usage % plus percent bar, labelled simply `RAM N%`.
+- RAM usage % plus percent bar, labelled simply `RAM N%`, with total RAM right-aligned when available.
 - CPU temperature is intentionally omitted from the compact V1 PVE card until the backend can expose a meaningful host/sensor-specific value; do not show a permanent `Temp n/a` placeholder.
 - storage usage % plus percent bar, labelled simply `Storage N%`.
 - ZFS status as a compact status pill.
@@ -303,6 +301,8 @@ VM/LXC section:
 - When Proxmox list-endpoint metrics are available, render one mini-card per running VM/LXC.
 - Mini-cards are half-height so two fit cleanly in the 320x240 content viewport.
 - Each mini-card shows three compact bars: CPU %, RAM % with total RAM on the right, and HDD/disk % with total disk on the right.
+- For VMs, RAM should come from `/qemu/{vmid}/status/current` when available; the Proxmox list endpoint can over-report HAOS memory.
+- For VMs, disk usage should come from QEMU guest-agent `get-fsinfo` when available. Do not display a Proxmox VM `disk=0` as `HDD 0%`; render unknown unless fsinfo provides real filesystem usage. HAOS exposes `/` as a small read-only `erofs` filesystem at 100%; ignore read-only/pseudo filesystems and use the data filesystem such as `/mnt/data`.
 - If no per-workload mini-metrics are available, do not render the old full `Running workloads` fallback card. Render a single half-height info mini-card instead: `No running VM/LXC` when the node has no active workloads, or `Workload metrics unavailable` when counts exist but detailed metrics are absent.
 - Do not list stopped workloads in V1.
 - Do not distinguish critical vs non-critical workloads in V1.
@@ -327,11 +327,10 @@ Example PVE layout:
 
 ```text
 PVE                 OK
-Node pve-mini       42ms
 
 CPU 18%
 [percent bar]
-RAM 46%
+RAM 46%        32GB
 [percent bar]
 Storage 62%
 
@@ -342,7 +341,7 @@ NUT monitor idle   armed NO
 VM haos
 CPU 4%          [bar]
 RAM 42%     4GB [bar]
-HDD 37%    32GB [bar]
+HDD 15%    60GB [bar]
 
 LXC docker
 CPU 9%          [bar]
@@ -468,7 +467,7 @@ OpenAI WARN  Chat FAIL
 Transport stackflow
 Poll 153 ok / 2 fail
 Last 84ms  Age 1s
-FW stackflow-2026-05-18
+FW stackflow-2026-05-23-pve-polish
 Schema summary.v1
 UART 18/17 115200
 ```
@@ -500,7 +499,7 @@ Implementation status as of 2026-05-23:
 - NUT/UPS fields are implemented from live `upsc` data.
 - NUT server/driver/shutdown-readiness fields are implemented; real shutdown remains Standard NUT only.
 - Network status is implemented from the LLM Module Linux default route plus TCP probe, not from Proxmox reachability.
-- Proxmox read-only fields are implemented for one node via API token stored only in root-owned runtime config.
+- Proxmox read-only fields are implemented for one node via API token stored only in root-owned runtime config. VM RAM is enriched from `/status/current`; VM disk usage is enriched from QEMU guest-agent fsinfo with read-only/pseudo filesystems filtered out.
 - HA/MQTT/Zigbee2MQTT read-only fields are implemented with HA TCP/API reachability, optional HA update counts, and MQTT bridge topics.
 - M5Stack local health fields are implemented from healthcheck/service state.
 - Local LLM inference for enriched text or a companion tab is not implemented yet.

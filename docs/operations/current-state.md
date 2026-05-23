@@ -224,6 +224,32 @@ owner: root:root
 
 Do not print or commit the token secret. The token is read-only and the service has no shutdown action. Real shutdown is delegated to Standard NUT, not custom shutdown orchestration.
 
+Current Proxmox token/role details that matter for future sessions:
+
+```text
+Proxmox role: PowerSentinelReadOnly
+Privileges: Sys.Audit VM.Audit Datastore.Audit VM.GuestAgent.Audit
+Token: power-sentinel@pve!readonly, privilege-separated
+ACL scope: / with propagate=1 for both the owning user and token
+```
+
+`VM.GuestAgent.Audit` is intentionally included so the backend can read `qemu/{vmid}/agent/get-fsinfo` for VM filesystem usage. For HAOS, Proxmox list data reports `disk=0` even though the VM has a 64G disk, and `/status/current` is needed for accurate RAM. The backend therefore enriches running VM data with `/status/current`, then reads guest-agent fsinfo when available. HAOS exposes `/` as a tiny read-only `erofs` filesystem at 100%; this is ignored so displayed HDD usage comes from `/mnt/data` instead. Verified live HAOS mini-metrics after this fix:
+
+```text
+ram_percent: 90
+ram_total_bytes: 4294967296
+disk_percent: 15
+disk_total_bytes: 64121331712
+```
+
+Global SSH aliases available in Martino's Hermes environment:
+
+```text
+ssh pve        # Proxmox node, root@192.168.2.99
+ssh m5stack    # M5Stack LLM Module, root@192.168.2.202
+ssh doomtrain  # Windows workstation, marti@192.168.2.199
+```
+
 ## Current firmware state
 
 CoreS3 frontend:
@@ -259,7 +285,7 @@ The firmware currently has:
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, update count, Zigbee2MQTT state, coordinator type/firmware, and `Z2M devices: interviewed/total` from the MQTT-first Z2M backend summary. It deliberately does not show the HA birth-topic retained/debug state or the installed Z2M version.
 - NUT tab now shows NUT shutdown readiness: owner `upsmon`, primary readiness, generic NUT client readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), and NUT low-battery thresholds.
-- PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names/counts and optional per-running-workload mini-metrics. CPU/RAM/storage bars are explicitly labelled, workload mini-cards show CPU/RAM/HDD bars with totals where meaningful, and LXC workloads are labelled as `LXC` rather than `CT`. When no per-workload mini-metrics are available, the old full fallback card is replaced by a half-height info mini-card. The old combined temp/storage row was removed because Proxmox CPU temperature is unavailable here and storage is already shown as its own labelled bar.
+- PVE tab consumes read-only Proxmox API data: CPU/RAM/storage, ZFS, SMART, VM/LXC running names/counts and optional per-running-workload mini-metrics. The main PVE card no longer shows the old `node / api` latency row; API timing moved to the M5S transport/debug card. CPU/RAM/storage bars are explicitly labelled, main RAM and workload RAM/HDD totals are right-aligned, workload mini-cards show CPU/RAM/HDD bars with totals where meaningful, and LXC workloads are labelled as `LXC` rather than `CT`. When no per-workload mini-metrics are available, the old full fallback card is replaced by a half-height info mini-card. The old combined temp/storage row was removed because Proxmox CPU temperature is unavailable here and storage is already shown as its own labelled bar.
 - M5S tab treats missing/not-run chat smoke as `n/a`, not `FAIL`; StackFlow/OpenAI health remain the primary live checks.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
 - Internal UART StackFlow transport enabled by default:

@@ -22,14 +22,22 @@ Operational reference for the LLM Module as the autonomous multi-function Linux 
 ## Useful commands
 
 ```bash
-ssh root@192.168.2.202 '/usr/local/bin/m5stack-healthcheck'
-ssh root@192.168.2.202 '/usr/local/bin/m5stack-healthcheck --json'
-ssh root@192.168.2.202 '/usr/local/bin/m5stack-healthcheck --chat'
-ssh root@192.168.2.202 '/usr/local/bin/m5stack-ups-detect'
-ssh root@192.168.2.202 'systemctl list-timers "m5stack-ha-publish*" --no-pager'
-ssh root@192.168.2.202 'curl -s http://127.0.0.1:8088/api/v1/summary'
-ssh root@192.168.2.202 'systemctl status power-sentinel-api power-sentinel-stackflow-unit llm-sys --no-pager'
-ssh root@192.168.2.202 'journalctl -u power-sentinel-stackflow-unit -f'
+ssh m5stack '/usr/local/bin/m5stack-healthcheck'
+ssh m5stack '/usr/local/bin/m5stack-healthcheck --json'
+ssh m5stack '/usr/local/bin/m5stack-healthcheck --chat'
+ssh m5stack '/usr/local/bin/m5stack-ups-detect'
+ssh m5stack 'systemctl list-timers "m5stack-ha-publish*" --no-pager'
+ssh m5stack 'curl -s http://127.0.0.1:8088/api/v1/summary'
+ssh m5stack 'systemctl status power-sentinel-api power-sentinel-stackflow-unit llm-sys --no-pager'
+ssh m5stack 'journalctl -u power-sentinel-stackflow-unit -f'
+```
+
+Global SSH aliases in Martino's Hermes environment:
+
+```text
+pve        -> root@192.168.2.99
+m5stack    -> root@192.168.2.202
+doomtrain  -> marti@192.168.2.199
 ```
 
 ## MQTT / HA / Zigbee2MQTT
@@ -133,10 +141,10 @@ Proxmox nut-monitor: disabled/inactive on the first secondary host
 Useful NUT commands:
 
 ```bash
-ssh root@192.168.2.202 'upsc homelab_ups@localhost'
-ssh root@192.168.2.202 'systemctl status nut-server nut-driver nut-monitor --no-pager'
-ssh root@192.168.2.202 'ss -ltnp | grep :3493 || true'
-ssh root@192.168.2.202 '/usr/local/bin/m5stack-ups-detect'
+ssh m5stack 'upsc homelab_ups@localhost'
+ssh m5stack 'systemctl status nut-server nut-driver nut-monitor --no-pager'
+ssh m5stack 'ss -ltnp | grep :3493 || true'
+ssh m5stack '/usr/local/bin/m5stack-ups-detect'
 ```
 
 Current sanitized config templates in the repo:
@@ -168,10 +176,10 @@ shutdown.nut_clients[0].state: not_configured | reachable_via_upsc | connected_a
 
 The primary monitor on the M5Stack and the secondary monitor on Proxmox have both been proven and then disabled. Current readiness remains staged: do not leave either `nut-monitor` enabled, and do not trigger FSD/shutdown, until the final deliberate arming step.
 
-Discovery from Hermes uses a host-specific SSH alias for the first secondary host:
+Discovery from Hermes uses the global SSH alias for the first secondary host:
 
 ```text
-pve-power-sentinel -> root@192.168.2.99
+pve -> root@192.168.2.99
 ```
 
 Current first-client read-only readiness result:

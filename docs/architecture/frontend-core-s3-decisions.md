@@ -8,7 +8,7 @@ Historical goal: build a physical autonomous display for the M5Stack Power Senti
 
 Current product goal: the display is the front-panel for an autonomous multi-function Linux server. It covers UPS/NUT, Proxmox, Home Assistant/MQTT/Zigbee2MQTT, network, and M5Stack local health, and should remain extensible for future mini-dashboards and eventual local LLM inference/companion features.
 
-Primary endpoint:
+Primary endpoint (HTTP fallback/development path; normal ops can reach the module as `ssh m5stack`):
 
 ```text
 GET http://192.168.2.202:8088/api/v1/summary

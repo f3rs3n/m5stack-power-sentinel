@@ -42,7 +42,7 @@ Important caveat: the docs include a confusing example sentence saying a success
 
 ## Linux side observed on the LLM Module
 
-Observed over SSH on `192.168.2.202`:
+Observed over SSH on `m5stack` (`192.168.2.202`):
 
 ```text
 /dev/ttyS0  root:tty     console, active serial-getty, DO NOT use
