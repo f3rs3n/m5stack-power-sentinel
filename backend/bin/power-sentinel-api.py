@@ -881,7 +881,10 @@ def load_mqtt_status() -> dict[str, Any]:
 
 def load_homeassistant_mqtt_status() -> dict[str, Any]:
     cfg = mqtt_config()
-    payload = run_mosquitto_sub(cfg, "homeassistant/status", timeout=2)
+    # homeassistant/status is often not retained. A long wait here makes every
+    # CoreS3 HTTP fallback poll look dead, so treat missing retained state as
+    # quickly unknown instead of spending seconds blocking the whole summary.
+    payload = run_mosquitto_sub(cfg, "homeassistant/status", timeout=1)
     status = "unknown"
     if payload:
         status = payload.strip().lower()
@@ -1070,7 +1073,13 @@ def route_request(path: str) -> tuple[bytes, int, str]:
     if parsed.path in ("/", "/api/v1/summary"):
         query = parse_qs(parsed.query)
         if query.get("stackflow_safe", ["0"])[0] in ("1", "true", "yes"):
-            return json_response(build_summary(health=lightweight_m5stack_health(stackflow_ok=True)))
+            # StackFlow calls this endpoint synchronously while the CoreS3 is
+            # waiting on UART. Avoid non-retained MQTT probes that can block for
+            # seconds and cause the firmware to mark the whole poll as failed.
+            return json_response(build_summary(
+                health=lightweight_m5stack_health(stackflow_ok=True),
+                homeassistant_mqtt={"status": "unknown", "source": "mqtt", "status_topic": "homeassistant/status"},
+            ))
         return json_response(build_summary())
     if parsed.path == "/api/v1/health":
         return json_response(build_health())
