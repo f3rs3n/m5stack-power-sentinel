@@ -1,0 +1,5 @@
+# Keep curated visual baselines, ignore noisy MCP transport dumps.
+*-render-result.json
+*-tools.json
+*-stderr.txt
+*-error.txt

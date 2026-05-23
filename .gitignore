@@ -47,3 +47,4 @@ Thumbs.db
 
 # Local generated artifacts
 artifacts/
+.hermes/

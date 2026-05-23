@@ -1,6 +1,6 @@
 # Power Sentinel current state
 
-Last updated: 2026-05-19
+Last updated: 2026-05-23
 
 This file exists to survive chat/context compaction. It records the hardware facts, firmware decisions, and verified paths that must not be rediscovered unless hardware/firmware changes.
 
@@ -241,7 +241,9 @@ Important LVGL/M5GFX integration detail:
 The firmware currently has:
 
 - Five LVGL tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
-- V1b modern polish: dark theme, HOME hero card, card radius/shadow, structured metric rows, status pills, and percent bars.
+- V1b modern polish: dark theme, compact 24 px tab bar, HOME hero card, card radius/shadow, structured metric rows, status pills, percent bars, and a bottom HOME row for local status/problems plus `SLEEP DISPLAY`.
+- The LVGL MCP Windows spike is validated and kept under `assets/lvgl-spike/`: `run-lvgl-mcp-render.mjs` drives `lvgl-mcp-server` over stdio on the Windows host, and curated 320x240 visual baselines live in `assets/lvgl-spike/results/` as PNG plus widget-tree JSON.
+- The MCP render caught a real HOME overflow/clipping issue; the current HOME layout is intentionally compacted so `POWER SENTINEL`, severity, UPS essentials, NUT/PVE/HA pills, `local NET ... M5S ...`, `Problems: ...`, and `SLEEP DISPLAY` are visible in 320x240 before physical flash.
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, Zigbee2MQTT state/version, coordinator type/firmware, and Zigbee device totals from the MQTT-first Z2M backend summary. If `homeassistant/status` is unavailable because the birth topic is not retained, the UI says `HA birth topic not retained` instead of presenting this as a failure.

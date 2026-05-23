@@ -635,8 +635,30 @@ const char *nutStatusBadge() {
 void renderHome() {
   lv_obj_clean(homeTab);
   setupPage(homeTab);
-  lv_obj_t *card = makeHeroCard(homeTab, "POWER SENTINEL");
-  addBadge(card, state.offline ? "STALE" : severityText(), state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : severityColor(state.severity));
+  lv_obj_set_style_pad_all(homeTab, 4, 0);
+  lv_obj_set_style_pad_gap(homeTab, 4, 0);
+
+  lv_obj_t *card = lv_obj_create(homeTab);
+  stylePanel(card, lv_color_hex(0x111827), severityColor(state.severity));
+  lv_obj_set_height(card, 150);
+  lv_obj_set_style_pad_all(card, 7, 0);
+  lv_obj_set_style_pad_gap(card, 4, 0);
+
+  lv_obj_t *header = lv_obj_create(card);
+  lv_obj_remove_style_all(header);
+  lv_obj_set_width(header, lv_pct(100));
+  lv_obj_set_height(header, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(header, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+  lv_obj_t *title = lv_label_create(header);
+  lv_label_set_text(title, "POWER SENTINEL");
+  lv_obj_set_width(title, 215);
+  lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_color(title, lv_color_hex(0xf8fbff), 0);
+  lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
+  addBadge(header, state.offline ? "STALE" : severityText(), state.offline ? lv_palette_main(LV_PALETTE_ORANGE) : severityColor(state.severity));
+
   addLine(card, state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : (state.ups.available ? "GRID ONLINE" : "UPS UNAVAILABLE")));
 
   char line[128];
@@ -666,11 +688,57 @@ void renderHome() {
                    pvePill, state.proxmox.available ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED),
                    haPill, haFunctional() ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED));
 
-  snprintf(line, sizeof(line), "NET %s   M5S %s", state.network.available ? "OK" : "DOWN", state.m5stack.available ? "OK" : "DOWN");
-  addMetricRow(card, "local", line);
+  lv_obj_t *bottom = lv_obj_create(homeTab);
+  lv_obj_remove_style_all(bottom);
+  lv_obj_set_width(bottom, lv_pct(100));
+  lv_obj_set_flex_grow(bottom, 1);
+  lv_obj_set_flex_flow(bottom, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_gap(bottom, 5, 0);
+
+  lv_obj_t *local = lv_obj_create(bottom);
+  lv_obj_set_width(local, 168);
+  lv_obj_set_height(local, lv_pct(100));
+  lv_obj_set_flex_flow(local, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_gap(local, 2, 0);
+  lv_obj_set_style_pad_all(local, 6, 0);
+  lv_obj_set_style_radius(local, 12, 0);
+  lv_obj_set_style_border_width(local, 1, 0);
+  lv_obj_set_style_border_color(local, lv_color_hex(0x394152), 0);
+  lv_obj_set_style_bg_color(local, lv_color_hex(0x171b24), 0);
+  lv_obj_set_style_bg_opa(local, LV_OPA_COVER, 0);
+
+  snprintf(line, sizeof(line), "local NET %s M5S %s", state.network.available ? "OK" : "DOWN", state.m5stack.available ? "OK" : "DOWN");
+  lv_obj_t *localValue = lv_label_create(local);
+  lv_label_set_text(localValue, line);
+  lv_obj_set_width(localValue, lv_pct(100));
+  lv_label_set_long_mode(localValue, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_color(localValue, lv_color_hex(0xf8fbff), 0);
+  lv_obj_set_style_text_font(localValue, &lv_font_montserrat_14, 0);
   snprintf(line, sizeof(line), "Problems: %s", state.problems);
-  addLine(card, line);
-  addHomeSleepButton(card);
+  lv_obj_t *problemValue = lv_label_create(local);
+  lv_label_set_text(problemValue, line);
+  lv_obj_set_width(problemValue, lv_pct(100));
+  lv_label_set_long_mode(problemValue, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_color(problemValue, lv_color_hex(0xc8d0df), 0);
+  lv_obj_set_style_text_font(problemValue, &lv_font_montserrat_12, 0);
+
+  lv_obj_t *button = lv_button_create(bottom);
+  lv_obj_set_flex_grow(button, 1);
+  lv_obj_set_height(button, lv_pct(100));
+  lv_obj_set_style_radius(button, 12, 0);
+  lv_obj_set_style_bg_color(button, lv_color_hex(0x1f2937), 0);
+  lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(button, 1, 0);
+  lv_obj_set_style_border_color(button, lv_color_hex(0x4b5563), 0);
+  lv_obj_add_event_cb(button, onSleepButtonClicked, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *sleepLabel = lv_label_create(button);
+  lv_label_set_text(sleepLabel, "SLEEP DISPLAY");
+  lv_label_set_long_mode(sleepLabel, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(sleepLabel, 88);
+  lv_obj_set_style_text_align(sleepLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_text_color(sleepLabel, lv_color_hex(0xe5e7eb), 0);
+  lv_obj_set_style_text_font(sleepLabel, &lv_font_montserrat_14, 0);
+  lv_obj_center(sleepLabel);
 }
 
 void renderNut() {
@@ -1090,7 +1158,7 @@ void applyAppTheme() {
 void initUi() {
   tabview = lv_tabview_create(lv_screen_active());
   lv_tabview_set_tab_bar_position(tabview, LV_DIR_TOP);
-  lv_tabview_set_tab_bar_size(tabview, 34);
+  lv_tabview_set_tab_bar_size(tabview, 24);
   applyAppTheme();
   homeTab = lv_tabview_add_tab(tabview, "HOME");
   nutTab = lv_tabview_add_tab(tabview, "NUT");

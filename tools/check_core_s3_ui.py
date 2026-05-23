@@ -13,6 +13,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
+SPIKE_DIR = ROOT / "assets" / "lvgl-spike"
+SPIKE_HOME_FIXTURE = SPIKE_DIR / "power-sentinel-home-online.c"
+SPIKE_RENDER_SCRIPT = SPIKE_DIR / "run-lvgl-mcp-render.mjs"
 EXPECTED_TABS = ["HOME", "NUT", "PVE", "HA", "M5S"]
 FORBIDDEN_TABS = ["UPS", "Offline", "M5"]
 REQUIRED_RENDERERS = ["renderHome", "renderNut", "renderProxmox", "renderHa", "renderM5s"]
@@ -79,6 +82,31 @@ def main() -> int:
     for needle in forbidden_shutdown:
         if needle in text:
             return fail(f"NUT UI still contains ambiguous shutdown wording {needle}")
+
+    if not SPIKE_RENDER_SCRIPT.exists():
+        return fail("LVGL MCP visual render harness is missing")
+    render_script = SPIKE_RENDER_SCRIPT.read_text(encoding="utf-8")
+    for needle in ["--source", "--name", "lvgl_render_full", "lvgl_set_resolution"]:
+        if needle not in render_script:
+            return fail(f"LVGL MCP render harness missing {needle}")
+
+    if not SPIKE_HOME_FIXTURE.exists():
+        return fail("LVGL MCP HOME visual fixture is missing")
+    fixture = SPIKE_HOME_FIXTURE.read_text(encoding="utf-8")
+    required_fixture_strings = [
+        "POWER SENTINEL",
+        "HOME", "NUT", "PVE", "HA", "M5S",
+        "GRID ONLINE",
+        "battery / runtime",
+        "load / input",
+        "NUT OK", "PVE OK", "HA OK",
+        "NET OK", "M5S OK",
+        "SLEEP DISPLAY",
+    ]
+    for needle in required_fixture_strings:
+        if needle not in fixture:
+            return fail(f"LVGL MCP HOME fixture missing {needle!r}")
+
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")

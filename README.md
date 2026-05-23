@@ -73,5 +73,5 @@ See:
 ## Current next steps
 
 1. Keep the Standard NUT shutdown path staged/disarmed until the final deliberate arming step.
-2. Continue polish/verification of the CoreS3 display and Home Assistant/Zigbee2MQTT read-only status.
+2. Continue physical CoreS3 flash verification of the compact HOME/LVGL MCP visual baseline and Home Assistant/Zigbee2MQTT read-only status.
 3. When ready, deliberately re-enable `nut-monitor` on the M5Stack primary first, then on Proxmox secondary, with live verification after each step.
