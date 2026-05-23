@@ -607,7 +607,7 @@ def fsinfo_root_usage(fsinfo: Any) -> dict[str, int] | None:
         if not isinstance(item, dict):
             continue
         fs_type = str(item.get("type") or item.get("fstype") or "").lower()
-        if fs_type in ("devtmpfs", "tmpfs", "squashfs", "overlay", "proc", "sysfs"):
+        if fs_type in ("devtmpfs", "tmpfs", "squashfs", "overlay", "proc", "sysfs", "erofs"):
             continue
         total = first_present(item.get("total-bytes"), item.get("total_bytes"), item.get("total"))
         used = first_present(item.get("used-bytes"), item.get("used_bytes"), item.get("used"))

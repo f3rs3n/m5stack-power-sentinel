@@ -370,7 +370,8 @@ def test_enrich_running_qemu_status_prefers_current_memory_metrics():
         return {
             "result": [
                 {"name": "/run", "type": "tmpfs", "total-bytes": 10, "used-bytes": 9},
-                {"mountpoint": "/", "type": "ext4", "total-bytes": 64, "used-bytes": 32},
+                {"mountpoint": "/mnt/data", "type": "ext4", "total-bytes": 64, "used-bytes": 32},
+                {"mountpoint": "/", "type": "erofs", "total-bytes": 4, "used-bytes": 4},
             ]
         }
 
