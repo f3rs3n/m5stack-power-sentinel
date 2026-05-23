@@ -289,7 +289,7 @@ Top PVE section:
 - node online status
 - CPU usage % plus percent bar, labelled simply `CPU N%`.
 - RAM usage % plus percent bar, labelled simply `RAM N%`.
-- CPU temperature, rendered as `Temp n/a` when Proxmox API does not expose it.
+- CPU temperature is intentionally omitted from the compact V1 PVE card until the backend can expose a meaningful host/sensor-specific value; do not show a permanent `Temp n/a` placeholder.
 - storage usage % plus percent bar, labelled simply `Storage N%`.
 - ZFS status as a compact status pill.
 - SMART/disk health status as a compact status pill.
@@ -303,7 +303,7 @@ VM/LXC section:
 - When Proxmox list-endpoint metrics are available, render one mini-card per running VM/LXC.
 - Mini-cards are half-height so two fit cleanly in the 320x240 content viewport.
 - Each mini-card shows three compact bars: CPU %, RAM % with total RAM on the right, and HDD/disk % with total disk on the right.
-- If per-workload metrics are unavailable, fall back to the running VM/CT name summary card.
+- If per-workload metrics are unavailable, fall back to the running VM/LXC name summary card.
 - Do not list stopped workloads in V1.
 - Do not distinguish critical vs non-critical workloads in V1.
 - VM/LXC stopped/running counts are informational only and do not affect severity until an explicit expected-state config exists.
@@ -333,8 +333,7 @@ CPU 18%
 [percent bar]
 RAM 46%
 [percent bar]
-Temp n/a     Storage 62%
-[percent bar]
+Storage 62%
 
 [ZFS ONLINE] [SMART PASSED] [PVE RO]
 NUT monitor idle   armed NO
@@ -345,7 +344,7 @@ CPU 4%          [bar]
 RAM 42%     4GB [bar]
 HDD 37%    32GB [bar]
 
-CT docker
+LXC docker
 CPU 9%          [bar]
 RAM 61%     8GB [bar]
 HDD 55%    64GB [bar]

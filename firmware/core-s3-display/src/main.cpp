@@ -29,7 +29,7 @@
 #endif
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
-#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-lazy-shadowless"
+#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-shadow-trial"
 #endif
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
@@ -405,7 +405,7 @@ void parseSummary(const String &json, bool fromNetwork) {
     }
     safeCopy(state.proxmox.lxcNames, sizeof(state.proxmox.lxcNames), joined.c_str());
   }
-  parseProxmoxWorkloadItems(lxc["running_items"].as<JsonArrayConst>(), "CT");
+  parseProxmoxWorkloadItems(lxc["running_items"].as<JsonArrayConst>(), "LXC");
 
   JsonObjectConst sd = doc["shutdown"].as<JsonObjectConst>();
   state.shutdown.armed = sd["armed"] | false;
@@ -542,12 +542,13 @@ void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_set_style_border_color(card, border, 0);
   lv_obj_set_style_bg_color(card, bg, 0);
-  // Shadow rendering allocates temporary anti-aliased corner buffers in LVGL's
-  // software renderer. On the CoreS3 the full dashboard plus live workload
-  // payload exhausted LVGL memory, then crashed in lv_draw_sw_box_shadow during
-  // refresh. Keep V1 visually clean but shadowless for stability.
-  lv_obj_set_style_shadow_width(card, 0, 0);
-  lv_obj_set_style_shadow_opa(card, LV_OPA_TRANSP, 0);
+  // Shadows are intentionally enabled again after the lazy active-tab renderer
+  // proved stable. This build is a performance/stability trial to isolate the
+  // cost of LVGL software shadows without recreating all five tabs at once.
+  lv_obj_set_style_shadow_width(card, 10, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_shadow_ofs_y(card, 3, 0);
   lv_obj_set_scroll_dir(card, LV_DIR_VER);
   lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_AUTO);
   lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
@@ -745,8 +746,10 @@ lv_obj_t *makeWorkloadMiniCard(lv_obj_t *parent, const WorkloadMetric &metric) {
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_set_style_border_color(card, lv_color_hex(0x394152), 0);
   lv_obj_set_style_bg_color(card, lv_color_hex(0x171b24), 0);
-  lv_obj_set_style_shadow_width(card, 0, 0);
-  lv_obj_set_style_shadow_opa(card, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_width(card, 6, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_shadow_ofs_y(card, 2, 0);
   lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
 
   char title[48];
@@ -1046,11 +1049,7 @@ void renderProxmox() {
   snprintf(line, sizeof(line), "RAM %s", intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
   addLine(card, line);
   addPercentBar(card, state.proxmox.ramPercent, lv_palette_main(LV_PALETTE_PURPLE));
-  char temp[24];
   char storage[24];
-  const char *tempText = state.proxmox.cpuTempC <= 0.0f ? "Temp n/a" : floatOrUnknown(state.proxmox.cpuTempC, temp, sizeof(temp), " C");
-  snprintf(line, sizeof(line), "%s   Storage %s", tempText, intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
-  addMetricRow(card, "temp / storage", line);
   snprintf(line, sizeof(line), "Storage %s", intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
   addLine(card, line);
   addPercentBar(card, state.proxmox.storagePercent, lv_palette_main(LV_PALETTE_TEAL));
@@ -1065,7 +1064,7 @@ void renderProxmox() {
     lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");
     snprintf(line, sizeof(line), "VMs: %s", state.proxmox.vmNames);
     addLine(workloads, line);
-    snprintf(line, sizeof(line), "CTs: %s", state.proxmox.lxcNames);
+    snprintf(line, sizeof(line), "LXCs: %s", state.proxmox.lxcNames);
     addLine(workloads, line);
   } else {
     for (int i = 0; i < state.proxmox.workloadMetricCount; i += 2) {
