@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -155,10 +155,20 @@ async function main() {
   }, null, 2));
 }
 
+function stopChild() {
+  try { child.stdin.end(); } catch {}
+  if (!child.pid) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
+  } else {
+    try { child.kill('SIGTERM'); } catch {}
+  }
+}
+
 main().catch((err) => {
   writeResultFile('-error.txt', `${err.stack || err}\n\nSTDERR:\n${stderr}`);
   console.error(err.stack || err);
-  process.exit(1);
+  process.exitCode = 1;
 }).finally(() => {
-  child.kill();
+  stopChild();
 });
