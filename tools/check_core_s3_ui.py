@@ -81,7 +81,7 @@ def main() -> int:
     for needle, message in required_v1b.items():
         if needle not in text:
             return fail(message)
-    required_pve = ["cpuPercent", "ramPercent", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "workloadMetricCount", "running_items", "makeWorkloadMiniCard"]
+    required_pve = ["cpuPercent", "ramPercent", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "workloadMetricCount", "running_items", "makeWorkloadMiniCard", "makeWorkloadInfoMiniCard"]
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE read-only UI missing {needle}")
@@ -89,7 +89,7 @@ def main() -> int:
     for needle in required_pve_clarity:
         if needle not in text:
             return fail(f"PVE UI lacks display clarity marker {needle}")
-    for stale in ["CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
+    for stale in ["Running workloads", "CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
         if stale in text:
             return fail(f"PVE UI still contains redundant marker {stale}")
     if "Shutdown via NUT" in text:
@@ -148,7 +148,7 @@ def main() -> int:
         return fail(f"renderTab() does not dispatch every renderer in {expected_order}")
     if positions != sorted(positions):
         return fail("renderTab() dispatch order does not match tab order")
-    for needle in ["cleanInactiveTabs(active)", "lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED", "lv_obj_set_style_shadow_width(card, 10", "lv_obj_set_style_shadow_width(card, 6"]:
+    for needle in ["cleanInactiveTabs(active)", "saveTabScroll(renderedTabIndex)", "restoreTabScroll(renderedTabIndex)", "lv_obj_scroll_to_x(tab, tabScrollX[index], LV_ANIM_OFF)", "lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED", "lv_obj_set_style_shadow_width(card, 10", "lv_obj_set_style_shadow_width(card, 6"]:
         if needle not in text:
             return fail(f"CoreS3 LVGL heap guard missing {needle}")
     print("PASS core-s3-ui sidebar + horizontal card carousel HOME/NUT/PVE/HA/M5S")

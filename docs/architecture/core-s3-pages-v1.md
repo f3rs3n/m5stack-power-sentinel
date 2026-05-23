@@ -303,7 +303,7 @@ VM/LXC section:
 - When Proxmox list-endpoint metrics are available, render one mini-card per running VM/LXC.
 - Mini-cards are half-height so two fit cleanly in the 320x240 content viewport.
 - Each mini-card shows three compact bars: CPU %, RAM % with total RAM on the right, and HDD/disk % with total disk on the right.
-- If per-workload metrics are unavailable, fall back to the running VM/LXC name summary card.
+- If no per-workload mini-metrics are available, do not render the old full `Running workloads` fallback card. Render a single half-height info mini-card instead: `No running VM/LXC` when the node has no active workloads, or `Workload metrics unavailable` when counts exist but detailed metrics are absent.
 - Do not list stopped workloads in V1.
 - Do not distinguish critical vs non-critical workloads in V1.
 - VM/LXC stopped/running counts are informational only and do not affect severity until an explicit expected-state config exists.

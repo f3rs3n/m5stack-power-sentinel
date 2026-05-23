@@ -29,7 +29,7 @@
 #endif
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
-#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-shadow-trial"
+#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-scroll-retain"
 #endif
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
@@ -224,6 +224,7 @@ lv_indev_t *indev = nullptr;
 lv_obj_t *tabview = nullptr;
 lv_obj_t *homeTab = nullptr;
 uint32_t renderedTabIndex = UINT32_MAX;
+int32_t tabScrollX[5] = {0, 0, 0, 0, 0};
 
 constexpr int PAGE_CARD_WIDTH = 252;
 constexpr int PAGE_CARD_HEIGHT = 220;
@@ -771,6 +772,43 @@ lv_obj_t *makeWorkloadMiniCard(lv_obj_t *parent, const WorkloadMetric &metric) {
   return card;
 }
 
+lv_obj_t *makeWorkloadInfoMiniCard(lv_obj_t *parent, const char *title, const char *detail) {
+  lv_obj_t *card = lv_obj_create(parent);
+  if (!card) return nullptr;
+  lv_obj_set_width(card, lv_pct(100));
+  lv_obj_set_height(card, (PAGE_CARD_HEIGHT - 8) / 2);
+  lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_all(card, 8, 0);
+  lv_obj_set_style_pad_gap(card, 6, 0);
+  lv_obj_set_style_radius(card, 12, 0);
+  lv_obj_set_style_border_width(card, 1, 0);
+  lv_obj_set_style_border_color(card, lv_color_hex(0x394152), 0);
+  lv_obj_set_style_bg_color(card, lv_color_hex(0x171b24), 0);
+  lv_obj_set_style_shadow_width(card, 6, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_shadow_ofs_y(card, 2, 0);
+  lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+
+  lv_obj_t *headline = lv_label_create(card);
+  if (headline) {
+    lv_obj_set_width(headline, lv_pct(100));
+    lv_label_set_long_mode(headline, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(headline, lv_color_hex(0xe8eefc), 0);
+    lv_obj_set_style_text_font(headline, &lv_font_montserrat_14, 0);
+    lv_label_set_text(headline, title ? title : "No running VM/LXC");
+  }
+  lv_obj_t *body = lv_label_create(card);
+  if (body) {
+    lv_obj_set_width(body, lv_pct(100));
+    lv_label_set_long_mode(body, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(body, lv_color_hex(0xc8d0df), 0);
+    lv_obj_set_style_text_font(body, &lv_font_montserrat_12, 0);
+    lv_label_set_text(body, detail ? detail : "workload list is empty");
+  }
+  return card;
+}
+
 void setupPage(lv_obj_t *tab) {
   lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW);
   lv_obj_set_style_pad_all(tab, 8, 0);
@@ -1061,11 +1099,22 @@ void renderProxmox() {
   addLine(card, line);
 
   if (state.proxmox.workloadMetricCount == 0) {
-    lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");
-    snprintf(line, sizeof(line), "VMs: %s", state.proxmox.vmNames);
-    addLine(workloads, line);
-    snprintf(line, sizeof(line), "LXCs: %s", state.proxmox.lxcNames);
-    addLine(workloads, line);
+    lv_obj_t *page = lv_obj_create(proxmoxTab);
+    if (page) {
+      lv_obj_remove_style_all(page);
+      lv_obj_set_width(page, PAGE_CARD_WIDTH);
+      lv_obj_set_height(page, PAGE_CARD_HEIGHT);
+      lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
+      lv_obj_set_style_pad_gap(page, 8, 0);
+      const int totalRunning = (state.proxmox.vmRunningCount > 0 ? state.proxmox.vmRunningCount : 0) +
+                               (state.proxmox.lxcRunningCount > 0 ? state.proxmox.lxcRunningCount : 0);
+      if (totalRunning == 0) {
+        makeWorkloadInfoMiniCard(page, "No running VM/LXC", "node has no active workloads");
+      } else {
+        snprintf(line, sizeof(line), "%d running; metrics unavailable", totalRunning);
+        makeWorkloadInfoMiniCard(page, "Workload metrics unavailable", line);
+      }
+    }
   } else {
     for (int i = 0; i < state.proxmox.workloadMetricCount; i += 2) {
       lv_obj_t *page = lv_obj_create(proxmoxTab);
@@ -1132,7 +1181,34 @@ void cleanInactiveTabs(uint32_t active) {
   }
 }
 
+lv_obj_t *tabForIndex(uint32_t index) {
+  switch (index) {
+    case 0: return homeTab;
+    case 1: return nutTab;
+    case 2: return proxmoxTab;
+    case 3: return haTab;
+    case 4: return m5sTab;
+    default: return nullptr;
+  }
+}
+
+void saveTabScroll(uint32_t index) {
+  if (index >= 5) return;
+  lv_obj_t *tab = tabForIndex(index);
+  if (!tab) return;
+  tabScrollX[index] = lv_obj_get_scroll_x(tab);
+}
+
+void restoreTabScroll(uint32_t index) {
+  if (index >= 5) return;
+  lv_obj_t *tab = tabForIndex(index);
+  if (!tab) return;
+  lv_obj_update_layout(tab);
+  lv_obj_scroll_to_x(tab, tabScrollX[index], LV_ANIM_OFF);
+}
+
 void renderTab(uint32_t active) {
+  saveTabScroll(renderedTabIndex);
   cleanInactiveTabs(active);
   renderedTabIndex = active;
   switch (active) {
@@ -1156,6 +1232,7 @@ void renderTab(uint32_t active) {
       renderedTabIndex = 0;
       break;
   }
+  restoreTabScroll(renderedTabIndex);
 }
 
 void renderActiveTab() {
