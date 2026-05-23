@@ -29,7 +29,7 @@
 #endif
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
-#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-scroll-retain"
+#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-pve-polish"
 #endif
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
@@ -136,6 +136,7 @@ struct ProxmoxState {
   int cpuPercent = -1;
   int ramPercent = -1;
   int storagePercent = -1;
+  float ramTotalGb = 0.0f;
   int vmRunningCount = -1;
   int lxcRunningCount = -1;
   int workloadMetricCount = 0;
@@ -372,6 +373,7 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.proxmox.apiLatencyMs = jsonInt(px["api_latency_ms"], -1);
   state.proxmox.cpuPercent = jsonInt(px["cpu_percent"], -1);
   state.proxmox.ramPercent = jsonInt(px["ram_percent"], -1);
+  state.proxmox.ramTotalGb = jsonBytesToGb(px["ram_total_bytes"]);
   state.proxmox.storagePercent = jsonInt(px["storage_percent"], -1);
   state.proxmox.cpuTempC = jsonFloat(px["cpu_temp_c"], 0);
   JsonObjectConst zfs = px["zfs"].as<JsonObjectConst>();
@@ -701,38 +703,55 @@ const char *gbText(float gb, char *buf, size_t bufSize) {
   return buf;
 }
 
-void addMiniWorkloadMetric(lv_obj_t *parent, const char *label, int percent, const char *total, lv_color_t color) {
+void addCompactMetricWithBar(lv_obj_t *parent, const char *label, int percent, const char *total, lv_color_t color, int barHeight = 5) {
+  if (!parent) return;
   char percentText[16];
-  char rowText[40];
-  const char *percentValue = intOrUnknown(percent, percentText, sizeof(percentText), "%");
-  if (total && total[0] != '\0') {
-    snprintf(rowText, sizeof(rowText), "%s %s  %s", label, percentValue, total);
-  } else {
-    snprintf(rowText, sizeof(rowText), "%s %s", label, percentValue);
-  }
+  char leftText[36];
+  const char *percentValue = percent < 0 ? "--" : intOrUnknown(percent, percentText, sizeof(percentText), "%");
+  snprintf(leftText, sizeof(leftText), "%s %s", label ? label : "", percentValue);
 
-  // Keep workload rows intentionally flat. The first physical CoreS3 test
-  // crashed in lv_label_set_text() while rendering the nested row/two-label
-  // variant; reducing each metric to one label plus one bar avoids that LVGL
-  // allocation/long-text edge case and uses fewer objects per refresh.
-  lv_obj_t *text = lv_label_create(parent);
-  if (text) {
-    lv_obj_set_width(text, lv_pct(100));
-    lv_label_set_long_mode(text, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_color(text, lv_color_hex(0xc8d0df), 0);
-    lv_obj_set_style_text_font(text, &lv_font_montserrat_12, 0);
-    lv_label_set_text(text, rowText);
+  lv_obj_t *row = lv_obj_create(parent);
+  if (row) {
+    lv_obj_remove_style_all(row);
+    lv_obj_set_width(row, lv_pct(100));
+    lv_obj_set_height(row, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *left = lv_label_create(row);
+    if (left) {
+      lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100));
+      lv_label_set_long_mode(left, LV_LABEL_LONG_CLIP);
+      lv_obj_set_style_text_color(left, lv_color_hex(0xc8d0df), 0);
+      lv_obj_set_style_text_font(left, &lv_font_montserrat_12, 0);
+      lv_label_set_text(left, leftText);
+    }
+    if (total && total[0]) {
+      lv_obj_t *right = lv_label_create(row);
+      if (right) {
+        lv_obj_set_width(right, 68);
+        lv_label_set_long_mode(right, LV_LABEL_LONG_CLIP);
+        lv_obj_set_style_text_align(right, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_style_text_color(right, lv_color_hex(0xf8fbff), 0);
+        lv_obj_set_style_text_font(right, &lv_font_montserrat_12, 0);
+        lv_label_set_text(right, total);
+      }
+    }
   }
 
   lv_obj_t *bar = lv_bar_create(parent);
   if (!bar) return;
   lv_obj_set_width(bar, lv_pct(100));
-  lv_obj_set_height(bar, 5);
+  lv_obj_set_height(bar, barHeight);
   lv_bar_set_range(bar, 0, 100);
   int clamped = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
   lv_bar_set_value(bar, clamped, LV_ANIM_OFF);
   lv_obj_set_style_bg_color(bar, lv_color_hex(0x283041), LV_PART_MAIN);
   lv_obj_set_style_bg_color(bar, color, LV_PART_INDICATOR);
+}
+
+void addMiniWorkloadMetric(lv_obj_t *parent, const char *label, int percent, const char *total, lv_color_t color) {
+  addCompactMetricWithBar(parent, label, percent, total, color, 5);
 }
 
 lv_obj_t *makeWorkloadMiniCard(lv_obj_t *parent, const WorkloadMetric &metric) {
@@ -1076,21 +1095,10 @@ void renderProxmox() {
   lv_obj_t *card = makeCard(proxmoxTab, "Proxmox");
   addBadge(card, state.proxmox.available ? "PVE OK" : "PVE DOWN", severityColor(state.proxmox.severity));
   char line[128];
-  char apiMs[24];
-  snprintf(line, sizeof(line), "%s   %s", state.proxmox.node, intOrUnknown(state.proxmox.apiLatencyMs, apiMs, sizeof(apiMs), "ms"));
-  addMetricRow(card, "node / api", line);
-  char cpu[24];
-  char ram[24];
-  snprintf(line, sizeof(line), "CPU %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"));
-  addLine(card, line);
-  addPercentBar(card, state.proxmox.cpuPercent, lv_palette_main(LV_PALETTE_BLUE));
-  snprintf(line, sizeof(line), "RAM %s", intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
-  addLine(card, line);
-  addPercentBar(card, state.proxmox.ramPercent, lv_palette_main(LV_PALETTE_PURPLE));
-  char storage[24];
-  snprintf(line, sizeof(line), "Storage %s", intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
-  addLine(card, line);
-  addPercentBar(card, state.proxmox.storagePercent, lv_palette_main(LV_PALETTE_TEAL));
+  char ramTotal[16];
+  addCompactMetricWithBar(card, "CPU", state.proxmox.cpuPercent, "", lv_palette_main(LV_PALETTE_BLUE), 10);
+  addCompactMetricWithBar(card, "RAM", state.proxmox.ramPercent, gbText(state.proxmox.ramTotalGb, ramTotal, sizeof(ramTotal)), lv_palette_main(LV_PALETTE_PURPLE), 10);
+  addCompactMetricWithBar(card, "Storage", state.proxmox.storagePercent, "", lv_palette_main(LV_PALETTE_TEAL), 10);
   addStatusPillRow(card,
                    state.proxmox.zfsStatus, strcmp(state.proxmox.zfsStatus, "ONLINE") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE),
                    state.proxmox.smartStatus, strcmp(state.proxmox.smartStatus, "PASSED") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE),
@@ -1163,6 +1171,9 @@ void renderM5s() {
            static_cast<unsigned long>(fetchOkCount),
            static_cast<unsigned long>(fetchFailCount),
            static_cast<unsigned long>(lastFetchDurationMs));
+  addLine(transport, line);
+  char apiMs[24];
+  snprintf(line, sizeof(line), "PVE API %s", intOrUnknown(state.proxmox.apiLatencyMs, apiMs, sizeof(apiMs), "ms"));
   addLine(transport, line);
   snprintf(line, sizeof(line), "FW %s", POWER_SENTINEL_FIRMWARE_BUILD);
   addLine(transport, line);

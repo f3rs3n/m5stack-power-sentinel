@@ -588,6 +588,13 @@ def percent_ratio(used: Any, total: Any) -> int | None:
     return int(round(used_f * 100.0 / total_f))
 
 
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6) -> dict[str, Any]:
     names: list[str] = []
     running_items: list[dict[str, Any]] = []
@@ -604,9 +611,9 @@ def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6) -> dict
                 cpu_percent = int(round(float(item.get("cpu", 0)) * 100))
             except (TypeError, ValueError):
                 cpu_percent = None
-        ram_total = item.get("maxmem") or item.get("mem_total") or item.get("memory_total")
-        disk_used = item.get("disk") or item.get("disk_used")
-        disk_total = item.get("maxdisk") or item.get("disk_total")
+        ram_total = first_present(item.get("maxmem"), item.get("mem_total"), item.get("memory_total"))
+        disk_used = first_present(item.get("disk"), item.get("disk_used"))
+        disk_total = first_present(item.get("maxdisk"), item.get("disk_total"))
         running_items.append({
             "name": name,
             "cpu_percent": cpu_percent,
@@ -678,9 +685,10 @@ def summarize_proxmox_data(
     if node_status.get("cpu") is not None:
         cpu_percent = int(round(float(node_status.get("cpu", 0)) * 100))
     memory = node_status.get("memory") or {}
+    ram_total = node_status.get("maxmem", memory.get("total"))
     ram_percent = percent_ratio(
         node_status.get("mem", memory.get("used")),
-        node_status.get("maxmem", memory.get("total")),
+        ram_total,
     )
     rootfs = node_status.get("rootfs") or {}
     storage_percent = percent_ratio(rootfs.get("used"), rootfs.get("total"))
@@ -715,6 +723,7 @@ def summarize_proxmox_data(
         "api_latency_ms": latency_ms,
         "cpu_percent": cpu_percent,
         "ram_percent": ram_percent,
+        "ram_total_bytes": ram_total,
         "cpu_temp_c": cpu_temp_c,
         "storage_percent": storage_percent,
         "zfs": zfs_info,

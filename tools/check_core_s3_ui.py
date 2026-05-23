@@ -81,7 +81,7 @@ def main() -> int:
     for needle, message in required_v1b.items():
         if needle not in text:
             return fail(message)
-    required_pve = ["cpuPercent", "ramPercent", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "workloadMetricCount", "running_items", "makeWorkloadMiniCard", "makeWorkloadInfoMiniCard"]
+    required_pve = ["cpuPercent", "ramPercent", "ram_total_bytes", "ramTotalGb", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "workloadMetricCount", "running_items", "makeWorkloadMiniCard", "makeWorkloadInfoMiniCard"]
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE read-only UI missing {needle}")
@@ -89,9 +89,12 @@ def main() -> int:
     for needle in required_pve_clarity:
         if needle not in text:
             return fail(f"PVE UI lacks display clarity marker {needle}")
-    for stale in ["Running workloads", "CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
+    for stale in ["Running workloads", "node / api", "CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
         if stale in text:
             return fail(f"PVE UI still contains redundant marker {stale}")
+    for needle in ["addCompactMetricWithBar(card, \"RAM\"", "PVE API %s", 'percent < 0 ? "--"']:
+        if needle not in text:
+            return fail(f"PVE polish missing {needle}")
     if "Shutdown via NUT" in text:
         return fail("PVE tab should not show ambiguous standalone 'Shutdown via NUT'")
     required_ha_z2m = ["Zigbee2MqttState", "state.zigbee2mqtt.available", "coordinatorType", "deviceTotal", "Z2M", "Coordinator", "Updates %d", "Z2M devices:"]

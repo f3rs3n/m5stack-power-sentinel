@@ -318,6 +318,7 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
         node_status={"status": "online", "cpu": 0.18, "memory": {"used": 8 * 1024**3, "total": 16 * 1024**3}, "rootfs": {"used": 62, "total": 100}},
         qemu=[
             {"name": "ha", "status": "running", "cpu": 0.12, "mem": 4 * 1024**3, "maxmem": 8 * 1024**3, "disk": 40 * 1024**3, "maxdisk": 100 * 1024**3},
+            {"name": "ha-zero", "status": "running", "cpu": 0.02, "mem": 1024**3, "maxmem": 4 * 1024**3, "disk": 0, "maxdisk": 64 * 1024**3},
             {"name": "test", "status": "stopped", "cpu": 0.99, "mem": 1, "maxmem": 2, "disk": 1, "maxdisk": 2},
             {"vmid": 101, "status": "running"},
         ],
@@ -332,12 +333,13 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     assert pve["api_latency_ms"] == 42
     assert pve["cpu_percent"] == 18
     assert pve["ram_percent"] == 50
+    assert pve["ram_total_bytes"] == 16 * 1024**3
     assert pve["storage_percent"] == 62
     assert pve["zfs"]["status"] == "ONLINE"
     assert pve["zfs"]["pools"][0]["capacity_percent"] == 55
     assert pve["smart"]["status"] == "OK"
-    assert pve["vm"]["running_count"] == 2
-    assert pve["vm"]["running_names"] == ["ha", "101"]
+    assert pve["vm"]["running_count"] == 3
+    assert pve["vm"]["running_names"] == ["ha", "ha-zero", "101"]
     assert pve["vm"]["running_items"][0] == {
         "name": "ha",
         "cpu_percent": 12,
@@ -346,6 +348,8 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
         "disk_percent": 40,
         "disk_total_bytes": 100 * 1024**3,
     }
+    assert pve["vm"]["running_items"][1]["disk_percent"] == 0
+    assert pve["vm"]["running_items"][1]["disk_total_bytes"] == 64 * 1024**3
     assert pve["lxc"]["running_count"] == 1
     assert pve["lxc"]["running_names"] == ["hermes"]
     assert pve["lxc"]["running_items"][0]["cpu_percent"] == 3
