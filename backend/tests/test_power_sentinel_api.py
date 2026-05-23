@@ -348,7 +348,7 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
         "disk_percent": 40,
         "disk_total_bytes": 100 * 1024**3,
     }
-    assert pve["vm"]["running_items"][1]["disk_percent"] == 0
+    assert pve["vm"]["running_items"][1]["disk_percent"] is None
     assert pve["vm"]["running_items"][1]["disk_total_bytes"] == 64 * 1024**3
     assert pve["lxc"]["running_count"] == 1
     assert pve["lxc"]["running_names"] == ["hermes"]
@@ -356,6 +356,29 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     assert pve["lxc"]["running_items"][0]["ram_percent"] == 50
     assert pve["lxc"]["running_items"][0]["disk_percent"] == 50
     assert pve["shutdown_state"] == "disarmed"
+
+
+def test_enrich_running_qemu_status_prefers_current_memory_metrics():
+    api = load_module()
+    calls = []
+
+    def fake_get(cfg, path, timeout=2.5):
+        calls.append((path, timeout))
+        assert path == "/nodes/pve/qemu/200/status/current"
+        return {"cpu": 0.02, "mem": 90, "maxmem": 100, "disk": 0, "maxdisk": 64}
+
+    setattr(api, "proxmox_api_get", fake_get)
+    enriched = api.enrich_running_qemu_status(
+        {},
+        "pve",
+        [{"vmid": 200, "name": "haos", "status": "running", "cpu": 0.9, "mem": 102, "maxmem": 100, "disk": 0, "maxdisk": 64}],
+    )
+
+    assert calls == [("/nodes/pve/qemu/200/status/current", 1.5)]
+    assert enriched[0]["name"] == "haos"
+    assert enriched[0]["cpu"] == 0.02
+    assert enriched[0]["mem"] == 90
+    assert enriched[0]["maxmem"] == 100
 
 
 def test_summarize_proxmox_data_marks_zfs_and_smart_failures_critical():

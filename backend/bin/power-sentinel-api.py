@@ -595,7 +595,7 @@ def first_present(*values: Any) -> Any:
     return None
 
 
-def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6) -> dict[str, Any]:
+def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6, vm_disk_usage_is_reliable: bool = True) -> dict[str, Any]:
     names: list[str] = []
     running_items: list[dict[str, Any]] = []
     for item in items:
@@ -614,6 +614,8 @@ def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6) -> dict
         ram_total = first_present(item.get("maxmem"), item.get("mem_total"), item.get("memory_total"))
         disk_used = first_present(item.get("disk"), item.get("disk_used"))
         disk_total = first_present(item.get("maxdisk"), item.get("disk_total"))
+        if not vm_disk_usage_is_reliable and disk_used == 0:
+            disk_used = None
         running_items.append({
             "name": name,
             "cpu_percent": cpu_percent,
@@ -728,11 +730,27 @@ def summarize_proxmox_data(
         "storage_percent": storage_percent,
         "zfs": zfs_info,
         "smart": smart_info,
-        "vm": workload_metric_summary(qemu),
+        "vm": workload_metric_summary(qemu, vm_disk_usage_is_reliable=False),
         "lxc": workload_metric_summary(lxc),
         "shutdown_state": "disarmed",
         "problems": problems,
     }
+
+
+def enrich_running_qemu_status(cfg: dict[str, Any], node: str, qemu: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for item in qemu:
+        merged = dict(item)
+        if item.get("status") == "running" and item.get("vmid") is not None:
+            try:
+                current = proxmox_api_get(cfg, f"/nodes/{node}/qemu/{item['vmid']}/status/current", timeout=1.5) or {}
+            except Exception:
+                current = {}
+            for key in ("cpu", "mem", "maxmem", "disk", "maxdisk"):
+                if current.get(key) is not None:
+                    merged[key] = current[key]
+        enriched.append(merged)
+    return enriched
 
 
 def proxmox_api_get(cfg: dict[str, Any], path: str, timeout: float = 2.5) -> Any:
@@ -757,6 +775,7 @@ def load_proxmox() -> dict[str, Any]:
     try:
         node_status = proxmox_api_get(cfg, f"/nodes/{node}/status") or {}
         qemu = proxmox_api_get(cfg, f"/nodes/{node}/qemu") or []
+        qemu = enrich_running_qemu_status(cfg, node, qemu)
         lxc = proxmox_api_get(cfg, f"/nodes/{node}/lxc") or []
         try:
             zfs = proxmox_api_get(cfg, f"/nodes/{node}/disks/zfs") or []
