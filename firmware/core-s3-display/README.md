@@ -41,7 +41,7 @@ La UI LVGL V1 segue la specifica `docs/architecture/core-s3-pages-v1.md` e ha ci
 
 1. `HOME` - overview da scrivania con stato globale, UPS essentials, NUT/PVE/HA/NET/M5S e problemi principali.
 2. `NUT` - UPS essentials più card orizzontali per NUT server/client, readiness Standard NUT e dettagli UPS.
-3. `PVE` - integrazione Proxmox read-only: nodo, CPU/RAM/storage, ZFS, SMART e VM/LXC running.
+3. `PVE` - integrazione Proxmox read-only: nodo, CPU/RAM/storage, ZFS, SMART e mini-card per VM/LXC running con barre CPU/RAM/HDD quando le metriche sono disponibili.
 4. `HA` - Home Assistant API, MQTT, aggiornamenti disponibili, Zigbee2MQTT e coordinatore; mostra `Z2M devices: interviewed/total` e non spreca spazio con versione Z2M o birth topic HA.
 5. `M5S` - stato M5Stack/System più diagnostica trasporto, firmware, schema, UART e contatori poll.
 

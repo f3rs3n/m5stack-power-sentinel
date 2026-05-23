@@ -155,8 +155,8 @@ The `proxmox` summary object includes:
 - `cpu_percent`, `ram_percent`, `cpu_temp_c`, `storage_percent`
 - `zfs.status`, `zfs.pools[]`
 - `smart.status`, `smart.failing_count`, `smart.warning_count`
-- `vm.running_count`, `vm.running_names[]`
-- `lxc.running_count`, `lxc.running_names[]`
+- `vm.running_count`, `vm.running_names[]`, `vm.running_items[]` with running-only CPU/RAM/disk mini-metrics when Proxmox exposes them
+- `lxc.running_count`, `lxc.running_names[]`, `lxc.running_items[]` with running-only CPU/RAM/disk mini-metrics when Proxmox exposes them
 - `shutdown_state=disarmed` as a compatibility/read-only display field only. Real host shutdown is Standard NUT secondary `upsmon`.
 - `problems[]`
 

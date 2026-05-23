@@ -570,8 +570,8 @@ def unavailable_proxmox(reason: str = "not configured") -> dict[str, Any]:
         "storage_percent": None,
         "zfs": {"status": "UNKNOWN", "pools": []},
         "smart": {"status": "UNKNOWN", "failing_count": None, "warning_count": None},
-        "vm": {"running_count": 0, "running_names": []},
-        "lxc": {"running_count": 0, "running_names": []},
+        "vm": {"running_count": 0, "running_names": [], "running_items": []},
+        "lxc": {"running_count": 0, "running_names": [], "running_items": []},
         "shutdown_state": "disarmed",
         "problems": [f"Proxmox {reason}"],
     }
@@ -588,13 +588,39 @@ def percent_ratio(used: Any, total: Any) -> int | None:
     return int(round(used_f * 100.0 / total_f))
 
 
-def workload_summary(items: list[dict[str, Any]], limit: int = 6) -> dict[str, Any]:
+def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6) -> dict[str, Any]:
     names: list[str] = []
+    running_items: list[dict[str, Any]] = []
     for item in items:
         if item.get("status") != "running":
             continue
-        names.append(str(item.get("name") or item.get("vmid") or item.get("id") or "unknown"))
-    return {"running_count": len(names), "running_names": names[:limit], "more": max(0, len(names) - limit)}
+        name = str(item.get("name") or item.get("vmid") or item.get("id") or "unknown")
+        names.append(name)
+        if len(running_items) >= limit:
+            continue
+        cpu_percent = None
+        if item.get("cpu") is not None:
+            try:
+                cpu_percent = int(round(float(item.get("cpu", 0)) * 100))
+            except (TypeError, ValueError):
+                cpu_percent = None
+        ram_total = item.get("maxmem") or item.get("mem_total") or item.get("memory_total")
+        disk_used = item.get("disk") or item.get("disk_used")
+        disk_total = item.get("maxdisk") or item.get("disk_total")
+        running_items.append({
+            "name": name,
+            "cpu_percent": cpu_percent,
+            "ram_percent": percent_ratio(item.get("mem"), ram_total),
+            "ram_total_bytes": ram_total,
+            "disk_percent": percent_ratio(disk_used, disk_total),
+            "disk_total_bytes": disk_total,
+        })
+    return {
+        "running_count": len(names),
+        "running_names": names[:limit],
+        "running_items": running_items,
+        "more": max(0, len(names) - limit),
+    }
 
 
 def zfs_summary(pools: list[dict[str, Any]]) -> dict[str, Any]:
@@ -693,8 +719,8 @@ def summarize_proxmox_data(
         "storage_percent": storage_percent,
         "zfs": zfs_info,
         "smart": smart_info,
-        "vm": workload_summary(qemu),
-        "lxc": workload_summary(lxc),
+        "vm": workload_metric_summary(qemu),
+        "lxc": workload_metric_summary(lxc),
         "shutdown_state": "disarmed",
         "problems": problems,
     }

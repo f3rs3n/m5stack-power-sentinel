@@ -299,9 +299,11 @@ Do not show Proxmox API shutdown triggers in V1. Avoid implying an armed shutdow
 
 VM/LXC section:
 
-- Use a separate horizontally reachable card in the PVE carousel.
-- List running VM names, up to a display-safe maximum, then `+N more`.
-- List running LXC/CT names, up to a display-safe maximum, then `+N more`.
+- Use horizontally reachable mini-card pages in the PVE carousel.
+- When Proxmox list-endpoint metrics are available, render one mini-card per running VM/LXC.
+- Mini-cards are half-height so two fit cleanly in the 320x240 content viewport.
+- Each mini-card shows three compact bars: CPU %, RAM % with total RAM on the right, and HDD/disk % with total disk on the right.
+- If per-workload metrics are unavailable, fall back to the running VM/CT name summary card.
 - Do not list stopped workloads in V1.
 - Do not distinguish critical vs non-critical workloads in V1.
 - VM/LXC stopped/running counts are informational only and do not affect severity until an explicit expected-state config exists.
@@ -337,10 +339,16 @@ Temp n/a     Storage 62%
 [ZFS ONLINE] [SMART PASSED] [PVE RO]
 NUT monitor idle   armed NO
 
--- horizontal card --
-Running workloads
-VMs: ha, docker, ... +5
-CTs: hermes, services, ... +2
+-- horizontal mini-card page --
+VM haos
+CPU 4%          [bar]
+RAM 42%     4GB [bar]
+HDD 37%    32GB [bar]
+
+CT docker
+CPU 9%          [bar]
+RAM 61%     8GB [bar]
+HDD 55%    64GB [bar]
 ```
 
 ## HA tab

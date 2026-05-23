@@ -183,8 +183,8 @@ proxmox.node: pve
 proxmox.node_status: online
 proxmox.zfs.status: ONLINE
 proxmox.smart.status: OK
-proxmox.vm.running_names: ["haos"]
-proxmox.lxc.running_names: ["docker", "hermes"]
+proxmox.vm.running_names: ["haos"] plus optional running_items mini-metrics
+proxmox.lxc.running_names: ["docker", "hermes"] plus optional running_items mini-metrics
 proxmox.shutdown_state: disarmed (compatibility/display only; real shutdown path is NUT secondary upsmon)
 network.available: true
 network.default_route: true
@@ -259,7 +259,7 @@ The firmware currently has:
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, update count, Zigbee2MQTT state, coordinator type/firmware, and `Z2M devices: interviewed/total` from the MQTT-first Z2M backend summary. It deliberately does not show the HA birth-topic retained/debug state or the installed Z2M version.
 - NUT tab now shows NUT shutdown readiness: owner `upsmon`, primary readiness, generic NUT client readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), and NUT low-battery thresholds.
-- PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts. CPU/RAM/storage bars are explicitly labelled after the first hardware flash showed that a single unlabeled bar was ambiguous; missing Proxmox CPU temperature is rendered as `Temp n/a`.
+- PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names/counts and optional per-running-workload mini-metrics. CPU/RAM/storage bars are explicitly labelled, workload mini-cards show CPU/RAM/HDD bars with totals where meaningful, and missing Proxmox CPU temperature is rendered as `Temp n/a`.
 - M5S tab treats missing/not-run chat smoke as `n/a`, not `FAIL`; StackFlow/OpenAI health remain the primary live checks.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
 - Internal UART StackFlow transport enabled by default:

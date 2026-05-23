@@ -316,8 +316,12 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
         node="pve-mini",
         latency_ms=42,
         node_status={"status": "online", "cpu": 0.18, "memory": {"used": 8 * 1024**3, "total": 16 * 1024**3}, "rootfs": {"used": 62, "total": 100}},
-        qemu=[{"name": "ha", "status": "running"}, {"name": "test", "status": "stopped"}, {"vmid": 101, "status": "running"}],
-        lxc=[{"name": "hermes", "status": "running"}, {"name": "old", "status": "stopped"}],
+        qemu=[
+            {"name": "ha", "status": "running", "cpu": 0.12, "mem": 4 * 1024**3, "maxmem": 8 * 1024**3, "disk": 40 * 1024**3, "maxdisk": 100 * 1024**3},
+            {"name": "test", "status": "stopped", "cpu": 0.99, "mem": 1, "maxmem": 2, "disk": 1, "maxdisk": 2},
+            {"vmid": 101, "status": "running"},
+        ],
+        lxc=[{"name": "hermes", "status": "running", "cpu": 0.03, "mem": 1024**3, "maxmem": 2 * 1024**3, "disk": 8 * 1024**3, "maxdisk": 16 * 1024**3}, {"name": "old", "status": "stopped"}],
         zfs=[{"name": "rpool", "health": "ONLINE", "alloc": 55, "size": 100}],
         disks=[{"devpath": "/dev/sda", "health": "PASSED"}, {"devpath": "/dev/sdb", "health": "OK"}],
     )
@@ -334,8 +338,19 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     assert pve["smart"]["status"] == "OK"
     assert pve["vm"]["running_count"] == 2
     assert pve["vm"]["running_names"] == ["ha", "101"]
+    assert pve["vm"]["running_items"][0] == {
+        "name": "ha",
+        "cpu_percent": 12,
+        "ram_percent": 50,
+        "ram_total_bytes": 8 * 1024**3,
+        "disk_percent": 40,
+        "disk_total_bytes": 100 * 1024**3,
+    }
     assert pve["lxc"]["running_count"] == 1
     assert pve["lxc"]["running_names"] == ["hermes"]
+    assert pve["lxc"]["running_items"][0]["cpu_percent"] == 3
+    assert pve["lxc"]["running_items"][0]["ram_percent"] == 50
+    assert pve["lxc"]["running_items"][0]["disk_percent"] == 50
     assert pve["shutdown_state"] == "disarmed"
 
 

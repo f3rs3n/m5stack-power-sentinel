@@ -110,6 +110,18 @@ struct ServiceState {
   float diskFreeGb = 0.0f;
 };
 
+constexpr int MAX_PVE_WORKLOAD_CARDS = 6;
+
+struct WorkloadMetric {
+  char kind[4] = "VM";
+  char name[28] = "none";
+  int cpuPercent = -1;
+  int ramPercent = -1;
+  int diskPercent = -1;
+  float ramTotalGb = 0.0f;
+  float diskTotalGb = 0.0f;
+};
+
 struct ProxmoxState {
   bool available = false;
   char severity[12] = "unknown";
@@ -126,6 +138,8 @@ struct ProxmoxState {
   int storagePercent = -1;
   int vmRunningCount = -1;
   int lxcRunningCount = -1;
+  int workloadMetricCount = 0;
+  WorkloadMetric workloads[MAX_PVE_WORKLOAD_CARDS];
   float cpuTempC = 0.0f;
 };
 
@@ -264,6 +278,26 @@ const char *triText(int value) {
   return value > 0 ? "yes" : "no";
 }
 
+float jsonBytesToGb(JsonVariantConst v) {
+  if (v.isNull()) return 0.0f;
+  return v.as<float>() / 1073741824.0f;
+}
+
+void parseProxmoxWorkloadItems(JsonArrayConst items, const char *kind) {
+  if (items.isNull()) return;
+  for (JsonObjectConst item : items) {
+    if (state.proxmox.workloadMetricCount >= MAX_PVE_WORKLOAD_CARDS) return;
+    WorkloadMetric &metric = state.proxmox.workloads[state.proxmox.workloadMetricCount++];
+    safeCopy(metric.kind, sizeof(metric.kind), kind);
+    safeCopy(metric.name, sizeof(metric.name), item["name"] | "unknown");
+    metric.cpuPercent = jsonInt(item["cpu_percent"], -1);
+    metric.ramPercent = jsonInt(item["ram_percent"], -1);
+    metric.diskPercent = jsonInt(item["disk_percent"], -1);
+    metric.ramTotalGb = jsonBytesToGb(item["ram_total_bytes"]);
+    metric.diskTotalGb = jsonBytesToGb(item["disk_total_bytes"]);
+  }
+}
+
 void parseSummary(const String &json, bool fromNetwork) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
@@ -342,6 +376,7 @@ void parseSummary(const String &json, bool fromNetwork) {
   safeCopy(state.proxmox.zfsStatus, sizeof(state.proxmox.zfsStatus), zfs["status"] | "UNKNOWN");
   JsonObjectConst smart = px["smart"].as<JsonObjectConst>();
   safeCopy(state.proxmox.smartStatus, sizeof(state.proxmox.smartStatus), smart["status"] | "UNKNOWN");
+  state.proxmox.workloadMetricCount = 0;
   JsonObjectConst vm = px["vm"].as<JsonObjectConst>();
   state.proxmox.vmRunningCount = jsonInt(vm["running_count"], -1);
   JsonArrayConst vmNames = vm["running_names"].as<JsonArrayConst>();
@@ -355,6 +390,7 @@ void parseSummary(const String &json, bool fromNetwork) {
     }
     safeCopy(state.proxmox.vmNames, sizeof(state.proxmox.vmNames), joined.c_str());
   }
+  parseProxmoxWorkloadItems(vm["running_items"].as<JsonArrayConst>(), "VM");
   JsonObjectConst lxc = px["lxc"].as<JsonObjectConst>();
   state.proxmox.lxcRunningCount = jsonInt(lxc["running_count"], -1);
   JsonArrayConst lxcNames = lxc["running_names"].as<JsonArrayConst>();
@@ -368,6 +404,7 @@ void parseSummary(const String &json, bool fromNetwork) {
     }
     safeCopy(state.proxmox.lxcNames, sizeof(state.proxmox.lxcNames), joined.c_str());
   }
+  parseProxmoxWorkloadItems(lxc["running_items"].as<JsonArrayConst>(), "CT");
 
   JsonObjectConst sd = doc["shutdown"].as<JsonObjectConst>();
   state.shutdown.armed = sd["armed"] | false;
@@ -619,6 +656,80 @@ void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
   lv_bar_set_value(bar, clamped, LV_ANIM_OFF);
   lv_obj_set_style_bg_color(bar, lv_color_hex(0x283041), LV_PART_MAIN);
   lv_obj_set_style_bg_color(bar, color, LV_PART_INDICATOR);
+}
+
+const char *gbText(float gb, char *buf, size_t bufSize) {
+  if (gb <= 0.0f) return "";
+  if (gb >= 10.0f) {
+    snprintf(buf, bufSize, "%.0fGB", gb);
+  } else {
+    snprintf(buf, bufSize, "%.1fGB", gb);
+  }
+  return buf;
+}
+
+void addMiniWorkloadMetric(lv_obj_t *parent, const char *label, int percent, const char *total, lv_color_t color) {
+  char percentText[16];
+  char rowText[24];
+  snprintf(rowText, sizeof(rowText), "%s %s", label, intOrUnknown(percent, percentText, sizeof(percentText), "%"));
+
+  lv_obj_t *row = lv_obj_create(parent);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_width(row, lv_pct(100));
+  lv_obj_set_height(row, 14);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+  lv_obj_t *left = lv_label_create(row);
+  lv_label_set_text(left, rowText);
+  lv_obj_set_style_text_color(left, lv_color_hex(0xc8d0df), 0);
+  lv_obj_set_style_text_font(left, &lv_font_montserrat_12, 0);
+
+  lv_obj_t *right = lv_label_create(row);
+  lv_label_set_text(right, total);
+  lv_obj_set_style_text_color(right, lv_color_hex(0x8fa0b8), 0);
+  lv_obj_set_style_text_font(right, &lv_font_montserrat_12, 0);
+
+  lv_obj_t *bar = lv_bar_create(parent);
+  lv_obj_set_width(bar, lv_pct(100));
+  lv_obj_set_height(bar, 5);
+  lv_bar_set_range(bar, 0, 100);
+  int clamped = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+  lv_bar_set_value(bar, clamped, LV_ANIM_OFF);
+  lv_obj_set_style_bg_color(bar, lv_color_hex(0x283041), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(bar, color, LV_PART_INDICATOR);
+}
+
+lv_obj_t *makeWorkloadMiniCard(lv_obj_t *parent, const WorkloadMetric &metric) {
+  lv_obj_t *card = lv_obj_create(parent);
+  lv_obj_set_width(card, lv_pct(100));
+  lv_obj_set_height(card, (PAGE_CARD_HEIGHT - 8) / 2);
+  lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_all(card, 6, 0);
+  lv_obj_set_style_pad_gap(card, 2, 0);
+  lv_obj_set_style_radius(card, 12, 0);
+  lv_obj_set_style_border_width(card, 1, 0);
+  lv_obj_set_style_border_color(card, lv_color_hex(0x394152), 0);
+  lv_obj_set_style_bg_color(card, lv_color_hex(0x171b24), 0);
+  lv_obj_set_style_shadow_width(card, 6, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+
+  char title[48];
+  snprintf(title, sizeof(title), "%s %s", metric.kind, metric.name);
+  lv_obj_t *label = lv_label_create(card);
+  lv_label_set_text(label, title);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+  lv_obj_set_width(label, lv_pct(100));
+  lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
+  lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+
+  char ramTotal[16];
+  char diskTotal[16];
+  addMiniWorkloadMetric(card, "CPU", metric.cpuPercent, "", lv_palette_main(LV_PALETTE_BLUE));
+  addMiniWorkloadMetric(card, "RAM", metric.ramPercent, gbText(metric.ramTotalGb, ramTotal, sizeof(ramTotal)), lv_palette_main(LV_PALETTE_PURPLE));
+  addMiniWorkloadMetric(card, "HDD", metric.diskPercent, gbText(metric.diskTotalGb, diskTotal, sizeof(diskTotal)), lv_palette_main(LV_PALETTE_TEAL));
+  return card;
 }
 
 void setupPage(lv_obj_t *tab) {
@@ -914,11 +1025,26 @@ void renderProxmox() {
   snprintf(line, sizeof(line), "NUT monitor %s   armed %s", state.shutdown.wouldShutdown ? "WOULD" : "idle", state.shutdown.armed ? "YES" : "NO");
   addLine(card, line);
 
-  lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");
-  snprintf(line, sizeof(line), "VMs: %s", state.proxmox.vmNames);
-  addLine(workloads, line);
-  snprintf(line, sizeof(line), "CTs: %s", state.proxmox.lxcNames);
-  addLine(workloads, line);
+  if (state.proxmox.workloadMetricCount == 0) {
+    lv_obj_t *workloads = makeCard(proxmoxTab, "Running workloads");
+    snprintf(line, sizeof(line), "VMs: %s", state.proxmox.vmNames);
+    addLine(workloads, line);
+    snprintf(line, sizeof(line), "CTs: %s", state.proxmox.lxcNames);
+    addLine(workloads, line);
+  } else {
+    for (int i = 0; i < state.proxmox.workloadMetricCount; i += 2) {
+      lv_obj_t *page = lv_obj_create(proxmoxTab);
+      lv_obj_remove_style_all(page);
+      lv_obj_set_width(page, PAGE_CARD_WIDTH);
+      lv_obj_set_height(page, PAGE_CARD_HEIGHT);
+      lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
+      lv_obj_set_style_pad_gap(page, 8, 0);
+      makeWorkloadMiniCard(page, state.proxmox.workloads[i]);
+      if (i + 1 < state.proxmox.workloadMetricCount) {
+        makeWorkloadMiniCard(page, state.proxmox.workloads[i + 1]);
+      }
+    }
+  }
 }
 
 void renderM5s() {

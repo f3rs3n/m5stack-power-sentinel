@@ -81,7 +81,7 @@ Current schema:
 Implementation status, verified 2026-05-23:
 
 - `ups` and `nut`: implemented from live NUT/upsc data for the APC Back-UPS ES 850G2.
-- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART and running VM/LXC summaries.
+- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART, running VM/LXC summaries, and optional per-running-workload CPU/RAM/disk mini-metrics from the Proxmox list endpoints.
 - `homeassistant`, `mqtt`, `zigbee2mqtt`: implemented as HA TCP reachability plus MQTT/Zigbee2MQTT bridge-topic health; HA update count is read from HA `/api/states` when a read-only token is configured, otherwise it defaults to `0` for display clarity.
 - `network`: implemented on the LLM Module using Linux default-route state plus a TCP probe, currently `1.1.1.1:53`.
 - `m5stack`: implemented from local healthcheck/service state.

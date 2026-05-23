@@ -81,11 +81,11 @@ def main() -> int:
     for needle, message in required_v1b.items():
         if needle not in text:
             return fail(message)
-    required_pve = ["cpuPercent", "ramPercent", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "Running workloads"]
+    required_pve = ["cpuPercent", "ramPercent", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "workloadMetricCount", "running_items", "makeWorkloadMiniCard"]
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE read-only UI missing {needle}")
-    required_pve_clarity = ["CPU", "RAM", "Temp n/a", "Storage", "NUT monitor", "addStatusPillRow(card,", "PVE RO"]
+    required_pve_clarity = ["CPU", "RAM", "HDD", "Temp n/a", "Storage", "NUT monitor", "addStatusPillRow(card,", "PVE RO", "ramTotalGb", "diskTotalGb"]
     for needle in required_pve_clarity:
         if needle not in text:
             return fail(f"PVE UI lacks display clarity marker {needle}")
