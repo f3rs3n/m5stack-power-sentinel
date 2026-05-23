@@ -29,7 +29,7 @@
 #endif
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
-#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-label-safe"
+#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-lazy-shadowless"
 #endif
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
@@ -223,6 +223,7 @@ lv_indev_t *indev = nullptr;
 
 lv_obj_t *tabview = nullptr;
 lv_obj_t *homeTab = nullptr;
+uint32_t renderedTabIndex = UINT32_MAX;
 
 constexpr int PAGE_CARD_WIDTH = 252;
 constexpr int PAGE_CARD_HEIGHT = 220;
@@ -531,6 +532,7 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
 }
 
 void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
+  if (!card) return;
   lv_obj_set_width(card, PAGE_CARD_WIDTH);
   lv_obj_set_height(card, PAGE_CARD_HEIGHT);
   lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
@@ -540,10 +542,12 @@ void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_set_style_border_color(card, border, 0);
   lv_obj_set_style_bg_color(card, bg, 0);
-  lv_obj_set_style_shadow_width(card, 10, 0);
-  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
-  lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
-  lv_obj_set_style_shadow_ofs_y(card, 3, 0);
+  // Shadow rendering allocates temporary anti-aliased corner buffers in LVGL's
+  // software renderer. On the CoreS3 the full dashboard plus live workload
+  // payload exhausted LVGL memory, then crashed in lv_draw_sw_box_shadow during
+  // refresh. Keep V1 visually clean but shadowless for stability.
+  lv_obj_set_style_shadow_width(card, 0, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_TRANSP, 0);
   lv_obj_set_scroll_dir(card, LV_DIR_VER);
   lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_AUTO);
   lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
@@ -565,18 +569,22 @@ lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
 
 lv_obj_t *makeHeroCard(lv_obj_t *parent, const char *title) {
   lv_obj_t *card = lv_obj_create(parent);
+  if (!card) return nullptr;
   stylePanel(card, lv_color_hex(0x111827), severityColor(state.severity));
   lv_obj_set_style_pad_all(card, 10, 0);
   lv_obj_set_style_pad_gap(card, 7, 0);
 
   lv_obj_t *label = lv_label_create(card);
-  lv_label_set_text(label, title);
-  lv_obj_set_style_text_color(label, lv_color_hex(0xf8fbff), 0);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+  if (label) {
+    lv_label_set_text(label, title ? title : "");
+    lv_obj_set_style_text_color(label, lv_color_hex(0xf8fbff), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+  }
   return card;
 }
 
 lv_obj_t *addLine(lv_obj_t *parent, const char *text) {
+  if (!parent) return nullptr;
   lv_obj_t *label = lv_label_create(parent);
   if (!label) {
     Serial.printf("LVGL: lv_label_create failed in addLine: %.40s\n", text ? text : "");
@@ -645,7 +653,9 @@ void addStatusPillRow(lv_obj_t *parent, const char *a, lv_color_t ca, const char
 }
 
 void addHomeSleepButton(lv_obj_t *parent) {
+  if (!parent) return;
   lv_obj_t *button = lv_button_create(parent);
+  if (!button) return;
   lv_obj_set_width(button, lv_pct(100));
   lv_obj_set_height(button, 34);
   lv_obj_set_style_radius(button, 12, 0);
@@ -653,15 +663,17 @@ void addHomeSleepButton(lv_obj_t *parent) {
   lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(button, 1, 0);
   lv_obj_set_style_border_color(button, lv_color_hex(0x4b5563), 0);
-  lv_obj_set_style_shadow_width(button, 8, 0);
-  lv_obj_set_style_shadow_opa(button, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_width(button, 0, 0);
+  lv_obj_set_style_shadow_opa(button, LV_OPA_TRANSP, 0);
   lv_obj_add_event_cb(button, onSleepButtonClicked, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *label = lv_label_create(button);
-  lv_label_set_text(label, "SLEEP DISPLAY");
-  lv_obj_set_style_text_color(label, lv_color_hex(0xe5e7eb), 0);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
-  lv_obj_center(label);
+  if (label) {
+    lv_label_set_text(label, "SLEEP DISPLAY");
+    lv_obj_set_style_text_color(label, lv_color_hex(0xe5e7eb), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+    lv_obj_center(label);
+  }
 }
 
 void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
@@ -733,8 +745,8 @@ lv_obj_t *makeWorkloadMiniCard(lv_obj_t *parent, const WorkloadMetric &metric) {
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_set_style_border_color(card, lv_color_hex(0x394152), 0);
   lv_obj_set_style_bg_color(card, lv_color_hex(0x171b24), 0);
-  lv_obj_set_style_shadow_width(card, 6, 0);
-  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_width(card, 0, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_TRANSP, 0);
   lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
 
   char title[48];
@@ -1112,12 +1124,57 @@ void renderM5s() {
   addLine(transport, line);
 }
 
+void cleanInactiveTabs(uint32_t active) {
+  lv_obj_t *tabs[] = {homeTab, nutTab, proxmoxTab, haTab, m5sTab};
+  for (uint32_t i = 0; i < 5; ++i) {
+    if (i != active && tabs[i]) {
+      lv_obj_clean(tabs[i]);
+    }
+  }
+}
+
+void renderTab(uint32_t active) {
+  cleanInactiveTabs(active);
+  renderedTabIndex = active;
+  switch (active) {
+    case 0:
+      renderHome();
+      break;
+    case 1:
+      renderNut();
+      break;
+    case 2:
+      renderProxmox();
+      break;
+    case 3:
+      renderHa();
+      break;
+    case 4:
+      renderM5s();
+      break;
+    default:
+      renderHome();
+      renderedTabIndex = 0;
+      break;
+  }
+}
+
+void renderActiveTab() {
+  if (!tabview) return;
+  renderTab(lv_tabview_get_tab_active(tabview));
+}
+
+void onTabChanged(lv_event_t *event) {
+  if (lv_event_get_code(event) != LV_EVENT_VALUE_CHANGED) return;
+  renderActiveTab();
+}
+
 void renderAll() {
-  renderHome();
-  renderNut();
-  renderProxmox();
-  renderHa();
-  renderM5s();
+  // Keep the old name for tests/guards, but do not instantiate all five dense
+  // pages at once. The CoreS3 LVGL heap cannot safely hold every dashboard page
+  // plus live PVE workload mini-cards. Render only the visible tab and clear the
+  // inactive tabs so tab switching remains stable under the real StackFlow payload.
+  renderActiveTab();
 }
 
 bool wifiConfigured() {
@@ -1352,6 +1409,7 @@ void initUi() {
   proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nPV");
   haTab = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI "\nHA");
   m5sTab = lv_tabview_add_tab(tabview, LV_SYMBOL_SETTINGS "\nM5");
+  lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED, nullptr);
 }
 
 }  // namespace

@@ -136,13 +136,21 @@ def main() -> int:
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:
         return fail("missing renderAll()")
-    body = render_all_match.group("body")
-    expected_order = [f"{name}();" for name in REQUIRED_RENDERERS]
+    if "renderActiveTab();" not in render_all_match.group("body"):
+        return fail("renderAll() should render only the active tab on CoreS3 to keep LVGL heap bounded")
+    render_tab_match = re.search(r"void renderTab\(uint32_t active\) \{(?P<body>.*?)\n\}", text, re.S)
+    if not render_tab_match:
+        return fail("missing lazy renderTab(uint32_t active)")
+    body = render_tab_match.group("body")
+    expected_order = [f"render{name.removeprefix('render')}();" for name in REQUIRED_RENDERERS]
     positions = [body.find(call) for call in expected_order]
     if any(pos < 0 for pos in positions):
-        return fail(f"renderAll() does not call every renderer in {expected_order}")
+        return fail(f"renderTab() does not dispatch every renderer in {expected_order}")
     if positions != sorted(positions):
-        return fail("renderAll() renderer order does not match tab order")
+        return fail("renderTab() dispatch order does not match tab order")
+    for needle in ["cleanInactiveTabs(active)", "lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED", "lv_obj_set_style_shadow_width(card, 0"]:
+        if needle not in text:
+            return fail(f"CoreS3 LVGL heap guard missing {needle}")
     print("PASS core-s3-ui sidebar + horizontal card carousel HOME/NUT/PVE/HA/M5S")
     return 0
 
