@@ -163,7 +163,7 @@ ipc:///tmp/rpc.sentinel
 The custom unit calls the API using the non-recursive safe endpoint:
 
 ```text
-http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1&workload_items=1
+http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
 ```
 
 See:
@@ -296,7 +296,7 @@ CoreS3
 -> llm_sys
 -> ipc:///tmp/rpc.sentinel
 -> power-sentinel-stackflow-unit
--> http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1&workload_items=1
+-> http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
 -> CoreS3 display
 ```
 

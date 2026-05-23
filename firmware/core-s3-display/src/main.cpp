@@ -29,7 +29,7 @@
 #endif
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
-#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-mini-card-fix"
+#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-label-safe"
 #endif
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
@@ -551,12 +551,15 @@ void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
 
 lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
   lv_obj_t *card = lv_obj_create(parent);
+  if (!card) return nullptr;
   stylePanel(card, lv_color_hex(0x171b24), lv_color_hex(0x394152));
 
   lv_obj_t *label = lv_label_create(card);
-  lv_label_set_text(label, title);
-  lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
+  if (label) {
+    lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
+    lv_label_set_text(label, title ? title : "");
+  }
   return card;
 }
 
@@ -575,17 +578,22 @@ lv_obj_t *makeHeroCard(lv_obj_t *parent, const char *title) {
 
 lv_obj_t *addLine(lv_obj_t *parent, const char *text) {
   lv_obj_t *label = lv_label_create(parent);
-  lv_label_set_text(label, text);
+  if (!label) {
+    Serial.printf("LVGL: lv_label_create failed in addLine: %.40s\n", text ? text : "");
+    return nullptr;
+  }
+  lv_obj_set_width(label, lv_pct(100));
+  lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
   lv_obj_set_style_text_color(label, lv_color_hex(0xc8d0df), 0);
   lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
-  lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(label, lv_pct(100));
+  lv_label_set_text(label, text ? text : "");
   return label;
 }
 
 void addBadge(lv_obj_t *parent, const char *text, lv_color_t color) {
+  if (!parent) return;
   lv_obj_t *badge = lv_label_create(parent);
-  lv_label_set_text(badge, text);
+  if (!badge) return;
   lv_obj_set_style_text_color(badge, lv_color_white(), 0);
   lv_obj_set_style_text_font(badge, &lv_font_montserrat_12, 0);
   lv_obj_set_style_bg_color(badge, color, 0);
@@ -593,10 +601,13 @@ void addBadge(lv_obj_t *parent, const char *text, lv_color_t color) {
   lv_obj_set_style_radius(badge, 10, 0);
   lv_obj_set_style_pad_hor(badge, 8, 0);
   lv_obj_set_style_pad_ver(badge, 4, 0);
+  lv_label_set_text(badge, text ? text : "");
 }
 
 lv_obj_t *addMetricRow(lv_obj_t *parent, const char *label, const char *value) {
+  if (!parent) return nullptr;
   lv_obj_t *row = lv_obj_create(parent);
+  if (!row) return nullptr;
   lv_obj_remove_style_all(row);
   lv_obj_set_width(row, lv_pct(100));
   lv_obj_set_height(row, LV_SIZE_CONTENT);
@@ -604,19 +615,25 @@ lv_obj_t *addMetricRow(lv_obj_t *parent, const char *label, const char *value) {
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
   lv_obj_t *left = lv_label_create(row);
-  lv_label_set_text(left, label);
-  lv_obj_set_style_text_color(left, lv_color_hex(0x8fa0b8), 0);
-  lv_obj_set_style_text_font(left, &lv_font_montserrat_12, 0);
+  if (left) {
+    lv_obj_set_style_text_color(left, lv_color_hex(0x8fa0b8), 0);
+    lv_obj_set_style_text_font(left, &lv_font_montserrat_12, 0);
+    lv_label_set_text(left, label ? label : "");
+  }
 
   lv_obj_t *right = lv_label_create(row);
-  lv_label_set_text(right, value);
-  lv_obj_set_style_text_color(right, lv_color_hex(0xf8fbff), 0);
-  lv_obj_set_style_text_font(right, &lv_font_montserrat_14, 0);
+  if (right) {
+    lv_obj_set_style_text_color(right, lv_color_hex(0xf8fbff), 0);
+    lv_obj_set_style_text_font(right, &lv_font_montserrat_14, 0);
+    lv_label_set_text(right, value ? value : "");
+  }
   return row;
 }
 
 void addStatusPillRow(lv_obj_t *parent, const char *a, lv_color_t ca, const char *b, lv_color_t cb, const char *c, lv_color_t cc) {
+  if (!parent) return;
   lv_obj_t *row = lv_obj_create(parent);
+  if (!row) return;
   lv_obj_remove_style_all(row);
   lv_obj_set_width(row, lv_pct(100));
   lv_obj_set_height(row, LV_SIZE_CONTENT);
@@ -648,7 +665,9 @@ void addHomeSleepButton(lv_obj_t *parent) {
 }
 
 void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
+  if (!parent) return;
   lv_obj_t *bar = lv_bar_create(parent);
+  if (!bar) return;
   lv_obj_set_width(bar, lv_pct(100));
   lv_obj_set_height(bar, 10);
   lv_bar_set_range(bar, 0, 100);
@@ -1333,7 +1352,6 @@ void initUi() {
   proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nPV");
   haTab = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI "\nHA");
   m5sTab = lv_tabview_add_tab(tabview, LV_SYMBOL_SETTINGS "\nM5");
-  renderAll();
 }
 
 }  // namespace
