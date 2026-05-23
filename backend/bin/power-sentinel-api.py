@@ -1068,6 +1068,23 @@ def json_response(payload: dict[str, Any], status: int = 200) -> tuple[bytes, in
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n", status, "application/json"
 
 
+def strip_workload_items_for_core_s3(summary: dict[str, Any]) -> dict[str, Any]:
+    """Return a CoreS3-safe summary without experimental VM/CT metric arrays.
+
+    The current flashed firmware renders the new running_items path poorly on the
+    physical CoreS3 (black refresh / unavailable state). Keep the API contract
+    source functions intact, but serve the stable legacy workload shape to the
+    display until the firmware path is fixed and re-flashed.
+    """
+    proxmox = summary.get("proxmox")
+    if isinstance(proxmox, dict):
+        for section in ("vm", "lxc"):
+            workloads = proxmox.get(section)
+            if isinstance(workloads, dict):
+                workloads.pop("running_items", None)
+    return summary
+
+
 def route_request(path: str) -> tuple[bytes, int, str]:
     parsed = urlparse(path)
     if parsed.path in ("/", "/api/v1/summary"):
@@ -1076,11 +1093,15 @@ def route_request(path: str) -> tuple[bytes, int, str]:
             # StackFlow calls this endpoint synchronously while the CoreS3 is
             # waiting on UART. Avoid non-retained MQTT probes that can block for
             # seconds and cause the firmware to mark the whole poll as failed.
-            return json_response(build_summary(
+            summary = build_summary(
                 health=lightweight_m5stack_health(stackflow_ok=True),
                 homeassistant_mqtt={"status": "unknown", "source": "mqtt", "status_topic": "homeassistant/status"},
-            ))
-        return json_response(build_summary())
+            )
+            return json_response(strip_workload_items_for_core_s3(summary))
+        summary = build_summary()
+        if query.get("workload_items", ["0"])[0] not in ("1", "true", "yes"):
+            summary = strip_workload_items_for_core_s3(summary)
+        return json_response(summary)
     if parsed.path == "/api/v1/health":
         return json_response(build_health())
     if parsed.path == "/api/v1/ups":
