@@ -75,12 +75,14 @@ Implemented and verified on the physical module:
 - CoreS3 LVGL UI implemented with five tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`, plus a HOME `SLEEP DISPLAY` control;
 - Proxmox read-only token now includes `VM.GuestAgent.Audit` so VM disk usage can be derived from QEMU guest-agent `get-fsinfo`; HAOS currently reports RAM from `/status/current` and HDD usage from `/mnt/data`, while read-only root filesystems such as HAOS `erofs` are ignored;
 - global SSH aliases in Martino's Hermes environment are `ssh pve`, `ssh m5stack`, and `ssh doomtrain` for Proxmox, the LLM Module, and the Windows workstation respectively;
+- LLM Module dependency inventory exists in `docs/operations/llm-module-dependencies.md` so the backend install can be reproduced on a fresh stack;
 - LVGL MCP visual baseline workflow exists under `assets/lvgl-spike/` for 320x240 layout review.
 
 Still missing / future work:
 
 - final deliberate arming of Standard NUT monitors, if/when desired: enable M5Stack primary `nut-monitor` first, then Proxmox secondary, with verification after each step;
 - broader NUT client inventory beyond the first Proxmox secondary;
+- idempotent LLM Module installer script generated from `docs/operations/llm-module-dependencies.md`;
 - real use of local LLM inference for dashboard enrichment or a companion tab;
 - additional mini-dashboards beyond the current UPS/NUT, PVE, HA/Z2M, and M5Stack views;
 - optional OTA or more automated flash workflow after the Windows/VSCode path remains stable.
@@ -89,5 +91,6 @@ See:
 
 - `docs/operations/current-state.md`
 - `docs/operations/backend-ops.md`
+- `docs/operations/llm-module-dependencies.md`
 - `docs/architecture/api-contract-v1.md`
 - `docs/architecture/core-s3-pages-v1.md`

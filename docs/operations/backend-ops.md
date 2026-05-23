@@ -40,6 +40,12 @@ m5stack    -> root@192.168.2.202
 doomtrain  -> marti@192.168.2.199
 ```
 
+## Runtime dependency inventory
+
+A living dependency/reproduction checklist is maintained in `docs/operations/llm-module-dependencies.md`. It currently records the verified Ubuntu 22.04 / Python 3.10 / apt package set for the LLM Module, including NUT, Mosquitto clients, `python3-zmq`, StackFlow/vendor runtime assumptions, runtime config files, and post-install smoke checks.
+
+Roadmap item: turn that inventory into an idempotent installer, probably `backend/install/install-llm-module.sh`. The installer must install dependencies, place scripts/units, create only sanitized config stubs, preserve/back up secret-bearing config, leave `nut-monitor` disabled unless explicitly armed, and never install a parallel `/dev/ttyS1` bridge.
+
 ## MQTT / HA / Zigbee2MQTT
 
 `mosquitto-clients` is installed on the LLM Module. The existing M5Stack HA publisher config remains the credential source:

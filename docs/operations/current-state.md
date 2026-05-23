@@ -338,6 +338,7 @@ Not yet implemented:
 
 - Standard NUT shutdown is staged, not armed. `nut-monitor` remains disabled/inactive on the M5Stack primary and first Proxmox secondary until a deliberate arming step.
 - Only the first Proxmox secondary has been prepared/verified as a NUT client; broader client inventory is future work.
+- LLM Module dependency inventory now exists in `docs/operations/llm-module-dependencies.md`, but there is not yet an idempotent installer script for replicating the install on a fresh stack.
 - The CoreS3 has current mini-dashboards for HOME, NUT, PVE, HA, and M5S. Additional LAN mini-dashboards are future extensions.
 - Local LLM inference is not used yet to enrich dashboard summaries or provide a companion tab. Current LLM use is baseline health/OpenAI availability and optional chat smoke.
 - OTA/agent-driven flashing is not implemented; Windows + VSCode + PlatformIO remains the normal flash workflow.
@@ -349,4 +350,5 @@ Not yet implemented:
 - `docs/architecture/api-contract-v1.md` — JSON contract.
 - `docs/operations/power-sentinel-api.md` — backend API operations.
 - `docs/operations/backend-ops.md` — backend service operations.
+- `docs/operations/llm-module-dependencies.md` — dependency inventory and installer-script roadmap for reproducing the LLM Module install.
 - `docs/plans/homelab-power-sentinel-plan-2026-05-15.md` — original project plan.
