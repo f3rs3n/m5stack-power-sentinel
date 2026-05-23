@@ -595,6 +595,45 @@ def first_present(*values: Any) -> Any:
     return None
 
 
+def fsinfo_root_usage(fsinfo: Any) -> dict[str, int] | None:
+    if isinstance(fsinfo, dict):
+        entries = fsinfo.get("result") or fsinfo.get("filesystems") or fsinfo.get("fsinfo") or fsinfo.get("data")
+    else:
+        entries = fsinfo
+    if not isinstance(entries, list):
+        return None
+    candidates: list[dict[str, int]] = []
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+        fs_type = str(item.get("type") or item.get("fstype") or "").lower()
+        if fs_type in ("devtmpfs", "tmpfs", "squashfs", "overlay", "proc", "sysfs"):
+            continue
+        total = first_present(item.get("total-bytes"), item.get("total_bytes"), item.get("total"))
+        used = first_present(item.get("used-bytes"), item.get("used_bytes"), item.get("used"))
+        if used is None and total is not None:
+            free = first_present(item.get("free-bytes"), item.get("free_bytes"), item.get("free"))
+            try:
+                used = int(total) - int(free)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                used = None
+        if total is None or used is None:
+            continue
+        try:
+            total_i = int(total)
+            used_i = int(used)
+        except (TypeError, ValueError):
+            continue
+        if total_i <= 0 or used_i < 0:
+            continue
+        mountpoint = str(item.get("mountpoint") or item.get("mount-point") or item.get("name") or "")
+        candidates.append({"used": used_i, "total": total_i, "is_root": int(mountpoint == "/")})
+    if not candidates:
+        return None
+    candidates.sort(key=lambda c: (c["is_root"], c["total"]), reverse=True)
+    return {"used": candidates[0]["used"], "total": candidates[0]["total"]}
+
+
 def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6, vm_disk_usage_is_reliable: bool = True) -> dict[str, Any]:
     names: list[str] = []
     running_items: list[dict[str, Any]] = []
@@ -612,9 +651,10 @@ def workload_metric_summary(items: list[dict[str, Any]], limit: int = 6, vm_disk
             except (TypeError, ValueError):
                 cpu_percent = None
         ram_total = first_present(item.get("maxmem"), item.get("mem_total"), item.get("memory_total"))
-        disk_used = first_present(item.get("disk"), item.get("disk_used"))
-        disk_total = first_present(item.get("maxdisk"), item.get("disk_total"))
-        if not vm_disk_usage_is_reliable and disk_used == 0:
+        fs_usage = item.get("guest_fs_usage") if isinstance(item.get("guest_fs_usage"), dict) else None
+        disk_used = first_present(fs_usage.get("used") if fs_usage else None, item.get("disk"), item.get("disk_used"))
+        disk_total = first_present(fs_usage.get("total") if fs_usage else None, item.get("maxdisk"), item.get("disk_total"))
+        if not vm_disk_usage_is_reliable and not fs_usage and disk_used == 0:
             disk_used = None
         running_items.append({
             "name": name,
@@ -749,6 +789,14 @@ def enrich_running_qemu_status(cfg: dict[str, Any], node: str, qemu: list[dict[s
             for key in ("cpu", "mem", "maxmem", "disk", "maxdisk"):
                 if current.get(key) is not None:
                     merged[key] = current[key]
+            if current.get("agent") or item.get("agent"):
+                try:
+                    fsinfo = proxmox_api_get(cfg, f"/nodes/{node}/qemu/{item['vmid']}/agent/get-fsinfo", timeout=1.5)
+                    fs_usage = fsinfo_root_usage(fsinfo)
+                except Exception:
+                    fs_usage = None
+                if fs_usage:
+                    merged["guest_fs_usage"] = fs_usage
         enriched.append(merged)
     return enriched
 

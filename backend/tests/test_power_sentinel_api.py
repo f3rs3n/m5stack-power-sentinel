@@ -364,8 +364,15 @@ def test_enrich_running_qemu_status_prefers_current_memory_metrics():
 
     def fake_get(cfg, path, timeout=2.5):
         calls.append((path, timeout))
-        assert path == "/nodes/pve/qemu/200/status/current"
-        return {"cpu": 0.02, "mem": 90, "maxmem": 100, "disk": 0, "maxdisk": 64}
+        if path == "/nodes/pve/qemu/200/status/current":
+            return {"cpu": 0.02, "mem": 90, "maxmem": 100, "disk": 0, "maxdisk": 64, "agent": 1}
+        assert path == "/nodes/pve/qemu/200/agent/get-fsinfo"
+        return {
+            "result": [
+                {"name": "/run", "type": "tmpfs", "total-bytes": 10, "used-bytes": 9},
+                {"mountpoint": "/", "type": "ext4", "total-bytes": 64, "used-bytes": 32},
+            ]
+        }
 
     setattr(api, "proxmox_api_get", fake_get)
     enriched = api.enrich_running_qemu_status(
@@ -374,11 +381,13 @@ def test_enrich_running_qemu_status_prefers_current_memory_metrics():
         [{"vmid": 200, "name": "haos", "status": "running", "cpu": 0.9, "mem": 102, "maxmem": 100, "disk": 0, "maxdisk": 64}],
     )
 
-    assert calls == [("/nodes/pve/qemu/200/status/current", 1.5)]
+    assert calls == [("/nodes/pve/qemu/200/status/current", 1.5), ("/nodes/pve/qemu/200/agent/get-fsinfo", 1.5)]
     assert enriched[0]["name"] == "haos"
     assert enriched[0]["cpu"] == 0.02
     assert enriched[0]["mem"] == 90
     assert enriched[0]["maxmem"] == 100
+    assert enriched[0]["guest_fs_usage"] == {"used": 32, "total": 64}
+    assert api.workload_metric_summary(enriched, vm_disk_usage_is_reliable=False)["running_items"][0]["disk_percent"] == 50
 
 
 def test_summarize_proxmox_data_marks_zfs_and_smart_failures_critical():
