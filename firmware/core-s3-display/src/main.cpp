@@ -29,7 +29,7 @@
 #endif
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
-#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-18"
+#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-mini-card-fix"
 #endif
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
@@ -670,27 +670,29 @@ const char *gbText(float gb, char *buf, size_t bufSize) {
 
 void addMiniWorkloadMetric(lv_obj_t *parent, const char *label, int percent, const char *total, lv_color_t color) {
   char percentText[16];
-  char rowText[24];
-  snprintf(rowText, sizeof(rowText), "%s %s", label, intOrUnknown(percent, percentText, sizeof(percentText), "%"));
+  char rowText[40];
+  const char *percentValue = intOrUnknown(percent, percentText, sizeof(percentText), "%");
+  if (total && total[0] != '\0') {
+    snprintf(rowText, sizeof(rowText), "%s %s  %s", label, percentValue, total);
+  } else {
+    snprintf(rowText, sizeof(rowText), "%s %s", label, percentValue);
+  }
 
-  lv_obj_t *row = lv_obj_create(parent);
-  lv_obj_remove_style_all(row);
-  lv_obj_set_width(row, lv_pct(100));
-  lv_obj_set_height(row, 14);
-  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-  lv_obj_t *left = lv_label_create(row);
-  lv_label_set_text(left, rowText);
-  lv_obj_set_style_text_color(left, lv_color_hex(0xc8d0df), 0);
-  lv_obj_set_style_text_font(left, &lv_font_montserrat_12, 0);
-
-  lv_obj_t *right = lv_label_create(row);
-  lv_label_set_text(right, total);
-  lv_obj_set_style_text_color(right, lv_color_hex(0x8fa0b8), 0);
-  lv_obj_set_style_text_font(right, &lv_font_montserrat_12, 0);
+  // Keep workload rows intentionally flat. The first physical CoreS3 test
+  // crashed in lv_label_set_text() while rendering the nested row/two-label
+  // variant; reducing each metric to one label plus one bar avoids that LVGL
+  // allocation/long-text edge case and uses fewer objects per refresh.
+  lv_obj_t *text = lv_label_create(parent);
+  if (text) {
+    lv_obj_set_width(text, lv_pct(100));
+    lv_label_set_long_mode(text, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(text, lv_color_hex(0xc8d0df), 0);
+    lv_obj_set_style_text_font(text, &lv_font_montserrat_12, 0);
+    lv_label_set_text(text, rowText);
+  }
 
   lv_obj_t *bar = lv_bar_create(parent);
+  if (!bar) return;
   lv_obj_set_width(bar, lv_pct(100));
   lv_obj_set_height(bar, 5);
   lv_bar_set_range(bar, 0, 100);
@@ -702,6 +704,7 @@ void addMiniWorkloadMetric(lv_obj_t *parent, const char *label, int percent, con
 
 lv_obj_t *makeWorkloadMiniCard(lv_obj_t *parent, const WorkloadMetric &metric) {
   lv_obj_t *card = lv_obj_create(parent);
+  if (!card) return nullptr;
   lv_obj_set_width(card, lv_pct(100));
   lv_obj_set_height(card, (PAGE_CARD_HEIGHT - 8) / 2);
   lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
@@ -718,11 +721,13 @@ lv_obj_t *makeWorkloadMiniCard(lv_obj_t *parent, const WorkloadMetric &metric) {
   char title[48];
   snprintf(title, sizeof(title), "%s %s", metric.kind, metric.name);
   lv_obj_t *label = lv_label_create(card);
-  lv_label_set_text(label, title);
-  lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
-  lv_obj_set_width(label, lv_pct(100));
-  lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+  if (label) {
+    lv_obj_set_width(label, lv_pct(100));
+    lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+    lv_label_set_text(label, title);
+  }
 
   char ramTotal[16];
   char diskTotal[16];
@@ -1034,6 +1039,7 @@ void renderProxmox() {
   } else {
     for (int i = 0; i < state.proxmox.workloadMetricCount; i += 2) {
       lv_obj_t *page = lv_obj_create(proxmoxTab);
+      if (!page) continue;
       lv_obj_remove_style_all(page);
       lv_obj_set_width(page, PAGE_CARD_WIDTH);
       lv_obj_set_height(page, PAGE_CARD_HEIGHT);

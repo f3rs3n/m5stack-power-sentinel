@@ -1097,7 +1097,9 @@ def route_request(path: str) -> tuple[bytes, int, str]:
                 health=lightweight_m5stack_health(stackflow_ok=True),
                 homeassistant_mqtt={"status": "unknown", "source": "mqtt", "status_topic": "homeassistant/status"},
             )
-            return json_response(strip_workload_items_for_core_s3(summary))
+            if query.get("workload_items", ["0"])[0] not in ("1", "true", "yes"):
+                summary = strip_workload_items_for_core_s3(summary)
+            return json_response(summary)
         summary = build_summary()
         if query.get("workload_items", ["0"])[0] not in ("1", "true", "yes"):
             summary = strip_workload_items_for_core_s3(summary)
