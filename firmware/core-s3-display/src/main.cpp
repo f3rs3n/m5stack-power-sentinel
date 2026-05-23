@@ -893,12 +893,10 @@ void renderProxmox() {
   addMetricRow(card, "node / api", line);
   char cpu[24];
   char ram[24];
-  snprintf(line, sizeof(line), "CPU %s   RAM %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"), intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
-  addMetricRow(card, "usage", line);
-  snprintf(line, sizeof(line), "CPU bar %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"));
+  snprintf(line, sizeof(line), "CPU %s", intOrUnknown(state.proxmox.cpuPercent, cpu, sizeof(cpu), "%"));
   addLine(card, line);
   addPercentBar(card, state.proxmox.cpuPercent, lv_palette_main(LV_PALETTE_BLUE));
-  snprintf(line, sizeof(line), "RAM bar %s", intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
+  snprintf(line, sizeof(line), "RAM %s", intOrUnknown(state.proxmox.ramPercent, ram, sizeof(ram), "%"));
   addLine(card, line);
   addPercentBar(card, state.proxmox.ramPercent, lv_palette_main(LV_PALETTE_PURPLE));
   char temp[24];
@@ -906,13 +904,13 @@ void renderProxmox() {
   const char *tempText = state.proxmox.cpuTempC <= 0.0f ? "Temp n/a" : floatOrUnknown(state.proxmox.cpuTempC, temp, sizeof(temp), " C");
   snprintf(line, sizeof(line), "%s   Storage %s", tempText, intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
   addMetricRow(card, "temp / storage", line);
-  snprintf(line, sizeof(line), "Storage bar %s", intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
+  snprintf(line, sizeof(line), "Storage %s", intOrUnknown(state.proxmox.storagePercent, storage, sizeof(storage), "%"));
   addLine(card, line);
   addPercentBar(card, state.proxmox.storagePercent, lv_palette_main(LV_PALETTE_TEAL));
-  snprintf(line, sizeof(line), "ZFS %s   SMART %s", state.proxmox.zfsStatus, state.proxmox.smartStatus);
-  addMetricRow(card, "storage health", line);
-  snprintf(line, sizeof(line), "VM %s run   CT %s run", intOrUnknown(state.proxmox.vmRunningCount, cpu, sizeof(cpu)), intOrUnknown(state.proxmox.lxcRunningCount, ram, sizeof(ram)));
-  addMetricRow(card, "workloads", line);
+  addStatusPillRow(card,
+                   state.proxmox.zfsStatus, strcmp(state.proxmox.zfsStatus, "ONLINE") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE),
+                   state.proxmox.smartStatus, strcmp(state.proxmox.smartStatus, "PASSED") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE),
+                   "PVE RO", state.proxmox.available ? lv_palette_main(LV_PALETTE_BLUE) : lv_palette_main(LV_PALETTE_GREY));
   snprintf(line, sizeof(line), "NUT monitor %s   armed %s", state.shutdown.wouldShutdown ? "WOULD" : "idle", state.shutdown.armed ? "YES" : "NO");
   addLine(card, line);
 
@@ -1200,7 +1198,7 @@ void initUi() {
   applyAppTheme();
   homeTab = lv_tabview_add_tab(tabview, LV_SYMBOL_HOME "\nHM");
   nutTab = lv_tabview_add_tab(tabview, LV_SYMBOL_CHARGE "\nNT");
-  proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nP");
+  proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nPV");
   haTab = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI "\nHA");
   m5sTab = lv_tabview_add_tab(tabview, LV_SYMBOL_SETTINGS "\nM5");
   renderAll();

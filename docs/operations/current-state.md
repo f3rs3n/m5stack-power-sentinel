@@ -252,7 +252,7 @@ Important LVGL/M5GFX integration detail:
 The firmware currently has:
 
 - Five LVGL tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
-- V1b/V1c/V1d modern polish: dark theme, compact left sidebar navigation with small icon/spia-style labels (`HM`, `NT`, `P`, `HA`, `M5`) and vertical swipe between tabs, fixed-height horizontal card carousel per tab, HOME hero/local-control cards, card radius/shadow, structured metric rows, status pills, percent bars, and `SLEEP DISPLAY`.
+- V1b/V1c/V1d modern polish: dark theme, compact left sidebar navigation with small icon/spia-style labels (`HM`, `NT`, `PV`, `HA`, `M5`) and vertical swipe between tabs, fixed-height horizontal card carousel per tab, HOME hero/local-control cards, card radius/shadow, structured metric rows, status pills, percent bars, and `SLEEP DISPLAY`.
 - The LVGL MCP Windows spike is validated and kept under `assets/lvgl-spike/`: `run-lvgl-mcp-render.mjs` drives `lvgl-mcp-server` over stdio on the Windows host, and curated 320x240 visual baselines live in `assets/lvgl-spike/results/` as PNG plus widget-tree JSON.
 - The MCP render caught a real HOME overflow/clipping issue; the current HOME layout keeps the first card dense and moves local controls/problems/sleep to a second horizontal card so vertical scrolling no longer becomes the primary way to traverse a tab.
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).

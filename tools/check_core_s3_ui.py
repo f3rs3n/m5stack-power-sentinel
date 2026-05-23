@@ -34,8 +34,8 @@ def main() -> int:
     for marker, call in zip(EXPECTED_TAB_LABEL_MARKERS, tab_calls):
         if marker not in call:
             return fail(f"expected sidebar icon tab marker {marker}, found call {call}")
-    if "\\nHM" not in tab_calls[0] or "\\nNT" not in tab_calls[1]:
-        return fail("sidebar HOME/NUT labels should use HM/NT until better icons are available")
+    if "\\nHM" not in tab_calls[0] or "\\nNT" not in tab_calls[1] or "\\nPV" not in tab_calls[2]:
+        return fail("sidebar HOME/NUT/PVE labels should use HM/NT/PV until better icons are available")
     for tab in FORBIDDEN_TABS:
         if f'lv_tabview_add_tab(tabview, "{tab}")' in text:
             return fail(f"legacy tab {tab!r} still present")
@@ -85,10 +85,13 @@ def main() -> int:
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE read-only UI missing {needle}")
-    required_pve_clarity = ["CPU", "RAM", "Temp n/a", "Storage", "RAM bar", "CPU bar", "NUT monitor"]
+    required_pve_clarity = ["CPU", "RAM", "Temp n/a", "Storage", "NUT monitor", "addStatusPillRow(card,", "PVE RO"]
     for needle in required_pve_clarity:
         if needle not in text:
             return fail(f"PVE UI lacks display clarity marker {needle}")
+    for stale in ["CPU bar", "RAM bar", "Storage bar", "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
+        if stale in text:
+            return fail(f"PVE UI still contains redundant marker {stale}")
     if "Shutdown via NUT" in text:
         return fail("PVE tab should not show ambiguous standalone 'Shutdown via NUT'")
     required_ha_z2m = ["Zigbee2MqttState", "state.zigbee2mqtt.available", "coordinatorType", "deviceTotal", "Z2M", "Coordinator", "Updates %d", "Z2M devices:"]

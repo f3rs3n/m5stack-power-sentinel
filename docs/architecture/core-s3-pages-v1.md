@@ -35,7 +35,7 @@ Navigation:
 
 - `HOME` is the default boot page.
 - Top-level navigation uses a compact left sidebar to preserve the scarce 240 px vertical space.
-- Sidebar labels should favor small monochrome/low-color icon or spia-style affordances plus short text (`HM`, `NT`, `P`, `HA`, `M5`) until better custom icons are available.
+- Sidebar labels should favor small monochrome/low-color icon or spia-style affordances plus short text (`HM`, `NT`, `PV`, `HA`, `M5`) until better custom icons are available.
 - Top-level tab switching is via the sidebar or vertical swipe through the left-sidebar tab stack; horizontal gestures inside the content area belong to the current tab's card carousel, not to changing tabs.
 - No automatic tab switch in V1.
 - No automatic return-to-HOME timer in V1.
@@ -287,15 +287,13 @@ Top PVE section:
 - node name
 - API latency if available
 - node online status
-- CPU usage % plus explicit CPU bar
-- RAM usage % plus explicit RAM bar
-- CPU temperature, rendered as `Temp n/a` when Proxmox API does not expose it
-- storage usage % plus explicit storage bar
-- ZFS status
-- SMART/disk health status
-- VM running count
-- LXC/CT running count
-- Shutdown path: `Standard NUT` / `via upsmon`
+- CPU usage % plus percent bar, labelled simply `CPU N%`.
+- RAM usage % plus percent bar, labelled simply `RAM N%`.
+- CPU temperature, rendered as `Temp n/a` when Proxmox API does not expose it.
+- storage usage % plus percent bar, labelled simply `Storage N%`.
+- ZFS status as a compact status pill.
+- SMART/disk health status as a compact status pill.
+- NUT monitor/readiness context.
 
 Do not show Proxmox API shutdown triggers in V1. Avoid implying an armed shutdown policy before Standard NUT readiness is understood.
 
@@ -327,19 +325,20 @@ Example PVE layout:
 
 ```text
 PVE                 OK
-Node pve-mini
+Node pve-mini       42ms
 
-CPU 18%      RAM 46%
-CPU bar
-RAM bar
+CPU 18%
+[percent bar]
+RAM 46%
+[percent bar]
 Temp n/a     Storage 62%
-Storage bar
+[percent bar]
 
-ZFS ONLINE   SMART OK
-VM 8 run     CT 4 run
+[ZFS ONLINE] [SMART PASSED] [PVE RO]
+NUT monitor idle   armed NO
 
-Shutdown via NUT
-
+-- horizontal card --
+Running workloads
 VMs: ha, docker, ... +5
 CTs: hermes, services, ... +2
 ```
