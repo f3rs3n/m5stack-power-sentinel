@@ -2,7 +2,18 @@
 
 Last updated: 2026-05-23
 
-This file exists to survive chat/context compaction. It records the hardware facts, firmware decisions, and verified paths that must not be rediscovered unless hardware/firmware changes.
+This file exists to survive chat/context compaction. It records the hardware facts, firmware decisions, verified paths, and remaining gaps that must not be rediscovered unless hardware/firmware changes.
+
+Current product goal:
+
+```text
+Turn the stack into an autonomous multi-function Linux server with:
+- NUT server for the attached UPS;
+- modern practical CoreS3 dashboards for UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, network, and the M5Stack itself;
+- an extensible mini-dashboard model;
+- future local LLM inference for dashboard enrichment or a companion tab;
+- MQTT exposure of stack sensors/health to Home Assistant.
+```
 
 ## Hardware stack
 
@@ -241,12 +252,12 @@ Important LVGL/M5GFX integration detail:
 The firmware currently has:
 
 - Five LVGL tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
-- V1b modern polish: dark theme, compact 24 px tab bar, HOME hero card, card radius/shadow, structured metric rows, status pills, percent bars, and a bottom HOME row for local status/problems plus `SLEEP DISPLAY`.
+- V1b/V1c modern polish: dark theme, compact left sidebar navigation with small icon/spia-style labels, HOME hero card, card radius/shadow, structured metric rows, status pills, percent bars, and a bottom HOME row for local status/problems plus `SLEEP DISPLAY`.
 - The LVGL MCP Windows spike is validated and kept under `assets/lvgl-spike/`: `run-lvgl-mcp-render.mjs` drives `lvgl-mcp-server` over stdio on the Windows host, and curated 320x240 visual baselines live in `assets/lvgl-spike/results/` as PNG plus widget-tree JSON.
 - The MCP render caught a real HOME overflow/clipping issue; the current HOME layout is intentionally compacted so `POWER SENTINEL`, severity, UPS essentials, NUT/PVE/HA pills, `local NET ... M5S ...`, `Problems: ...`, and `SLEEP DISPLAY` are visible in 320x240 before physical flash.
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
-- HA tab now shows HA core reachability, MQTT, Zigbee2MQTT state/version, coordinator type/firmware, and Zigbee device totals from the MQTT-first Z2M backend summary. If `homeassistant/status` is unavailable because the birth topic is not retained, the UI says `HA birth topic not retained` instead of presenting this as a failure.
+- HA tab now shows HA core reachability, MQTT, update count, Zigbee2MQTT state, coordinator type/firmware, and `Z2M devices: interviewed/total` from the MQTT-first Z2M backend summary. It deliberately does not show the HA birth-topic retained/debug state or the installed Z2M version.
 - NUT tab now shows NUT shutdown readiness: owner `upsmon`, primary readiness, generic NUT client readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), and NUT low-battery thresholds.
 - PVE tab consumes read-only Proxmox API data: node latency/status, CPU/RAM/storage, ZFS, SMART, VM/LXC running names and counts. CPU/RAM/storage bars are explicitly labelled after the first hardware flash showed that a single unlabeled bar was ambiguous; missing Proxmox CPU temperature is rendered as `Temp n/a`.
 - M5S tab treats missing/not-run chat smoke as `n/a`, not `FAIL`; StackFlow/OpenAI health remain the primary live checks.
@@ -294,6 +305,16 @@ CoreS3
 The previous parallel serial-bridge implementation is no longer part of the active architecture. The deployed LLM Module currently has no parallel bridge service or executable; `llm_sys` is the sole owner of `/dev/ttyS1`, and Power Sentinel integrates through the StackFlow custom unit.
 
 This choice is deliberate: preserving `llm_sys` avoids UART contention and keeps the vendor StackFlow/assistant path available.
+
+## Remaining gaps / next capabilities
+
+Not yet implemented:
+
+- Standard NUT shutdown is staged, not armed. `nut-monitor` remains disabled/inactive on the M5Stack primary and first Proxmox secondary until a deliberate arming step.
+- Only the first Proxmox secondary has been prepared/verified as a NUT client; broader client inventory is future work.
+- The CoreS3 has current mini-dashboards for HOME, NUT, PVE, HA, and M5S. Additional LAN mini-dashboards are future extensions.
+- Local LLM inference is not used yet to enrich dashboard summaries or provide a companion tab. Current LLM use is baseline health/OpenAI availability and optional chat smoke.
+- OTA/agent-driven flashing is not implemented; Windows + VSCode + PlatformIO remains the normal flash workflow.
 
 ## Related docs
 

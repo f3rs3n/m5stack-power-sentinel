@@ -2,28 +2,31 @@
 
 ## Power Sentinel role
 
-The M5Stack LLM Module is treated as an autonomous low-power Linux appliance.
+The M5Stack LLM Module is treated as an autonomous multi-function Linux appliance for the homelab.
 
 Primary responsibilities:
 
 - run NUT server for the directly attached UPS;
-- produce normalized local JSON state;
+- produce normalized local JSON state for dashboards and integrations;
 - expose a local API for the CoreS3 display;
-- publish MQTT retained state and Home Assistant Discovery;
+- publish MQTT retained state and Home Assistant Discovery for stack sensors/health;
 - serve as NUT source for Proxmox/Home Assistant/other clients;
+- provide read-only information dashboards for UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, network, and the M5Stack appliance itself;
+- remain extensible for future mini-dashboards;
+- later use local LLM Module inference to enrich dashboard content or add a companion tab;
 - remain an observer/readiness dashboard for shutdown policy; real shutdown is Standard NUT via `upsmon`, not custom shutdown orchestration.
 
 ## Data contract direction
 
-The CoreS3 should consume a compact summary endpoint, not raw NUT/Home Assistant/Proxmox APIs.
+The CoreS3 consumes a compact summary endpoint, not raw NUT/Home Assistant/Proxmox APIs.
 
-Planned endpoint:
+Current endpoint:
 
 ```text
 GET /api/v1/summary
 ```
 
-Planned schema:
+Current schema:
 
 ```json
 {
@@ -74,3 +77,13 @@ Planned schema:
   "problems": []
 }
 ```
+
+Implementation status, verified 2026-05-23:
+
+- `ups` and `nut`: implemented from live NUT/upsc data for the APC Back-UPS ES 850G2.
+- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART and running VM/LXC summaries.
+- `homeassistant`, `mqtt`, `zigbee2mqtt`: implemented as HA TCP reachability plus MQTT/Zigbee2MQTT bridge-topic health; HA update count is read from HA `/api/states` when a read-only token is configured, otherwise it defaults to `0` for display clarity.
+- `network`: implemented on the LLM Module using Linux default-route state plus a TCP probe, currently `1.1.1.1:53`.
+- `m5stack`: implemented from local healthcheck/service state.
+- `shutdown`: implemented as Standard NUT readiness state only; no custom shutdown action exists.
+- Local LLM inference for dashboard enrichment / companion UI is not implemented yet; current LLM usage is baseline health and optional chat smoke.

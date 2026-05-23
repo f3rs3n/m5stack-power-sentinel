@@ -4,7 +4,9 @@ Status: superseded by the implemented V1 firmware. Kept as historical design rat
 
 ## Goal
 
-Build a physical autonomous display for the M5Stack Power Sentinel.
+Historical goal: build a physical autonomous display for the M5Stack Power Sentinel.
+
+Current product goal: the display is the front-panel for an autonomous multi-function Linux server. It covers UPS/NUT, Proxmox, Home Assistant/MQTT/Zigbee2MQTT, network, and M5Stack local health, and should remain extensible for future mini-dashboards and eventual local LLM inference/companion features.
 
 Primary endpoint:
 
@@ -16,9 +18,9 @@ The display must treat the M5Stack LLM Module API as the primary source, not Hom
 
 ## UI framework decision
 
-Initial recommendation was manual M5GFX drawing for simplicity. After reviewing LVGL visuals and the user's preference for a polished appliance UI, V0 frontend should explore LVGL rather than rejecting it.
+Initial recommendation was manual M5GFX drawing for simplicity. After reviewing LVGL visuals and the user's preference for a polished appliance UI, the project explored LVGL and then kept it for the implemented V1 firmware.
 
-Preferred stack for V0 exploration:
+Implemented stack:
 
 ```text
 PlatformIO
@@ -52,33 +54,15 @@ Decision gate:
 
 ## Firmware pages
 
-1. UPS / Power
-   - default page
-   - works without Home Assistant
-   - online/on battery/low battery states
-   - battery %, runtime, load, input/output voltage
+Historical first sketch used UPS / Home Assistant / Proxmox / M5Stack / Offline pages. The implemented V1 page set is now documented in `docs/architecture/core-s3-pages-v1.md`:
 
-2. Home Assistant
-   - HA API reachability
-   - MQTT reachability
-   - future critical HA services
+1. `HOME`
+2. `NUT`
+3. `PVE`
+4. `HA`
+5. `M5S`
 
-3. Proxmox
-   - reachability
-   - shutdown state
-   - future NUT client/read-only status
-
-4. M5Stack/System
-   - temperature
-   - RAM
-   - disk
-   - OpenAI API
-   - StackFlow API
-   - chat smoke
-
-5. Offline / stale fallback
-   - backend unreachable
-   - cached last-good payload age
+Offline/stale state is now an explicit display state within the normal UI, not a separate top-level tab.
 
 ## Upload / flashing strategy
 

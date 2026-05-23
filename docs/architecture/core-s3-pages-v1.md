@@ -1,22 +1,25 @@
 # CoreS3 Pages V1 Specification
 
 Date: 2026-05-18
-Status: design spec for the next UI/API iteration
+Status: V1 implemented; this file is now the UI contract and regression reference, not just a future design sketch.
 Device: M5Stack CoreS3 + LLM Kit Power Sentinel
 
 ## Goal
 
-Define the V1 CoreS3 display information architecture now that the StackFlow transport is stable and NUT is reading the real UPS.
+Define and preserve the V1 CoreS3 information architecture for the broader Power Sentinel goal: an autonomous multi-function Linux server with a modern, captivating, practical display for LAN state.
 
 The CoreS3 is a desk-visible physical homelab sentinel. It should answer, quickly and honestly:
 
 1. Is power OK?
 2. How much runtime remains?
-3. Are Proxmox, Home Assistant, Zigbee, and the M5Stack appliance healthy?
-4. If something is wrong, which subsystem is the cause?
-5. If the display itself looks stale, is StackFlow transport still working?
+3. Is the NUT server/client readiness healthy?
+4. Are Proxmox, Home Assistant, MQTT/Zigbee2MQTT, network, and the M5Stack appliance healthy?
+5. If something is wrong, which subsystem is the cause?
+6. If the display itself looks stale, is StackFlow transport still working?
 
 No page may show plausible demo/sample values after live transport fails. Missing data must render as `unknown`, `unavailable`, or an explicit stale/offline state.
+
+Future scope: the same tab/card model should support dedicated mini-dashboards and, later, local LLM inference that enriches dashboard summaries or appears as a companion tab. That inference layer is not implemented in V1.
 
 ## Page set
 
@@ -31,7 +34,9 @@ V1 has five top-level tabs:
 Navigation:
 
 - `HOME` is the default boot page.
-- Horizontal swipe between top-level tabs is required.
+- Top-level navigation uses a compact left sidebar to preserve the scarce 240 px vertical space.
+- Sidebar labels should favor small monochrome/low-color icon or spia-style affordances plus short text (`H`, `N`, `P`, `HA`, `M5`).
+- Horizontal swipe between top-level tabs is acceptable if it remains compatible with the sidebar.
 - No automatic tab switch in V1.
 - No automatic return-to-HOME timer in V1.
 - No audible/beep alert in V1; visual alerts only.
@@ -42,7 +47,6 @@ Visual direction:
 
 - Modern, clean, desk-readable dashboard.
 - Dark background, high contrast text, restrained accent colors.
-- No grimdark/Warhammer skin in V1.
 - Favor compact cards, clear status pills, and simple bars over decorative assets.
 
 ## Severity and colors
@@ -372,9 +376,10 @@ Visible fields:
 - `MQTT OK/DOWN`
 - `Z2M OK/DOWN/UNK`
 - `Coordinator OK/DOWN/UNK`
+- `Updates N`, where unavailable update data renders as `Updates 0` rather than `n/a`
+- `Z2M devices: interviewed/total`
 - HA API latency if available
 - MQTT last publish age if available
-- Power/M5Stack entities OK if available
 - last error/problem summary
 
 Do not duplicate the full Home Assistant UI.
@@ -386,10 +391,10 @@ Example HA layout:
 HA                  OK
 
 API OK       MQTT OK
-Z2M OK       COORD OK
+Updates 0
 
-Last publish 12s
-Power sensors OK
+Z2M OK       COORD OK
+Z2M devices: 29/29
 
 Problem: none
 ```
@@ -470,7 +475,7 @@ V1 visual-only alert behavior:
 - No beep/audio.
 - No auto-switch to HOME/NUT/PVE.
 - No forced modal alerts.
-- Current page may show a global top bar/badge reflecting global severity.
+- Current page may show a global sidebar/badge/accent reflecting global severity.
 
 Offline/stale behavior:
 
@@ -483,12 +488,17 @@ Offline/stale behavior:
 
 Keep `power-sentinel.summary.v1` and add optional fields. The firmware must tolerate missing fields and render `unknown`/`unavailable`.
 
-Preferred implementation strategy:
+Implementation status as of 2026-05-23:
 
-- Define a broad optional schema in docs/tests.
-- Implement incrementally.
-- Start with fields already available from NUT/upsc and local healthcheck.
-- Add Proxmox and HA/Z2M read-only integrations later.
+- NUT/UPS fields are implemented from live `upsc` data.
+- NUT server/driver/shutdown-readiness fields are implemented; real shutdown remains Standard NUT only.
+- Network status is implemented from the LLM Module Linux default route plus TCP probe, not from Proxmox reachability.
+- Proxmox read-only fields are implemented for one node via API token stored only in root-owned runtime config.
+- HA/MQTT/Zigbee2MQTT read-only fields are implemented with HA TCP/API reachability, optional HA update counts, and MQTT bridge topics.
+- M5Stack local health fields are implemented from healthcheck/service state.
+- Local LLM inference for enriched text or a companion tab is not implemented yet.
+
+Remaining contract direction: future additions should continue as optional fields or new optional objects so old firmware renders missing data honestly.
 
 ### Proposed optional `ups` fields
 
@@ -644,11 +654,11 @@ Render as `NET OK/DOWN/UNK` on HOME. If not implemented, use `UNK`.
 
 Transport counters remain firmware-local because the backend cannot know whether the CoreS3 received the response.
 
-## Implementation priority
+## Implemented / remaining work
 
-Recommended next implementation sequence:
+Already implemented:
 
-1. Extend backend parsing for easy NUT fields already present in `upsc`:
+1. Backend parsing for live NUT fields already present in `upsc`:
    - model
    - battery voltage
    - nominal W
@@ -656,20 +666,28 @@ Recommended next implementation sequence:
    - beeper status
    - transfer reason
    - driver
-   - NUT service state if cheap
-2. Restructure CoreS3 tabs to `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
-3. Implement V1a functional UI:
+   - NUT service state
+2. CoreS3 tabs restructured to `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
+3. V1a functional UI implemented:
    - sections/cards
    - bars
    - HOME dense overview
    - M5S transport/debug
-4. Then polish toward V1b modern UI:
+4. V1b modern UI polish implemented:
    - improved spacing
    - consistent pills
    - better bar styling
-   - visual severity top bar
-5. Add PVE read-only API integration.
-6. Add HA/Z2M/coordinator read-only checks.
-7. Only after stable read-only behavior, deliberately enable/test Standard NUT monitors in stages.
+   - visual severity badges/top hierarchy
+5. PVE read-only API integration implemented.
+6. HA/MQTT/Z2M/coordinator read-only checks implemented.
+7. HOME display sleep control implemented.
+8. LVGL MCP visual baseline workflow implemented under `assets/lvgl-spike/`.
+
+Still remaining:
+
+1. Deliberately enable/test Standard NUT monitors in stages only when the system should become armed.
+2. Add more NUT clients beyond the first Proxmox secondary.
+3. Add future mini-dashboards if another LAN subsystem deserves a first-class page.
+4. Add local LLM inference only after there is a concrete use: enriched incident summaries, explanation text, or a companion tab.
 
 No real shutdown automation belongs in this V1 display spec.

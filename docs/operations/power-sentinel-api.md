@@ -1,6 +1,8 @@
 # Power Sentinel API
 
-V0 backend for the M5Stack Power Sentinel project.
+Current backend/API reference for the M5Stack Power Sentinel project.
+
+Scope: normalized local state for the autonomous multi-function Linux appliance. The API feeds the CoreS3 dashboards and exposes UPS/NUT, Proxmox, Home Assistant/MQTT/Zigbee2MQTT, network, M5Stack health, and Standard NUT readiness. It is also the future extension point for mini-dashboards and local LLM enrichment/companion features.
 
 ## Script
 
@@ -78,11 +80,12 @@ Power Sentinel does not perform custom shutdown orchestration. Real shutdown bel
 Other sections:
 
 - M5Stack section tries to read `/usr/local/bin/m5stack-healthcheck --json`;
-- Home Assistant reachability uses TCP `192.168.2.200:8123`;
+- Home Assistant reachability uses TCP `192.168.2.200:8123`; optional HA update counts use read-only `/api/states` with a long-lived token from root-only config when present;
 - MQTT reachability uses TCP `192.168.2.200:1883`;
-- Proxmox still keeps a cheap TCP reachability check for availability, but the `proxmox` summary object can now use read-only Proxmox API data when a token is configured;
+- Proxmox uses read-only Proxmox API data when a token is configured; no shutdown action is exposed;
 - Internet/network status uses the LLM Module Linux default-route table plus a short TCP probe to `1.1.1.1:53` by default, exposed as the `network` summary object for the HOME `NET` indicator;
-- MQTT/Zigbee2MQTT status uses `mosquitto_sub` with credentials loaded from root-only config files, not password arguments. The backend reads retained Z2M bridge topics for the `zigbee2mqtt` summary object.
+- MQTT/Zigbee2MQTT status uses `mosquitto_sub` with credentials loaded from root-only config files, not password arguments. The backend reads retained Z2M bridge topics for the `zigbee2mqtt` summary object;
+- local LLM inference enrichment is not implemented yet. Current LLM-facing state is health/openai/chat-smoke metadata under `m5stack`.
 
 ## MQTT / Zigbee2MQTT read-only integration
 
@@ -111,7 +114,7 @@ The `zigbee2mqtt` summary object includes:
 - `devices.total`, `devices.interviewed`, `devices.disabled`
 - `problems[]`
 
-No Home Assistant long-lived token is required for this V1 MQTT-first health view. HA itself is still TCP-checked on `8123`; the MQTT `homeassistant/status` value is exposed when retained/available, otherwise it is `unknown`. The CoreS3 UI should label that state as `HA birth topic not retained` rather than `HA MQTT status unknown`, because on this install it is informational rather than a failure.
+No Home Assistant long-lived token is required for the MQTT-first Z2M health view. HA itself is still TCP-checked on `8123`; the MQTT `homeassistant/status` value is exposed in the API when retained/available, otherwise it is `unknown`, but the CoreS3 UI does not show that low-value birth-topic detail. If a Home Assistant long-lived token is available in root-only `/etc/power-sentinel.json`, the backend reads `/api/states` and counts `update.*` entities with state `on`; if the token/read is unavailable, `homeassistant.updates.available_count` falls back to `0` so the display can show `Updates 0` rather than an ambiguous `n/a`.
 
 ## Proxmox read-only integration
 
@@ -166,6 +169,9 @@ POWER_SENTINEL_HEALTHCHECK
 POWER_SENTINEL_UPSC
 POWER_SENTINEL_UPS
 POWER_SENTINEL_HA_HOST
+POWER_SENTINEL_HA_PORT
+POWER_SENTINEL_HA_SCHEME
+POWER_SENTINEL_HA_TOKEN
 POWER_SENTINEL_MQTT_HOST
 POWER_SENTINEL_PROXMOX_HOST
 POWER_SENTINEL_PROXMOX_PORT

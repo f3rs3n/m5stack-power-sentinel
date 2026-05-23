@@ -1,15 +1,16 @@
 # M5Stack CoreS3 + LLM Kit Homelab Power Sentinel Plan
 
 Data: 2026-05-15
+Status: historical plan. The current truth is `README.md`, `docs/operations/current-state.md`, `docs/architecture/api-contract-v1.md`, and `docs/architecture/core-s3-pages-v1.md`.
 Device principale: M5Stack CoreS3 + LLM Kit / LLM Module + LLM Mate
 IP modulo LLM: 192.168.2.202
 Home Assistant: 192.168.2.200 / homeassistant.local
 
-Goal: trasformare lo stack M5Stack in una piccola appliance autonoma per homelab: NUT server primario, display fisico CoreS3, sensori MQTT/Home Assistant, healthcheck del modulo LLM, e futuro satellite Hermes/voice.
+Goal aggiornato: trasformare lo stack in un server Linux autonomo multi-funzione che offra NUT server, dashboard informative sul display CoreS3 con interfaccia moderna/captivating/pratica per UPS/NUT, nodo Proxmox, istanza Home Assistant/Zigbee2MQTT e stack M5Stack; un modello estensibile per futuri mini-dashboard; uso futuro dell'inferenza locale del modulo LLM per arricchire le dashboard o aggiungere una companion tab; esposizione via MQTT a Home Assistant dei sensori e dello stato dello stack.
 
-Architettura: il modulo LLM deve essere trattato come appliance Linux a basso consumo e possibilmente come ultimo nodo vivo durante blackout. Home Assistant e Proxmox devono consumare lo stato pubblicato dal M5Stack, non essere prerequisiti per leggere lo stato UPS. Il CoreS3 deve mostrare almeno una pagina UPS autonoma anche se Home Assistant o Proxmox non sono disponibili.
+Architettura: il modulo LLM deve essere trattato come appliance Linux a basso consumo e possibilmente come ultimo nodo vivo durante blackout. Home Assistant e Proxmox devono consumare lo stato pubblicato dal M5Stack, non essere prerequisiti per leggere lo stato UPS. Il CoreS3 deve mostrare dashboard operative anche se Home Assistant o Proxmox non sono disponibili.
 
-Principio chiave: UPS/NUT locale al M5Stack deve diventare la fonte primaria dello stato alimentazione; MQTT/Home Assistant sono esposizione e automazione, non la fonte di verità.
+Principio chiave: UPS/NUT locale al M5Stack resta la fonte primaria dello stato alimentazione; MQTT/Home Assistant sono esposizione e automazione, non la fonte di verità. Lo scope però è ora più ampio di un semplice UPS appliance: è un front-panel/server informativo LAN estensibile.
 
 ---
 
@@ -198,7 +199,7 @@ Verificato:
 Nuovo ruolo prioritario:
 
 ```text
-M5Stack = Power Sentinel autonomo + display fisico + satellite Home Assistant/Hermes
+M5Stack = server Linux autonomo multi-funzione + Power/NUT Sentinel + front-panel CoreS3 + integrazione MQTT/Home Assistant + futuro companion/enrichment LLM
 ```
 
 Non solo satellite HA. Deve poter restare utile quando Home Assistant o Proxmox sono spenti.
@@ -751,9 +752,19 @@ Regole:
 
 ## 11. Fasi future opzionali
 
-### 11.1 Voice / Home Assistant Satellite
+Questa sezione è storica; la priorità futura aggiornata non è “satellite Hermes/voice”, ma uso mirato dell'inferenza locale solo se arricchisce davvero le dashboard o produce una companion tab utile.
 
-Dopo NUT/display:
+### 11.1 Local LLM enrichment / companion tab
+
+Possibili funzioni, da validare prima con prototipi leggeri:
+- sintesi testuale dello stato homelab quando ci sono problemi;
+- spiegazione leggibile di eventi NUT/UPS o degrado PVE/HA;
+- companion tab con suggerimenti non operativi e senza azioni pericolose;
+- chat smoke e health LLM come diagnostica, non come requisito per il core dashboard.
+
+### 11.2 Voice / Home Assistant Assist, bassa priorità
+
+Possibili funzioni future:
 - test KWS;
 - test VAD;
 - test ASR;
@@ -762,19 +773,11 @@ Dopo NUT/display:
 - whitelist comandi;
 - no azioni pericolose senza conferma.
 
-### 11.2 Hermes satellite
-
-Possibili funzioni:
-- display stato Hermes;
-- push-to-talk;
-- notifiche agentiche;
-- mini terminale fisico “Servoskull”.
-
 ### 11.3 Edge AI / Vision
 
 Possibili usi:
 - YOLO/VLM per demo o watchdog fisico;
-- priorita' bassa rispetto a UPS/display.
+- priorita' bassa rispetto a UPS/display/dashboard LAN.
 
 ---
 

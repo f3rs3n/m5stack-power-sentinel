@@ -37,15 +37,17 @@ Il vecchio bridge seriale PS1 è stato rimosso. La scelta StackFlow evita contes
 
 ## UI inclusa
 
-La UI LVGL V1a segue la specifica `docs/architecture/core-s3-pages-v1.md` e ha cinque tab:
+La UI LVGL V1 segue la specifica `docs/architecture/core-s3-pages-v1.md` e ha cinque tab:
 
 1. `HOME` - overview da scrivania con stato globale, UPS essentials, NUT/PVE/HA/NET/M5S e problemi principali.
-2. `NUT` - UPS essentials più sezioni scrollabili per NUT server/client e dettagli UPS.
-3. `PVE` - raggiungibilità Proxmox e shutdown state disarmato.
-4. `HA` - raggiungibilità Home Assistant API e MQTT.
+2. `NUT` - UPS essentials più sezioni scrollabili per NUT server/client, readiness Standard NUT e dettagli UPS.
+3. `PVE` - integrazione Proxmox read-only: nodo, CPU/RAM/storage, ZFS, SMART e VM/LXC running.
+4. `HA` - Home Assistant API, MQTT, aggiornamenti disponibili, Zigbee2MQTT e coordinatore; mostra `Z2M devices: interviewed/total` e non spreca spazio con versione Z2M o birth topic HA.
 5. `M5S` - stato M5Stack/System più diagnostica trasporto, firmware, schema, UART e contatori poll.
 
-V1b aggiunge un polish moderno senza asset pesanti: tema scuro coerente, hero card HOME, font hierarchy Montserrat, card con radius/shadow sottile, metric row strutturate, status pill compatte e barre percentuali più consistenti. La HOME mostra il badge severity in maiuscolo (`OK`/`WARN`/`CRITICAL`) e il campo `NET` deriva dal probe `network` del backend sul Linux del modulo LLM, non da Proxmox.
+La direzione del prodotto non è più “solo UPS display”: lo stack è un server Linux autonomo multi-funzione con dashboard informative estensibili. Il CoreS3 è il front-panel pratico e moderno per UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, rete e M5Stack; futuri mini-dashboard o una companion tab LLM devono agganciarsi allo stesso contratto dati senza rompere le pagine esistenti.
+
+V1b/V1c aggiunge un polish moderno senza asset pesanti: tema scuro coerente, sidebar sinistra compatta con icone/label piccole, hero card HOME, font hierarchy Montserrat, card con radius/shadow sottile, metric row strutturate, status pill compatte e barre percentuali più consistenti. La HOME mostra il badge severity in maiuscolo (`OK`/`WARN`/`CRITICAL`) e il campo `NET` deriva dal probe `network` del backend sul Linux del modulo LLM, non da Proxmox.
 
 Non c'è più un payload demo/sample plausibile all'avvio. Finché non arriva il primo summary live, lo stato è esplicitamente `boot` / `offline` / `waiting`.
 

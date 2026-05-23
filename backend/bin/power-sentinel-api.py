@@ -152,6 +152,20 @@ def mqtt_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
     }
 
 
+def homeassistant_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    site = config or load_site_config()
+    ha = site.get("homeassistant", {}) if isinstance(site, dict) else {}
+    if not isinstance(ha, dict):
+        ha = {}
+    return {
+        "host": os.environ.get("POWER_SENTINEL_HA_HOST") or ha.get("host") or HA_HOST,
+        "port": int(os.environ.get("POWER_SENTINEL_HA_PORT") or ha.get("port") or 8123),
+        "token": os.environ.get("POWER_SENTINEL_HA_TOKEN") or ha.get("token") or ha.get("long_lived_token"),
+        "verify_ssl": bool(ha.get("verify_ssl", False)),
+        "scheme": os.environ.get("POWER_SENTINEL_HA_SCHEME") or ha.get("scheme") or "http",
+    }
+
+
 def zigbee2mqtt_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
     z2m = (config or load_site_config()).get("zigbee2mqtt", {})
     if not isinstance(z2m, dict):
@@ -783,6 +797,56 @@ def summarize_zigbee2mqtt_payloads(base_topic: str, state_payload: str | None, i
     }
 
 
+def ha_api_get(cfg: dict[str, Any], path: str, timeout: float = 2.5) -> Any:
+    token = cfg.get("token")
+    if not token:
+        raise RuntimeError("HA token not configured")
+    scheme = str(cfg.get("scheme") or "http")
+    host = str(cfg.get("host") or HA_HOST)
+    port = int(cfg.get("port") or 8123)
+    url = f"{scheme}://{host}:{port}{path}"
+    req = Request(url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+    context = None if cfg.get("verify_ssl") else ssl._create_unverified_context()
+    with urlopen(req, timeout=timeout, context=context) as resp:  # noqa: S310 - local homelab endpoint, optional TLS verification
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def summarize_homeassistant_updates(states: list[dict[str, Any]] | None, error: str | None = None) -> dict[str, Any]:
+    if not states:
+        return {"available": False, "available_count": 0, "items": [], "problems": [] if error in (None, "HA token not configured") else [f"HA updates {error}"]}
+    items: list[dict[str, Any]] = []
+    for state in states:
+        if not isinstance(state, dict):
+            continue
+        entity_id = str(state.get("entity_id") or "")
+        if not entity_id.startswith("update."):
+            continue
+        if str(state.get("state") or "").lower() != "on":
+            continue
+        attrs = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
+        friendly = attrs.get("friendly_name") or entity_id.removeprefix("update.").replace("_", " ")
+        items.append({
+            "entity_id": entity_id,
+            "name": str(friendly),
+            "installed_version": attrs.get("installed_version"),
+            "latest_version": attrs.get("latest_version"),
+        })
+    return {"available": True, "available_count": len(items), "items": items[:5], "problems": []}
+
+
+def load_homeassistant_updates() -> dict[str, Any]:
+    cfg = homeassistant_config()
+    if not cfg.get("token"):
+        return summarize_homeassistant_updates(None, "HA token not configured")
+    try:
+        states = ha_api_get(cfg, "/api/states")
+    except Exception as exc:
+        return summarize_homeassistant_updates(None, f"read failed: {type(exc).__name__}")
+    if not isinstance(states, list):
+        return summarize_homeassistant_updates(None, "unexpected payload")
+    return summarize_homeassistant_updates(states)
+
+
 def load_mqtt_status() -> dict[str, Any]:
     cfg = mqtt_config()
     ok = tcp_check(str(cfg.get("host")), int(cfg.get("port", 1883)))
@@ -818,6 +882,7 @@ def build_summary(
     network: dict[str, Any] | None = None,
     mqtt: dict[str, Any] | None = None,
     homeassistant_mqtt: dict[str, Any] | None = None,
+    homeassistant_updates: dict[str, Any] | None = None,
     zigbee2mqtt: dict[str, Any] | None = None,
     shutdown: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -843,6 +908,8 @@ def build_summary(
         mqtt = load_mqtt_status()
     if homeassistant_mqtt is None:
         homeassistant_mqtt = load_homeassistant_mqtt_status()
+    if homeassistant_updates is None:
+        homeassistant_updates = load_homeassistant_updates()
     if zigbee2mqtt is None:
         zigbee2mqtt = load_zigbee2mqtt()
     if shutdown is None:
@@ -914,6 +981,11 @@ def build_summary(
             "status": homeassistant_mqtt.get("status", "unknown"),
             "source": homeassistant_mqtt.get("source", "mqtt"),
             "status_topic": homeassistant_mqtt.get("status_topic", "homeassistant/status"),
+            "updates": {
+                "available": bool(homeassistant_updates.get("available", False)),
+                "available_count": int(homeassistant_updates.get("available_count") or 0),
+                "items": homeassistant_updates.get("items", []),
+            },
         },
         "mqtt": mqtt,
         "zigbee2mqtt": zigbee2mqtt,

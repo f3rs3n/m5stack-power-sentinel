@@ -16,8 +16,8 @@ MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 SPIKE_DIR = ROOT / "assets" / "lvgl-spike"
 SPIKE_HOME_FIXTURE = SPIKE_DIR / "power-sentinel-home-online.c"
 SPIKE_RENDER_SCRIPT = SPIKE_DIR / "run-lvgl-mcp-render.mjs"
-EXPECTED_TABS = ["HOME", "NUT", "PVE", "HA", "M5S"]
-FORBIDDEN_TABS = ["UPS", "Offline", "M5"]
+EXPECTED_TAB_LABEL_MARKERS = ["LV_SYMBOL_HOME", "LV_SYMBOL_CHARGE", "LV_SYMBOL_DRIVE", "LV_SYMBOL_WIFI", "LV_SYMBOL_SETTINGS"]
+FORBIDDEN_TABS = ["UPS", "Offline"]
 REQUIRED_RENDERERS = ["renderHome", "renderNut", "renderProxmox", "renderHa", "renderM5s"]
 
 
@@ -28,12 +28,17 @@ def fail(message: str) -> int:
 
 def main() -> int:
     text = MAIN.read_text(encoding="utf-8")
-    tabs = re.findall(r'lv_tabview_add_tab\(tabview,\s*"([^"]+)"\)', text)
-    if tabs != EXPECTED_TABS:
-        return fail(f"expected tabs {EXPECTED_TABS}, found {tabs}")
+    tab_calls = re.findall(r'lv_tabview_add_tab\(tabview,\s*([^\)]+)\)', text)
+    if len(tab_calls) != 5:
+        return fail(f"expected 5 tab creation calls, found {len(tab_calls)}: {tab_calls}")
+    for marker, call in zip(EXPECTED_TAB_LABEL_MARKERS, tab_calls):
+        if marker not in call:
+            return fail(f"expected sidebar icon tab marker {marker}, found call {call}")
     for tab in FORBIDDEN_TABS:
-        if tab in tabs:
+        if f'lv_tabview_add_tab(tabview, "{tab}")' in text:
             return fail(f"legacy tab {tab!r} still present")
+    if 'lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT)' not in text or 'lv_tabview_set_tab_bar_size(tabview, 44)' not in text:
+        return fail("CoreS3 navigation should use a compact left sidebar to preserve vertical space")
     for renderer in REQUIRED_RENDERERS:
         if f"void {renderer}()" not in text:
             return fail(f"missing renderer {renderer}()")
@@ -70,10 +75,12 @@ def main() -> int:
             return fail(f"PVE UI lacks display clarity marker {needle}")
     if "Shutdown via NUT" in text:
         return fail("PVE tab should not show ambiguous standalone 'Shutdown via NUT'")
-    required_ha_z2m = ["Zigbee2MqttState", "state.zigbee2mqtt.available", "coordinatorType", "deviceTotal", "Z2M", "Coordinator", "HA birth topic"]
+    required_ha_z2m = ["Zigbee2MqttState", "state.zigbee2mqtt.available", "coordinatorType", "deviceTotal", "Z2M", "Coordinator", "Updates %d", "Z2M devices:"]
     for needle in required_ha_z2m:
         if needle not in text:
             return fail(f"HA/Z2M UI missing {needle}")
+    if "HA birth topic" in text or "Version %s" in text:
+        return fail("HA tab should not waste display space on HA birth topic or Z2M version")
     required_shutdown = ["ShutdownState", "owner", "upsmon", "primary monitor", "nutClients", "clientSummary", "reachable_via_upsc", "connected_as_upsmon"]
     for needle in required_shutdown:
         if needle not in text:
@@ -117,7 +124,7 @@ def main() -> int:
         return fail(f"renderAll() does not call every renderer in {expected_order}")
     if positions != sorted(positions):
         return fail("renderAll() renderer order does not match tab order")
-    print("PASS core-s3-ui tabs HOME/NUT/PVE/HA/M5S")
+    print("PASS core-s3-ui sidebar HOME/NUT/PVE/HA/M5S")
     return 0
 
 

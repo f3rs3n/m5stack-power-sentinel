@@ -1,5 +1,7 @@
 # Backend operations
 
+Operational reference for the LLM Module as the autonomous multi-function Linux appliance behind Power Sentinel. It currently runs NUT, the normalized summary API, StackFlow routing for the CoreS3 display, MQTT/Home Assistant health publishing, and read-only LAN checks for Proxmox/Home Assistant/Zigbee2MQTT. Local LLM inference for dashboard enrichment remains future work.
+
 ## Existing deployed paths on the M5Stack LLM Module
 
 ```text

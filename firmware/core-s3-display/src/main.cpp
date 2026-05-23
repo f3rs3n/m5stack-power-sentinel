@@ -12,6 +12,22 @@
 #include "power_sentinel_config.example.h"
 #endif
 
+#ifndef LV_SYMBOL_HOME
+#define LV_SYMBOL_HOME "H"
+#endif
+#ifndef LV_SYMBOL_CHARGE
+#define LV_SYMBOL_CHARGE "N"
+#endif
+#ifndef LV_SYMBOL_DRIVE
+#define LV_SYMBOL_DRIVE "P"
+#endif
+#ifndef LV_SYMBOL_WIFI
+#define LV_SYMBOL_WIFI "A"
+#endif
+#ifndef LV_SYMBOL_SETTINGS
+#define LV_SYMBOL_SETTINGS "M"
+#endif
+
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
 #define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-18"
 #endif
@@ -86,6 +102,7 @@ struct ServiceState {
   bool stackflowOk = false;
   bool openaiOk = false;
   int chatSmokeState = -1;
+  int updatesAvailableCount = 0;
   char severity[12] = "unknown";
   char shutdownState[20] = "unknown";
   float temperatureC = 0.0f;
@@ -304,6 +321,8 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.ha.mqtt = ha["mqtt"] | false;
   safeCopy(state.ha.severity, sizeof(state.ha.severity), ha["severity"] | "warn");
   safeCopy(state.ha.shutdownState, sizeof(state.ha.shutdownState), ha["status"] | "unknown");
+  JsonObjectConst haUpdates = ha["updates"].as<JsonObjectConst>();
+  state.ha.updatesAvailableCount = jsonInt(haUpdates["available_count"], 0);
 
   JsonObjectConst px = doc["proxmox"].as<JsonObjectConst>();
   state.proxmox.available = px["available"] | false;
@@ -827,16 +846,12 @@ void renderHa() {
   char line[128];
   snprintf(line, sizeof(line), "API %s   MQTT %s", state.ha.available ? "OK" : "DOWN", state.ha.mqtt ? "OK" : "DOWN");
   addMetricRow(card, "core", line);
-  if (strcmp(state.ha.shutdownState, "unknown") == 0) {
-    snprintf(line, sizeof(line), "HA birth topic not retained");
-  } else {
-    snprintf(line, sizeof(line), "HA birth topic %s", state.ha.shutdownState);
-  }
-  addLine(card, line);
+  snprintf(line, sizeof(line), "Updates %d", state.ha.updatesAvailableCount);
+  addMetricRow(card, "updates", line);
 
   lv_obj_t *z2m = makeCard(haTab, "Z2M / Coordinator");
   addBadge(z2m, state.zigbee2mqtt.available ? "Z2M OK" : "Z2M WARN", severityColor(state.zigbee2mqtt.severity));
-  snprintf(line, sizeof(line), "State %s   Version %s", state.zigbee2mqtt.stateText, state.zigbee2mqtt.version);
+  snprintf(line, sizeof(line), "State %s", state.zigbee2mqtt.stateText);
   addLine(z2m, line);
   snprintf(line, sizeof(line), "Coordinator %s", state.zigbee2mqtt.coordinatorAvailable ? "OK" : "UNKNOWN");
   addMetricRow(z2m, "coordinator", line);
@@ -844,7 +859,9 @@ void renderHa() {
   addLine(z2m, line);
   char total[24];
   char interviewed[24];
-  snprintf(line, sizeof(line), "%s   %s interviewed", intOrUnknown(state.zigbee2mqtt.deviceTotal, total, sizeof(total)), intOrUnknown(state.zigbee2mqtt.deviceInterviewed, interviewed, sizeof(interviewed)));
+  snprintf(line, sizeof(line), "Z2M devices: %s/%s",
+           intOrUnknown(state.zigbee2mqtt.deviceInterviewed, interviewed, sizeof(interviewed)),
+           intOrUnknown(state.zigbee2mqtt.deviceTotal, total, sizeof(total)));
   addMetricRow(z2m, "devices", line);
   char disabled[24];
   snprintf(line, sizeof(line), "Disabled %s", intOrUnknown(state.zigbee2mqtt.deviceDisabled, disabled, sizeof(disabled)));
@@ -1145,26 +1162,30 @@ void applyAppTheme() {
   lv_obj_t *tabBar = lv_tabview_get_tab_bar(tabview);
   lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x0b1220), 0);
   lv_obj_set_style_bg_opa(tabBar, LV_OPA_COVER, 0);
-  lv_obj_set_style_pad_hor(tabBar, 4, 0);
-  lv_obj_set_style_pad_gap(tabBar, 2, 0);
+  lv_obj_set_style_pad_hor(tabBar, 2, 0);
+  lv_obj_set_style_pad_ver(tabBar, 4, 0);
+  lv_obj_set_style_pad_gap(tabBar, 3, 0);
   lv_obj_set_style_text_font(tabBar, &lv_font_montserrat_12, 0);
-  lv_obj_set_style_text_color(tabBar, lv_color_hex(0x9fb0c8), LV_PART_ITEMS);
+  lv_obj_set_style_text_align(tabBar, LV_TEXT_ALIGN_CENTER, LV_PART_ITEMS);
+  lv_obj_set_style_text_color(tabBar, lv_color_hex(0x6ee7ff), LV_PART_ITEMS);
   lv_obj_set_style_text_color(tabBar, lv_color_hex(0xf8fbff), LV_PART_ITEMS | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x0f1b2d), LV_PART_ITEMS);
+  lv_obj_set_style_bg_opa(tabBar, LV_OPA_60, LV_PART_ITEMS);
   lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x2563eb), LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_set_style_bg_opa(tabBar, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
-  lv_obj_set_style_radius(tabBar, 9, LV_PART_ITEMS);
+  lv_obj_set_style_radius(tabBar, 12, LV_PART_ITEMS);
 }
 
 void initUi() {
   tabview = lv_tabview_create(lv_screen_active());
-  lv_tabview_set_tab_bar_position(tabview, LV_DIR_TOP);
-  lv_tabview_set_tab_bar_size(tabview, 24);
+  lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT);
+  lv_tabview_set_tab_bar_size(tabview, 44);
   applyAppTheme();
-  homeTab = lv_tabview_add_tab(tabview, "HOME");
-  nutTab = lv_tabview_add_tab(tabview, "NUT");
-  proxmoxTab = lv_tabview_add_tab(tabview, "PVE");
-  haTab = lv_tabview_add_tab(tabview, "HA");
-  m5sTab = lv_tabview_add_tab(tabview, "M5S");
+  homeTab = lv_tabview_add_tab(tabview, LV_SYMBOL_HOME "\nH");
+  nutTab = lv_tabview_add_tab(tabview, LV_SYMBOL_CHARGE "\nN");
+  proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nP");
+  haTab = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI "\nHA");
+  m5sTab = lv_tabview_add_tab(tabview, LV_SYMBOL_SETTINGS "\nM5");
   renderAll();
 }
 

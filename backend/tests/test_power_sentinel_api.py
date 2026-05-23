@@ -453,6 +453,36 @@ def test_summarize_zigbee2mqtt_payloads_reports_coordinator_and_device_counts():
     assert z2m["devices"] == {"total": 3, "interviewed": 2, "disabled": 1}
 
 
+
+
+def test_homeassistant_updates_count_update_entities_and_default_zero_without_token():
+    api = load_module()
+
+    unavailable = api.summarize_homeassistant_updates(None, "HA token not configured")
+    assert unavailable["available"] is False
+    assert unavailable["available_count"] == 0
+    assert unavailable["items"] == []
+    assert unavailable["problems"] == []
+
+    updates = api.summarize_homeassistant_updates([
+        {"entity_id": "update.home_assistant_core_update", "state": "on", "attributes": {"friendly_name": "Home Assistant Core", "installed_version": "2026.5.1", "latest_version": "2026.5.2"}},
+        {"entity_id": "update.zigbee2mqtt_update", "state": "off", "attributes": {"friendly_name": "Zigbee2MQTT"}},
+        {"entity_id": "sensor.some_sensor", "state": "on", "attributes": {}},
+    ])
+    assert updates["available"] is True
+    assert updates["available_count"] == 1
+    assert updates["items"][0]["name"] == "Home Assistant Core"
+
+    summary = api.build_summary(
+        now=1_770_000_000,
+        health={"overall_ok": True},
+        ups=api.parse_upsc_output("ups.status: OL"),
+        checks={"homeassistant": True, "mqtt": True, "proxmox": True},
+        homeassistant_updates=updates,
+    )
+    assert summary["homeassistant"]["updates"]["available"] is True
+    assert summary["homeassistant"]["updates"]["available_count"] == 1
+
 def test_build_summary_includes_mqtt_first_ha_and_zigbee2mqtt_status():
     api = load_module()
     mqtt = {"available": True, "severity": "ok", "broker": "192.168.2.200:1883"}
