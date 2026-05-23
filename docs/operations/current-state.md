@@ -252,9 +252,9 @@ Important LVGL/M5GFX integration detail:
 The firmware currently has:
 
 - Five LVGL tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
-- V1b/V1c modern polish: dark theme, compact left sidebar navigation with small icon/spia-style labels, HOME hero card, card radius/shadow, structured metric rows, status pills, percent bars, and a bottom HOME row for local status/problems plus `SLEEP DISPLAY`.
+- V1b/V1c/V1d modern polish: dark theme, compact left sidebar navigation with small icon/spia-style labels, fixed-height horizontal card carousel per tab, HOME hero/local-control cards, card radius/shadow, structured metric rows, status pills, percent bars, and `SLEEP DISPLAY`.
 - The LVGL MCP Windows spike is validated and kept under `assets/lvgl-spike/`: `run-lvgl-mcp-render.mjs` drives `lvgl-mcp-server` over stdio on the Windows host, and curated 320x240 visual baselines live in `assets/lvgl-spike/results/` as PNG plus widget-tree JSON.
-- The MCP render caught a real HOME overflow/clipping issue; the current HOME layout is intentionally compacted so `POWER SENTINEL`, severity, UPS essentials, NUT/PVE/HA pills, `local NET ... M5S ...`, `Problems: ...`, and `SLEEP DISPLAY` are visible in 320x240 before physical flash.
+- The MCP render caught a real HOME overflow/clipping issue; the current HOME layout keeps the first card dense and moves local controls/problems/sleep to a second horizontal card so vertical scrolling no longer becomes the primary way to traverse a tab.
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, update count, Zigbee2MQTT state, coordinator type/firmware, and `Z2M devices: interviewed/total` from the MQTT-first Z2M backend summary. It deliberately does not show the HA birth-topic retained/debug state or the installed Z2M version.

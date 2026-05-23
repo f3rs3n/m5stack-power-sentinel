@@ -209,6 +209,9 @@ lv_indev_t *indev = nullptr;
 
 lv_obj_t *tabview = nullptr;
 lv_obj_t *homeTab = nullptr;
+
+constexpr int PAGE_CARD_WIDTH = 252;
+constexpr int PAGE_CARD_HEIGHT = 220;
 lv_obj_t *nutTab = nullptr;
 lv_obj_t *proxmoxTab = nullptr;
 lv_obj_t *haTab = nullptr;
@@ -491,8 +494,8 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
 }
 
 void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
-  lv_obj_set_width(card, lv_pct(100));
-  lv_obj_set_height(card, LV_SIZE_CONTENT);
+  lv_obj_set_width(card, PAGE_CARD_WIDTH);
+  lv_obj_set_height(card, PAGE_CARD_HEIGHT);
   lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_gap(card, 6, 0);
   lv_obj_set_style_pad_all(card, 8, 0);
@@ -504,6 +507,9 @@ void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
   lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
   lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
   lv_obj_set_style_shadow_ofs_y(card, 3, 0);
+  lv_obj_set_scroll_dir(card, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_AUTO);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
 }
 
 lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
@@ -616,9 +622,13 @@ void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
 }
 
 void setupPage(lv_obj_t *tab) {
-  lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW);
   lv_obj_set_style_pad_all(tab, 8, 0);
   lv_obj_set_style_pad_gap(tab, 8, 0);
+  lv_obj_set_scroll_dir(tab, LV_DIR_HOR);
+  lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER);
+  lv_obj_set_scrollbar_mode(tab, LV_SCROLLBAR_MODE_AUTO);
+  lv_obj_clear_flag(tab, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
 }
 
 const char *runtimeText(int seconds, char *buf, size_t bufSize) {
@@ -659,7 +669,7 @@ void renderHome() {
 
   lv_obj_t *card = lv_obj_create(homeTab);
   stylePanel(card, lv_color_hex(0x111827), severityColor(state.severity));
-  lv_obj_set_height(card, 150);
+  lv_obj_set_height(card, PAGE_CARD_HEIGHT);
   lv_obj_set_style_pad_all(card, 7, 0);
   lv_obj_set_style_pad_gap(card, 4, 0);
 
@@ -708,15 +718,18 @@ void renderHome() {
                    haPill, haFunctional() ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED));
 
   lv_obj_t *bottom = lv_obj_create(homeTab);
-  lv_obj_remove_style_all(bottom);
-  lv_obj_set_width(bottom, lv_pct(100));
-  lv_obj_set_flex_grow(bottom, 1);
-  lv_obj_set_flex_flow(bottom, LV_FLEX_FLOW_ROW);
-  lv_obj_set_style_pad_gap(bottom, 5, 0);
+  stylePanel(bottom, lv_color_hex(0x171b24), lv_color_hex(0x394152));
+  lv_obj_set_flex_flow(bottom, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_gap(bottom, 8, 0);
+
+  lv_obj_t *bottomTitle = lv_label_create(bottom);
+  lv_label_set_text(bottomTitle, "Local controls");
+  lv_obj_set_style_text_color(bottomTitle, lv_color_hex(0xe8eefc), 0);
+  lv_obj_set_style_text_font(bottomTitle, &lv_font_montserrat_16, 0);
 
   lv_obj_t *local = lv_obj_create(bottom);
-  lv_obj_set_width(local, 168);
-  lv_obj_set_height(local, lv_pct(100));
+  lv_obj_set_width(local, lv_pct(100));
+  lv_obj_set_height(local, 82);
   lv_obj_set_flex_flow(local, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_gap(local, 2, 0);
   lv_obj_set_style_pad_all(local, 6, 0);
@@ -742,8 +755,8 @@ void renderHome() {
   lv_obj_set_style_text_font(problemValue, &lv_font_montserrat_12, 0);
 
   lv_obj_t *button = lv_button_create(bottom);
-  lv_obj_set_flex_grow(button, 1);
-  lv_obj_set_height(button, lv_pct(100));
+  lv_obj_set_width(button, lv_pct(100));
+  lv_obj_set_height(button, 56);
   lv_obj_set_style_radius(button, 12, 0);
   lv_obj_set_style_bg_color(button, lv_color_hex(0x1f2937), 0);
   lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
@@ -753,7 +766,7 @@ void renderHome() {
   lv_obj_t *sleepLabel = lv_label_create(button);
   lv_label_set_text(sleepLabel, "SLEEP DISPLAY");
   lv_label_set_long_mode(sleepLabel, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(sleepLabel, 88);
+  lv_obj_set_width(sleepLabel, lv_pct(100));
   lv_obj_set_style_text_align(sleepLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_color(sleepLabel, lv_color_hex(0xe5e7eb), 0);
   lv_obj_set_style_text_font(sleepLabel, &lv_font_montserrat_14, 0);
@@ -1180,6 +1193,8 @@ void initUi() {
   tabview = lv_tabview_create(lv_screen_active());
   lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT);
   lv_tabview_set_tab_bar_size(tabview, 44);
+  lv_obj_t *tabContent = lv_tabview_get_content(tabview);
+  lv_obj_clear_flag(tabContent, LV_OBJ_FLAG_SCROLLABLE);
   applyAppTheme();
   homeTab = lv_tabview_add_tab(tabview, LV_SYMBOL_HOME "\nH");
   nutTab = lv_tabview_add_tab(tabview, LV_SYMBOL_CHARGE "\nN");

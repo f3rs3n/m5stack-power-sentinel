@@ -36,11 +36,12 @@ Navigation:
 - `HOME` is the default boot page.
 - Top-level navigation uses a compact left sidebar to preserve the scarce 240 px vertical space.
 - Sidebar labels should favor small monochrome/low-color icon or spia-style affordances plus short text (`H`, `N`, `P`, `HA`, `M5`).
-- Horizontal swipe between top-level tabs is acceptable if it remains compatible with the sidebar.
+- Top-level tab switching is via the sidebar; horizontal gestures inside the content area belong to the current tab's card carousel, not to changing tabs.
 - No automatic tab switch in V1.
 - No automatic return-to-HOME timer in V1.
 - No audible/beep alert in V1; visual alerts only.
-- For V1, nested detail is implemented as vertical scroll sections/cards inside the relevant tab.
+- For V1d, each tab lays out its cards horizontally as a swipeable carousel. This avoids a long vertical page that traps the user before they can move to another top-level tab.
+- Individual cards may retain their own short vertical scroll only when content overflows the fixed 320x240 card viewport.
 - A later V2 may promote dense sections into tap-to-open subpages with a back affordance.
 
 Visual direction:
@@ -164,7 +165,7 @@ Network status in HOME:
 
 Purpose: UPS + NUT server operational view.
 
-The `NUT` tab combines two vertical sections for V1:
+The `NUT` tab combines horizontal cards for V1d:
 
 1. UPS essentials
 2. NUT server / clients
@@ -185,7 +186,7 @@ Always visible near the top:
 - Input voltage.
 - Data age/stale indicator.
 
-Secondary UPS details, lower on the same scrollable tab:
+Secondary UPS details, on a separate horizontally reachable card:
 
 - output voltage, if NUT exposes it.
 - battery voltage.
@@ -300,7 +301,7 @@ Do not show Proxmox API shutdown triggers in V1. Avoid implying an armed shutdow
 
 VM/LXC section:
 
-- Use a lower scrollable section/card.
+- Use a separate horizontally reachable card in the PVE carousel.
 - List running VM names, up to a display-safe maximum, then `+N more`.
 - List running LXC/CT names, up to a display-safe maximum, then `+N more`.
 - Do not list stopped workloads in V1.

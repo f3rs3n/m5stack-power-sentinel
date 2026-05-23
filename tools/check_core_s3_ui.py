@@ -39,6 +39,18 @@ def main() -> int:
             return fail(f"legacy tab {tab!r} still present")
     if 'lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT)' not in text or 'lv_tabview_set_tab_bar_size(tabview, 44)' not in text:
         return fail("CoreS3 navigation should use a compact left sidebar to preserve vertical space")
+    required_horizontal_cards = [
+        "PAGE_CARD_WIDTH",
+        "PAGE_CARD_HEIGHT",
+        "lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW)",
+        "lv_obj_set_scroll_dir(tab, LV_DIR_HOR)",
+        "lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER)",
+        "lv_obj_clear_flag(tabContent, LV_OBJ_FLAG_SCROLLABLE)",
+        "lv_obj_set_scroll_dir(card, LV_DIR_VER)",
+    ]
+    for needle in required_horizontal_cards:
+        if needle not in text:
+            return fail(f"CoreS3 cards should use horizontal per-tab carousel layout; missing {needle}")
     for renderer in REQUIRED_RENDERERS:
         if f"void {renderer}()" not in text:
             return fail(f"missing renderer {renderer}()")
@@ -124,7 +136,7 @@ def main() -> int:
         return fail(f"renderAll() does not call every renderer in {expected_order}")
     if positions != sorted(positions):
         return fail("renderAll() renderer order does not match tab order")
-    print("PASS core-s3-ui sidebar HOME/NUT/PVE/HA/M5S")
+    print("PASS core-s3-ui sidebar + horizontal card carousel HOME/NUT/PVE/HA/M5S")
     return 0
 
 
