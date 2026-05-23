@@ -6,7 +6,7 @@ Wants=llm-sys.service power-sentinel-api.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/power-sentinel-stackflow-unit --unit sentinel --api-url 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1' --timeout 4
+ExecStart=/usr/local/bin/power-sentinel-stackflow-unit --unit sentinel --api-url 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1&workload_items=1' --timeout 4
 Restart=on-failure
 RestartSec=3s
 NoNewPrivileges=true

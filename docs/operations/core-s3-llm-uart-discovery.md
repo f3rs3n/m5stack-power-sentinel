@@ -124,7 +124,7 @@ llm_sys -> ipc:///tmp/rpc.sentinel -> power-sentinel-stackflow-unit
 The custom unit calls:
 
 ```text
-http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
+http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1&workload_items=1
 ```
 
 WiFi HTTP remains useful for development and fallback:

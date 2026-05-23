@@ -33,7 +33,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on target if dep mis
     zmq = None  # type: ignore[assignment]
 
 DEFAULT_UNIT = "sentinel"
-DEFAULT_API_URL = "http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1"
+DEFAULT_API_URL = "http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1&workload_items=1"
 DEFAULT_BIND_DIR = "/tmp"
 DEFAULT_TIMEOUT = 4.0
 

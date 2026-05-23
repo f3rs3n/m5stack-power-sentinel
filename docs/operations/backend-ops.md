@@ -47,7 +47,7 @@ Useful read-only probes from the LLM Module:
 ```bash
 # Use the script/API wrappers for real use; do not put MQTT passwords in shell history.
 /usr/local/bin/m5stack-ha-publish --no-discovery
-curl -s 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1' | python3 -m json.tool
+curl -s 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1&workload_items=1' | python3 -m json.tool
 ```
 
 Live observations:
@@ -68,7 +68,7 @@ The CoreS3 uses the internal stacked UART, but it does not own `/dev/ttyS1` dire
 ```text
 CoreS3 -> llm_sys UART: {"request_id":"ps-N","work_id":"sentinel","action":"summary","object":"None","data":"None"}
 llm_sys -> custom unit: ipc:///tmp/rpc.sentinel
-custom unit -> API:     http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
+custom unit -> API:     http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1&workload_items=1
 custom unit -> llm_sys: StackFlow JSON response, object=power-sentinel.summary.v1
 llm_sys -> CoreS3 UART: same StackFlow JSON response
 ```
