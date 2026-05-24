@@ -9,18 +9,27 @@ const fontCandidates = [
   join(scriptDir, 'ps_ui_tab_12.c'),
   join(scriptDir, '..', '..', 'firmware', 'core-s3-display', 'src', 'ps_ui_tab_12.c'),
 ];
+const largeFontCandidates = [
+  join(scriptDir, 'ps_ui_tab_18.c'),
+];
 const fontSource = fontCandidates.find((candidate) => existsSync(candidate)) ?? fontCandidates[0];
+const largeFontSource = largeFontCandidates.find((candidate) => existsSync(candidate)) ?? largeFontCandidates[0];
 const bundledSource = join(scriptDir, 'power-sentinel-dashboard-fixture-bundled.c');
 const resultsDir = join(scriptDir, 'results');
 let source = fixtureSource;
 try {
   const fixture = readFileSync(fixtureSource, 'utf8');
   const font = readFileSync(fontSource, 'utf8');
+  const largeFont = readFileSync(largeFontSource, 'utf8');
   // lvgl-mcp copies the selected source into its simulator build directory before
-  // compiling, so relative #include "ps_ui_tab_12.c" would be lost. Bundle the
-  // generated font into the scratch fixture to keep MCP render fidelity identical
+  // compiling, so relative #include "ps_ui_tab_*.c" would be lost. Bundle the
+  // generated fonts into the scratch fixture to keep MCP render fidelity identical
   // without writing generated files into the Windows git checkout.
-  writeFileSync(bundledSource, fixture.replace('#include "ps_ui_tab_12.c"', font), 'utf8');
+  writeFileSync(
+    bundledSource,
+    fixture.replace('#include "ps_ui_tab_12.c"', font).replace('#include "ps_ui_tab_18.c"', largeFont),
+    'utf8'
+  );
   source = bundledSource;
 } catch (error) {
   console.warn(`Using raw fixture without bundled sidebar font: ${error.message}`);

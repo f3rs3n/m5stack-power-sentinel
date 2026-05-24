@@ -1,8 +1,13 @@
 #include "lvgl.h"
 #include "ps_ui_tab_12.c"
+#include "ps_ui_tab_18.c"
 
 #ifndef PS_ACTIVE_TAB
 #define PS_ACTIVE_TAB 0
+#endif
+
+#ifndef PS_ICON_ONLY_SIDEBAR
+#define PS_ICON_ONLY_SIDEBAR 0
 #endif
 
 #define PS_PAGE_CARD_WIDTH 252
@@ -156,6 +161,33 @@ static void pills3(lv_obj_t *parent, const char *a, uint32_t ca, const char *b, 
     badge(r, a, ca); badge(r, b, cb); badge(r, c, cc);
 }
 
+static void pve_header(lv_obj_t *parent) {
+    lv_obj_t *h = lv_obj_create(parent);
+    lv_obj_remove_style_all(h);
+    lv_obj_set_width(h, lv_pct(100));
+    lv_obj_set_height(h, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(h, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(h, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *title = lv_label_create(h);
+    lv_label_set_text(title, "Proxmox");
+    lv_obj_set_width(title, 160);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(title, C(0xe8eefc), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+    badge(h, "ONLINE", 0x22c55e);
+}
+
+static void pve_net_pills(lv_obj_t *parent) {
+    lv_obj_t *r = lv_obj_create(parent);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_width(r, lv_pct(100));
+    lv_obj_set_height(r, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_gap(r, 4, 0);
+    badge(r, "eth25g", 0x06b6d4);
+    badge(r, "vmbr0", 0x06b6d4);
+}
+
 static void force_sidebar_label_contrast(lv_obj_t *bar_obj) {
     // lv_tabview's generated button labels do not always inherit LV_PART_ITEMS
     // text styles in the simulator. Force the child labels to match the live
@@ -200,7 +232,7 @@ static void render_home(lv_obj_t *tab) {
     bar(c, 100, 0x22c55e, 10);
     row(c, "load / input", "19%   232.0V");
     bar(c, 19, 0x3b82f6, 10);
-    pills3(c, "NUT OK", 0x22c55e, "PVE OK", 0x22c55e, "HA OK", 0x22c55e);
+    pills3(c, "NUT OK", 0x22c55e, "PVE online", 0x22c55e, "HA online", 0x22c55e);
 
     lv_obj_t *bottom = lv_obj_create(tab);
     panel(bottom, 0x171b24, 0x394152);
@@ -261,12 +293,22 @@ static void render_nut(lv_obj_t *tab) {
 
 static void render_pve(lv_obj_t *tab) {
     page(tab);
-    lv_obj_t *c = card(tab, "Proxmox");
-    badge(c, "PVE OK", 0x22c55e);
+    lv_obj_t *c = lv_obj_create(tab);
+    panel(c, 0x171b24, 0x394152);
+    lv_obj_set_style_pad_gap(c, 5, 0);
+    pve_header(c);
     compact_metric(c, "CPU", "3%", "", 3, 0x3b82f6);
     compact_metric(c, "RAM", "51%", "31GB", 51, 0xa855f7);
-    compact_metric(c, "Storage", "8%", "", 8, 0x14b8a6);
-    pills3(c, "ONLINE", 0x22c55e, "OK", 0x22c55e, "PVE RO", 0x3b82f6);
+    compact_metric(c, "Storage", "8%", "7.2TB", 8, 0x14b8a6);
+    lv_obj_t *r = lv_obj_create(c);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_width(r, lv_pct(100));
+    lv_obj_set_height(r, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_gap(r, 4, 0);
+    badge(r, "ZFS online", 0x22c55e);
+    badge(r, "SMART ok", 0x22c55e);
+    pve_net_pills(c);
     line(c, "NUT monitor idle   armed NO", 0xc8d0df, &lv_font_montserrat_14);
 
     lv_obj_t *w = card(tab, "VM haos");
@@ -319,7 +361,11 @@ void create_ui(void) {
     base_screen(screen);
     lv_obj_t *tv = lv_tabview_create(screen);
     lv_tabview_set_tab_bar_position(tv, LV_DIR_LEFT);
+#if PS_ICON_ONLY_SIDEBAR
     lv_tabview_set_tab_bar_size(tv, 44);
+#else
+    lv_tabview_set_tab_bar_size(tv, 44);
+#endif
     lv_obj_set_style_bg_color(tv, C(0x070b12), 0);
 
     lv_obj_t *content = lv_tabview_get_content(tv);
@@ -332,7 +378,14 @@ void create_ui(void) {
     lv_obj_set_style_pad_hor(bar_obj, 2, 0);
     lv_obj_set_style_pad_ver(bar_obj, 4, 0);
     lv_obj_set_style_pad_gap(bar_obj, 3, 0);
+#if PS_ICON_ONLY_SIDEBAR
+    lv_obj_set_style_text_font(bar_obj, &ps_ui_tab_18, 0);
+    lv_obj_set_style_pad_hor(bar_obj, 3, 0);
+    lv_obj_set_style_pad_ver(bar_obj, 6, 0);
+    lv_obj_set_style_pad_gap(bar_obj, 6, 0);
+#else
     lv_obj_set_style_text_font(bar_obj, &ps_ui_tab_12, 0);
+#endif
     lv_obj_set_style_text_align(bar_obj, LV_TEXT_ALIGN_CENTER, LV_PART_ITEMS);
     // Match the live CoreS3: inactive sidebar labels stay bright/readable,
     // selected tab is distinguished by the blue background rather than dimming
@@ -348,11 +401,19 @@ void create_ui(void) {
     lv_obj_set_style_bg_opa(bar_obj, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_radius(bar_obj, 12, LV_PART_ITEMS);
 
+#if PS_ICON_ONLY_SIDEBAR
+    lv_obj_t *home = lv_tabview_add_tab(tv, PS_ICON_HOME);
+    lv_obj_t *nut = lv_tabview_add_tab(tv, PS_ICON_NUT);
+    lv_obj_t *pve = lv_tabview_add_tab(tv, PS_ICON_SERVER);
+    lv_obj_t *ha = lv_tabview_add_tab(tv, PS_ICON_HOME_ASSISTANT);
+    lv_obj_t *m5s = lv_tabview_add_tab(tv, PS_ICON_SETTINGS);
+#else
     lv_obj_t *home = lv_tabview_add_tab(tv, PS_ICON_HOME "\nHM");
     lv_obj_t *nut = lv_tabview_add_tab(tv, PS_ICON_NUT "\nNT");
     lv_obj_t *pve = lv_tabview_add_tab(tv, PS_ICON_SERVER "\nPV");
     lv_obj_t *ha = lv_tabview_add_tab(tv, PS_ICON_HOME_ASSISTANT "\nHA");
     lv_obj_t *m5s = lv_tabview_add_tab(tv, PS_ICON_SETTINGS "\nM5");
+#endif
 
     force_sidebar_label_contrast(bar_obj);
 

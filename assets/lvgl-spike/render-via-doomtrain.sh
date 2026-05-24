@@ -21,6 +21,7 @@ scp \
   "$SPIKE_DIR/lvgl-mcp-render-helper.mjs" \
   "$SPIKE_DIR/render-power-sentinel-tabs.mjs" \
   "$SPIKE_DIR/power-sentinel-dashboard-fixture.c" \
+  "$SPIKE_DIR/ps_ui_tab_18.c" \
   "$ROOT/firmware/core-s3-display/src/ps_ui_tab_12.c" \
   doomtrain:"$REMOTE_WORKDIR/"
 

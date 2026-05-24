@@ -148,6 +148,7 @@ The API reads these PVE endpoints only:
 - `/api2/json/nodes/{node}/lxc`
 - `/api2/json/nodes/{node}/disks/zfs` best-effort
 - `/api2/json/nodes/{node}/disks/list` best-effort
+- `/api2/json/nodes/{node}/network` best-effort for active interface names
 
 No SSH, no shutdown action, no `smartctl` custom script, and no expected-state model are used in this V1 read-only step.
 
@@ -162,7 +163,8 @@ VM metric caveats implemented in the backend:
 The `proxmox` summary object includes:
 
 - `available`, `severity`, `node`, `node_status`, `api_latency_ms`
-- `cpu_percent`, `ram_percent`, `cpu_temp_c`, `storage_percent`
+- `cpu_percent`, `ram_percent`, `cpu_temp_c`, `storage_percent`, `storage_total_bytes`
+- `active_network_interfaces[]` from active non-loopback PVE network devices
 - `zfs.status`, `zfs.pools[]`
 - `smart.status`, `smart.failing_count`, `smart.warning_count`
 - `vm.running_count`, `vm.running_names[]`, `vm.running_items[]` with running-only CPU/RAM/disk mini-metrics. VM RAM is enriched from `/status/current`; VM disk usage is enriched from QEMU guest-agent fsinfo when available and otherwise remains `null` rather than showing a misleading `0%`.

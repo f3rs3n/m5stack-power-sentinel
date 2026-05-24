@@ -568,6 +568,8 @@ def unavailable_proxmox(reason: str = "not configured") -> dict[str, Any]:
         "ram_percent": None,
         "cpu_temp_c": None,
         "storage_percent": None,
+        "storage_total_bytes": None,
+        "active_network_interfaces": [],
         "zfs": {"status": "UNKNOWN", "pools": []},
         "smart": {"status": "UNKNOWN", "failing_count": None, "warning_count": None},
         "vm": {"running_count": 0, "running_names": [], "running_items": []},
@@ -714,6 +716,22 @@ def smart_summary(disks: list[dict[str, Any]]) -> dict[str, Any]:
     return {"status": status, "failing_count": failing, "warning_count": warning}
 
 
+def active_network_interface_names(network: list[dict[str, Any]] | None) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for item in network or []:
+        if not isinstance(item, dict):
+            continue
+        if not item.get("active"):
+            continue
+        iface = str(item.get("iface") or item.get("name") or "").strip()
+        if not iface or iface == "lo" or iface in seen:
+            continue
+        seen.add(iface)
+        names.append(iface)
+    return names
+
+
 def summarize_proxmox_data(
     node: str,
     latency_ms: int | None,
@@ -722,6 +740,7 @@ def summarize_proxmox_data(
     lxc: list[dict[str, Any]],
     zfs: list[dict[str, Any]],
     disks: list[dict[str, Any]],
+    network: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     cpu_percent = None
     if node_status.get("cpu") is not None:
@@ -733,7 +752,8 @@ def summarize_proxmox_data(
         ram_total,
     )
     rootfs = node_status.get("rootfs") or {}
-    storage_percent = percent_ratio(rootfs.get("used"), rootfs.get("total"))
+    storage_total = rootfs.get("total")
+    storage_percent = percent_ratio(rootfs.get("used"), storage_total)
     zfs_info = zfs_summary(zfs)
     smart_info = smart_summary(disks)
     problems: list[str] = []
@@ -768,6 +788,8 @@ def summarize_proxmox_data(
         "ram_total_bytes": ram_total,
         "cpu_temp_c": cpu_temp_c,
         "storage_percent": storage_percent,
+        "storage_total_bytes": storage_total,
+        "active_network_interfaces": active_network_interface_names(network),
         "zfs": zfs_info,
         "smart": smart_info,
         "vm": workload_metric_summary(qemu, vm_disk_usage_is_reliable=False),
@@ -833,10 +855,14 @@ def load_proxmox() -> dict[str, Any]:
             disks = proxmox_api_get(cfg, f"/nodes/{node}/disks/list") or []
         except Exception:
             disks = []
+        try:
+            network = proxmox_api_get(cfg, f"/nodes/{node}/network") or []
+        except Exception:
+            network = []
     except Exception as exc:
         return unavailable_proxmox(f"API read failed: {type(exc).__name__}")
     latency_ms = int(round((time.monotonic() - started) * 1000))
-    return summarize_proxmox_data(node=node, latency_ms=latency_ms, node_status=node_status, qemu=qemu, lxc=lxc, zfs=zfs, disks=disks)
+    return summarize_proxmox_data(node=node, latency_ms=latency_ms, node_status=node_status, qemu=qemu, lxc=lxc, zfs=zfs, disks=disks, network=network)
 
 
 def parse_mqtt_json(payload: str | None) -> Any:

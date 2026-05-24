@@ -83,15 +83,15 @@ def main() -> int:
     for needle, message in required_v1b.items():
         if needle not in text:
             return fail(message)
-    required_pve = ["cpuPercent", "ramPercent", "ram_total_bytes", "ramTotalGb", "storagePercent", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "workloadMetricCount", "running_items", "makeWorkloadMiniCard", "makeWorkloadInfoMiniCard"]
+    required_pve = ["cpuPercent", "ramPercent", "ram_total_bytes", "ramTotalGb", "storagePercent", "storage_total_bytes", "storageTotalGb", "active_network_interfaces", "networkIface1", "zfsStatus", "smartStatus", "vmRunningCount", "lxcRunningCount", "workloadMetricCount", "running_items", "makeWorkloadMiniCard", "makeWorkloadInfoMiniCard"]
     for needle in required_pve:
         if needle not in text:
-            return fail(f"PVE read-only UI missing {needle}")
-    required_pve_clarity = ["CPU", "RAM", "HDD", "Storage", "NUT monitor", "addStatusPillRow(card,", "PVE RO", "ramTotalGb", "diskTotalGb", '"LXC"']
+            return fail(f"PVE UI missing {needle}")
+    required_pve_clarity = ["CPU", "RAM", "HDD", "Storage", "NUT monitor", "healthRow", "ONLINE", "OFFLINE", "ZFS online", "SMART ok", "ramTotalGb", "storageTotalGb", "diskTotalGb", '"LXC"']
     for needle in required_pve_clarity:
         if needle not in text:
             return fail(f"PVE UI lacks display clarity marker {needle}")
-    for stale in ["Running workloads", "node / api", "CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
+    for stale in ["Running workloads", "node / api", "CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "PVE RO", "PVE OK", "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
         if stale in text:
             return fail(f"PVE UI still contains redundant marker {stale}")
     for needle in ["addCompactMetricWithBar(card, \"RAM\"", "PVE API %s", 'percent < 0 ? "--"']:

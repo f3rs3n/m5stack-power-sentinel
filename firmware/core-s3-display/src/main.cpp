@@ -132,6 +132,11 @@ struct ProxmoxState {
   int ramPercent = -1;
   int storagePercent = -1;
   float ramTotalGb = 0.0f;
+  float storageTotalGb = 0.0f;
+  char networkIfaces[64] = "none";
+  char networkIface1[16] = "";
+  char networkIface2[16] = "";
+  char networkIface3[16] = "";
   int vmRunningCount = -1;
   int lxcRunningCount = -1;
   int workloadMetricCount = 0;
@@ -370,6 +375,28 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.proxmox.ramPercent = jsonInt(px["ram_percent"], -1);
   state.proxmox.ramTotalGb = jsonBytesToGb(px["ram_total_bytes"]);
   state.proxmox.storagePercent = jsonInt(px["storage_percent"], -1);
+  state.proxmox.storageTotalGb = jsonBytesToGb(px["storage_total_bytes"]);
+  JsonArrayConst ifaces = px["active_network_interfaces"].as<JsonArrayConst>();
+  safeCopy(state.proxmox.networkIface1, sizeof(state.proxmox.networkIface1), "");
+  safeCopy(state.proxmox.networkIface2, sizeof(state.proxmox.networkIface2), "");
+  safeCopy(state.proxmox.networkIface3, sizeof(state.proxmox.networkIface3), "");
+  if (ifaces.isNull() || ifaces.size() == 0) {
+    safeCopy(state.proxmox.networkIfaces, sizeof(state.proxmox.networkIfaces), "none");
+  } else {
+    String joined;
+    int ifaceIndex = 0;
+    for (JsonVariantConst item : ifaces) {
+      const char *iface = item.as<const char *>();
+      if (!iface || !iface[0]) continue;
+      if (joined.length() > 0) joined += ", ";
+      joined += iface;
+      if (ifaceIndex == 0) safeCopy(state.proxmox.networkIface1, sizeof(state.proxmox.networkIface1), iface);
+      if (ifaceIndex == 1) safeCopy(state.proxmox.networkIface2, sizeof(state.proxmox.networkIface2), iface);
+      if (ifaceIndex == 2) safeCopy(state.proxmox.networkIface3, sizeof(state.proxmox.networkIface3), iface);
+      ifaceIndex++;
+    }
+    safeCopy(state.proxmox.networkIfaces, sizeof(state.proxmox.networkIfaces), joined.length() > 0 ? joined.c_str() : "none");
+  }
   state.proxmox.cpuTempC = jsonFloat(px["cpu_temp_c"], 0);
   JsonObjectConst zfs = px["zfs"].as<JsonObjectConst>();
   safeCopy(state.proxmox.zfsStatus, sizeof(state.proxmox.zfsStatus), zfs["status"] | "UNKNOWN");
@@ -690,7 +717,9 @@ void addPercentBar(lv_obj_t *parent, int value, lv_color_t color) {
 
 const char *gbText(float gb, char *buf, size_t bufSize) {
   if (gb <= 0.0f) return "";
-  if (gb >= 10.0f) {
+  if (gb >= 1024.0f) {
+    snprintf(buf, bufSize, "%.1fTB", gb / 1024.0f);
+  } else if (gb >= 10.0f) {
     snprintf(buf, bufSize, "%.0fGB", gb);
   } else {
     snprintf(buf, bufSize, "%.1fGB", gb);
@@ -913,9 +942,9 @@ void renderHome() {
   char nutPill[24];
   snprintf(nutPill, sizeof(nutPill), "%s", nutStatusBadge());
   char pvePill[16];
-  snprintf(pvePill, sizeof(pvePill), "PVE %s", okDown(state.proxmox.available));
+  snprintf(pvePill, sizeof(pvePill), "PVE %s", state.proxmox.available ? "online" : "offline");
   char haPill[16];
-  snprintf(haPill, sizeof(haPill), "HA %s", okDown(haFunctional()));
+  snprintf(haPill, sizeof(haPill), "HA %s", haFunctional() ? "online" : "offline");
   addStatusPillRow(card, nutPill, state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN),
                    pvePill, state.proxmox.available ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED),
                    haPill, haFunctional() ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_RED));
@@ -1087,17 +1116,60 @@ void renderHa() {
 void renderProxmox() {
   lv_obj_clean(proxmoxTab);
   setupPage(proxmoxTab);
-  lv_obj_t *card = makeCard(proxmoxTab, "Proxmox");
-  addBadge(card, state.proxmox.available ? "PVE OK" : "PVE DOWN", severityColor(state.proxmox.severity));
+  lv_obj_t *card = lv_obj_create(proxmoxTab);
+  stylePanel(card, lv_color_hex(0x171b24), lv_color_hex(0x394152));
+  lv_obj_set_style_pad_gap(card, 5, 0);
+
+  lv_obj_t *header = lv_obj_create(card);
+  if (header) {
+    lv_obj_remove_style_all(header);
+    lv_obj_set_width(header, lv_pct(100));
+    lv_obj_set_height(header, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *title = lv_label_create(header);
+    if (title) {
+      lv_obj_set_width(title, 160);
+      lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP);
+      lv_obj_set_style_text_color(title, lv_color_hex(0xe8eefc), 0);
+      lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+      lv_label_set_text(title, "Proxmox");
+    }
+    addBadge(header, state.proxmox.available ? "ONLINE" : "OFFLINE", state.proxmox.available ? severityColor(state.proxmox.severity) : lv_palette_main(LV_PALETTE_RED));
+  }
+
   char line[128];
   char ramTotal[16];
+  char storageTotal[16];
   addCompactMetricWithBar(card, "CPU", state.proxmox.cpuPercent, "", lv_palette_main(LV_PALETTE_BLUE), 10);
   addCompactMetricWithBar(card, "RAM", state.proxmox.ramPercent, gbText(state.proxmox.ramTotalGb, ramTotal, sizeof(ramTotal)), lv_palette_main(LV_PALETTE_PURPLE), 10);
-  addCompactMetricWithBar(card, "Storage", state.proxmox.storagePercent, "", lv_palette_main(LV_PALETTE_TEAL), 10);
-  addStatusPillRow(card,
-                   state.proxmox.zfsStatus, strcmp(state.proxmox.zfsStatus, "ONLINE") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE),
-                   state.proxmox.smartStatus, strcmp(state.proxmox.smartStatus, "PASSED") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE),
-                   "PVE RO", state.proxmox.available ? lv_palette_main(LV_PALETTE_BLUE) : lv_palette_main(LV_PALETTE_GREY));
+  addCompactMetricWithBar(card, "Storage", state.proxmox.storagePercent, gbText(state.proxmox.storageTotalGb, storageTotal, sizeof(storageTotal)), lv_palette_main(LV_PALETTE_TEAL), 10);
+
+  lv_obj_t *healthRow = lv_obj_create(card);
+  if (healthRow) {
+    lv_obj_remove_style_all(healthRow);
+    lv_obj_set_width(healthRow, lv_pct(100));
+    lv_obj_set_height(healthRow, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(healthRow, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_gap(healthRow, 4, 0);
+    addBadge(healthRow, strcmp(state.proxmox.zfsStatus, "ONLINE") == 0 ? "ZFS online" : "ZFS warn", strcmp(state.proxmox.zfsStatus, "ONLINE") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE));
+    addBadge(healthRow, strcmp(state.proxmox.smartStatus, "PASSED") == 0 || strcmp(state.proxmox.smartStatus, "OK") == 0 ? "SMART ok" : "SMART warn", strcmp(state.proxmox.smartStatus, "PASSED") == 0 || strcmp(state.proxmox.smartStatus, "OK") == 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE));
+  }
+
+  if (state.proxmox.networkIface1[0]) {
+    lv_obj_t *netRow = lv_obj_create(card);
+    if (netRow) {
+      lv_obj_remove_style_all(netRow);
+      lv_obj_set_width(netRow, lv_pct(100));
+      lv_obj_set_height(netRow, LV_SIZE_CONTENT);
+      lv_obj_set_flex_flow(netRow, LV_FLEX_FLOW_ROW_WRAP);
+      lv_obj_set_style_pad_gap(netRow, 4, 0);
+      addBadge(netRow, state.proxmox.networkIface1, lv_palette_main(LV_PALETTE_CYAN));
+      if (state.proxmox.networkIface2[0]) addBadge(netRow, state.proxmox.networkIface2, lv_palette_main(LV_PALETTE_CYAN));
+      if (state.proxmox.networkIface3[0]) addBadge(netRow, state.proxmox.networkIface3, lv_palette_main(LV_PALETTE_CYAN));
+    }
+  }
+
   snprintf(line, sizeof(line), "NUT monitor %s   armed %s", state.shutdown.wouldShutdown ? "WOULD" : "idle", state.shutdown.armed ? "YES" : "NO");
   addLine(card, line);
 

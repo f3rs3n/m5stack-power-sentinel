@@ -38,11 +38,12 @@ def test_build_summary_has_stable_v1_contract():
         pve=api.summarize_proxmox_data(
             node="pve-mini",
             latency_ms=10,
-            node_status={"status": "online", "cpu": 0.1, "mem": 1, "maxmem": 2},
+            node_status={"status": "online", "cpu": 0.1, "mem": 1, "maxmem": 2, "rootfs": {"used": 50, "total": 200}},
             qemu=[],
             lxc=[],
             zfs=[],
             disks=[],
+            network=[{"iface": "vmbr0", "active": 1}],
         ),
     )
 
@@ -58,6 +59,8 @@ def test_build_summary_has_stable_v1_contract():
     assert summary["proxmox"]["available"] is True
     assert summary["proxmox"]["severity"] == "ok"
     assert summary["proxmox"]["shutdown_state"] == "disarmed"
+    assert summary["proxmox"]["storage_total_bytes"] == 200
+    assert summary["proxmox"]["active_network_interfaces"] == ["vmbr0"]
     assert summary["network"] == {"available": True, "severity": "ok", "default_route": True, "probe": "tcp", "target": "1.1.1.1:53"}
     assert summary["m5stack"]["temperature_c"] == 45.4
     assert summary["m5stack"]["stackflow_ok"] is True
@@ -325,6 +328,13 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
         lxc=[{"name": "hermes", "status": "running", "cpu": 0.03, "mem": 1024**3, "maxmem": 2 * 1024**3, "disk": 8 * 1024**3, "maxdisk": 16 * 1024**3}, {"name": "old", "status": "stopped"}],
         zfs=[{"name": "rpool", "health": "ONLINE", "alloc": 55, "size": 100}],
         disks=[{"devpath": "/dev/sda", "health": "PASSED"}, {"devpath": "/dev/sdb", "health": "OK"}],
+        network=[
+            {"iface": "lo", "active": 1},
+            {"iface": "eth25g", "active": 1},
+            {"iface": "vmbr0", "active": True},
+            {"iface": "vmbr1", "active": 0},
+            {"iface": "vmbr0", "active": True},
+        ],
     )
 
     assert pve["available"] is True
@@ -335,6 +345,8 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     assert pve["ram_percent"] == 50
     assert pve["ram_total_bytes"] == 16 * 1024**3
     assert pve["storage_percent"] == 62
+    assert pve["storage_total_bytes"] == 100
+    assert pve["active_network_interfaces"] == ["eth25g", "vmbr0"]
     assert pve["zfs"]["status"] == "ONLINE"
     assert pve["zfs"]["pools"][0]["capacity_percent"] == 55
     assert pve["smart"]["status"] == "OK"
@@ -356,6 +368,40 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     assert pve["lxc"]["running_items"][0]["ram_percent"] == 50
     assert pve["lxc"]["running_items"][0]["disk_percent"] == 50
     assert pve["shutdown_state"] == "disarmed"
+
+
+def test_load_proxmox_includes_active_network_interfaces_from_node_network():
+    api = load_module()
+    calls = []
+
+    def fake_config():
+        return {"host": "pve.local", "port": 8006, "node": "pve", "token_id": "user@pve!tok", "token_secret": "secret", "verify_ssl": False}
+
+    def fake_get(cfg, path, timeout=2.5):
+        calls.append(path)
+        if path == "/nodes/pve/status":
+            return {"status": "online", "cpu": 0.1, "mem": 1, "maxmem": 2, "rootfs": {"used": 50, "total": 200}}
+        if path == "/nodes/pve/qemu":
+            return []
+        if path == "/nodes/pve/lxc":
+            return []
+        if path == "/nodes/pve/disks/zfs":
+            return []
+        if path == "/nodes/pve/disks/list":
+            return []
+        if path == "/nodes/pve/network":
+            return [{"iface": "lo", "active": 1}, {"iface": "eth25g", "active": 1}, {"iface": "vmbr0", "active": True}]
+        raise AssertionError(path)
+
+    setattr(api, "proxmox_config", fake_config)
+    setattr(api, "proxmox_api_get", fake_get)
+    setattr(api, "enrich_running_qemu_status", lambda cfg, node, qemu: qemu)
+
+    pve = api.load_proxmox()
+
+    assert "/nodes/pve/network" in calls
+    assert pve["storage_total_bytes"] == 200
+    assert pve["active_network_interfaces"] == ["eth25g", "vmbr0"]
 
 
 def test_enrich_running_qemu_status_prefers_current_memory_metrics():
