@@ -1,4 +1,5 @@
 #include "lvgl.h"
+#include "ps_ui_tab_12.c"
 
 #ifndef PS_ACTIVE_TAB
 #define PS_ACTIVE_TAB 0
@@ -6,6 +7,12 @@
 
 #define PS_PAGE_CARD_WIDTH 252
 #define PS_PAGE_CARD_HEIGHT 220
+
+#define PS_ICON_SETTINGS "\xEF\x80\x93"       // U+F013 fa-gear
+#define PS_ICON_HOME "\xEF\x80\x95"           // U+F015 fa-home
+#define PS_ICON_NUT "\xF3\xB0\x9B\xB8"        // U+F06F8 nf-md-nut
+#define PS_ICON_HOME_ASSISTANT "\xF3\xB0\x9F\x90"  // U+F07D0 nf-md-home_assistant
+#define PS_ICON_SERVER "\xEF\x88\xB3"         // U+F233 fa-server
 
 static lv_color_t C(uint32_t hex) { return lv_color_hex(hex); }
 
@@ -31,15 +38,15 @@ static void panel(lv_obj_t *card, uint32_t bg, uint32_t border) {
     lv_obj_set_width(card, PS_PAGE_CARD_WIDTH);
     lv_obj_set_height(card, PS_PAGE_CARD_HEIGHT);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_gap(card, 5, 0);
-    lv_obj_set_style_pad_all(card, 7, 0);
+    lv_obj_set_style_pad_gap(card, 6, 0);
+    lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_set_style_radius(card, 14, 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, C(border), 0);
     lv_obj_set_style_bg_color(card, C(bg), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_shadow_width(card, 8, 0);
-    lv_obj_set_style_shadow_opa(card, LV_OPA_40, 0);
+    lv_obj_set_style_shadow_width(card, 10, 0);
+    lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
     lv_obj_set_style_shadow_color(card, C(0x000000), 0);
     lv_obj_set_style_shadow_ofs_y(card, 3, 0);
     lv_obj_set_scroll_dir(card, LV_DIR_VER);
@@ -110,33 +117,33 @@ static void bar(lv_obj_t *parent, int value, uint32_t color, int height) {
 }
 
 static void compact_metric(lv_obj_t *parent, const char *name, const char *pct, const char *total, int value, uint32_t color) {
-    lv_obj_t *box = lv_obj_create(parent);
-    lv_obj_remove_style_all(box);
-    lv_obj_set_width(box, lv_pct(100));
-    lv_obj_set_height(box, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_gap(box, 2, 0);
-
-    lv_obj_t *r = lv_obj_create(box);
+    lv_obj_t *r = lv_obj_create(parent);
     lv_obj_remove_style_all(r);
     lv_obj_set_width(r, lv_pct(100));
     lv_obj_set_height(r, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(r, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
     char left_buf[64];
     lv_snprintf(left_buf, sizeof(left_buf), "%s %s", name, pct);
     lv_obj_t *left = lv_label_create(r);
     lv_label_set_text(left, left_buf);
-    lv_obj_set_width(left, 160);
+    lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100));
     lv_label_set_long_mode(left, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_color(left, C(0xc8d0df), 0);
     lv_obj_set_style_text_font(left, &lv_font_montserrat_12, 0);
-    lv_obj_t *right = lv_label_create(r);
-    lv_label_set_text(right, total);
-    lv_label_set_long_mode(right, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_color(right, C(0xf8fbff), 0);
-    lv_obj_set_style_text_font(right, &lv_font_montserrat_12, 0);
-    bar(box, value, color, 7);
+
+    if (total && total[0]) {
+        lv_obj_t *right = lv_label_create(r);
+        lv_obj_set_width(right, 68);
+        lv_label_set_text(right, total);
+        lv_label_set_long_mode(right, LV_LABEL_LONG_CLIP);
+        lv_obj_set_style_text_align(right, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_style_text_color(right, C(0xf8fbff), 0);
+        lv_obj_set_style_text_font(right, &lv_font_montserrat_12, 0);
+    }
+
+    bar(parent, value, color, 10);
 }
 
 static void pills3(lv_obj_t *parent, const char *a, uint32_t ca, const char *b, uint32_t cb, const char *c, uint32_t cc) {
@@ -256,10 +263,10 @@ static void render_pve(lv_obj_t *tab) {
     page(tab);
     lv_obj_t *c = card(tab, "Proxmox");
     badge(c, "PVE OK", 0x22c55e);
-    compact_metric(c, "CPU", "6%", "", 6, 0x3b82f6);
-    compact_metric(c, "RAM", "59%", "31.1GB", 59, 0xa855f7);
-    compact_metric(c, "Storage", "45%", "", 45, 0x14b8a6);
-    pills3(c, "ONLINE", 0x22c55e, "PASSED", 0x22c55e, "PVE RO", 0x3b82f6);
+    compact_metric(c, "CPU", "3%", "", 3, 0x3b82f6);
+    compact_metric(c, "RAM", "51%", "31GB", 51, 0xa855f7);
+    compact_metric(c, "Storage", "8%", "", 8, 0x14b8a6);
+    pills3(c, "ONLINE", 0x22c55e, "OK", 0x22c55e, "PVE RO", 0x3b82f6);
     line(c, "NUT monitor idle   armed NO", 0xc8d0df, &lv_font_montserrat_14);
 
     lv_obj_t *w = card(tab, "VM haos");
@@ -325,7 +332,7 @@ void create_ui(void) {
     lv_obj_set_style_pad_hor(bar_obj, 2, 0);
     lv_obj_set_style_pad_ver(bar_obj, 4, 0);
     lv_obj_set_style_pad_gap(bar_obj, 3, 0);
-    lv_obj_set_style_text_font(bar_obj, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(bar_obj, &ps_ui_tab_12, 0);
     lv_obj_set_style_text_align(bar_obj, LV_TEXT_ALIGN_CENTER, LV_PART_ITEMS);
     // Match the live CoreS3: inactive sidebar labels stay bright/readable,
     // selected tab is distinguished by the blue background rather than dimming
@@ -341,11 +348,11 @@ void create_ui(void) {
     lv_obj_set_style_bg_opa(bar_obj, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_radius(bar_obj, 12, LV_PART_ITEMS);
 
-    lv_obj_t *home = lv_tabview_add_tab(tv, "H\nHM");
-    lv_obj_t *nut = lv_tabview_add_tab(tv, "N\nNT");
-    lv_obj_t *pve = lv_tabview_add_tab(tv, "D\nPV");
-    lv_obj_t *ha = lv_tabview_add_tab(tv, "W\nHA");
-    lv_obj_t *m5s = lv_tabview_add_tab(tv, "S\nM5");
+    lv_obj_t *home = lv_tabview_add_tab(tv, PS_ICON_HOME "\nHM");
+    lv_obj_t *nut = lv_tabview_add_tab(tv, PS_ICON_NUT "\nNT");
+    lv_obj_t *pve = lv_tabview_add_tab(tv, PS_ICON_SERVER "\nPV");
+    lv_obj_t *ha = lv_tabview_add_tab(tv, PS_ICON_HOME_ASSISTANT "\nHA");
+    lv_obj_t *m5s = lv_tabview_add_tab(tv, PS_ICON_SETTINGS "\nM5");
 
     force_sidebar_label_contrast(bar_obj);
 

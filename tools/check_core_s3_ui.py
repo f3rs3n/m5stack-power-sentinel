@@ -18,7 +18,7 @@ SPIKE_HOME_FIXTURE = SPIKE_DIR / "power-sentinel-home-online.c"
 SPIKE_DASHBOARD_FIXTURE = SPIKE_DIR / "power-sentinel-dashboard-fixture.c"
 SPIKE_RENDER_SCRIPT = SPIKE_DIR / "run-lvgl-mcp-render.mjs"
 SPIKE_BATCH_RENDER_SCRIPT = SPIKE_DIR / "render-power-sentinel-tabs.mjs"
-EXPECTED_TAB_LABEL_MARKERS = ["LV_SYMBOL_HOME", "LV_SYMBOL_CHARGE", "LV_SYMBOL_DRIVE", "LV_SYMBOL_WIFI", "LV_SYMBOL_SETTINGS"]
+EXPECTED_TAB_LABEL_MARKERS = ["PS_ICON_HOME", "PS_ICON_NUT", "PS_ICON_SERVER", "PS_ICON_HOME_ASSISTANT", "PS_ICON_SETTINGS"]
 FORBIDDEN_TABS = ["UPS", "Offline"]
 REQUIRED_RENDERERS = ["renderHome", "renderNut", "renderProxmox", "renderHa", "renderM5s"]
 
@@ -35,7 +35,7 @@ def main() -> int:
         return fail(f"expected 5 tab creation calls, found {len(tab_calls)}: {tab_calls}")
     for marker, call in zip(EXPECTED_TAB_LABEL_MARKERS, tab_calls):
         if marker not in call:
-            return fail(f"expected sidebar icon tab marker {marker}, found call {call}")
+            return fail(f"expected sidebar Nerd Font tab marker {marker}, found call {call}")
     if "\\nHM" not in tab_calls[0] or "\\nNT" not in tab_calls[1] or "\\nPV" not in tab_calls[2]:
         return fail("sidebar HOME/NUT/PVE labels should use HM/NT/PV until better icons are available")
     for tab in FORBIDDEN_TABS:
@@ -117,8 +117,12 @@ def main() -> int:
     if not SPIKE_RENDER_SCRIPT.exists():
         return fail("LVGL MCP visual render harness is missing")
     render_script = SPIKE_RENDER_SCRIPT.read_text(encoding="utf-8")
+    helper_script_path = SPIKE_DIR / "lvgl-mcp-render-helper.mjs"
+    if not helper_script_path.exists():
+        return fail("LVGL MCP reusable render helper is missing")
+    render_harness_text = render_script + "\n" + helper_script_path.read_text(encoding="utf-8")
     for needle in ["--source", "--name", "--define", "lvgl_render_full", "lvgl_set_resolution", "taskkill"]:
-        if needle not in render_script:
+        if needle not in render_harness_text:
             return fail(f"LVGL MCP render harness missing {needle}")
 
     if not SPIKE_BATCH_RENDER_SCRIPT.exists():
@@ -154,15 +158,33 @@ def main() -> int:
         "lv_tabview_set_tab_bar_position(tv, LV_DIR_LEFT)",
         "lv_tabview_set_tab_bar_size(tv, 44)",
         "force_sidebar_label_contrast(bar_obj)",
+        "#include \"ps_ui_tab_12.c\"",
+        "lv_obj_set_style_text_font(bar_obj, &ps_ui_tab_12, 0)",
         "lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW)",
         "lv_obj_set_scroll_dir(tab, LV_DIR_HOR)",
         "lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER)",
-        "H\\nHM", "N\\nNT", "D\\nPV", "W\\nHA", "S\\nM5",
+        "PS_ICON_HOME", "PS_ICON_NUT", "PS_ICON_SERVER", "PS_ICON_HOME_ASSISTANT", "PS_ICON_SETTINGS",
+        "lv_obj_set_style_pad_gap(card, 6, 0)",
+        "lv_obj_set_style_pad_all(card, 8, 0)",
+        "bar(parent, value, color, 10)",
+        "lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100))",
+        "lv_obj_set_width(right, 68)",
         "POWER SENTINEL", "Proxmox", "VM haos", "Home Assistant", "M5S",
     ]
     for needle in required_dashboard_fixture:
         if needle not in dashboard_fixture:
             return fail(f"LVGL MCP dashboard fixture missing {needle!r}")
+    if "lv_obj_t *box = lv_obj_create(parent);" in dashboard_fixture:
+        return fail("LVGL MCP dashboard fixture PVE metrics drifted from firmware: wrapper box reintroduced")
+    font_file = ROOT / "firmware" / "core-s3-display" / "src" / "ps_ui_tab_12.c"
+    if not font_file.exists():
+        return fail("generated sidebar Nerd Font subset ps_ui_tab_12.c is missing")
+    font_text = font_file.read_text(encoding="utf-8")
+    for needle in ["const lv_font_t ps_ui_tab_12", "0xF013", "0xF015", "0xF233", "0xF06F8", "0xF07D0"]:
+        if needle not in font_text:
+            return fail(f"sidebar Nerd Font subset missing {needle}")
+    if "ps_ui_tab_12.c" not in batch_script and "ps_ui_tab_12.c" not in (SPIKE_DIR / "render-via-doomtrain.sh").read_text(encoding="utf-8"):
+        return fail("LVGL MCP render path must copy/include the generated sidebar font")
 
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:

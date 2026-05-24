@@ -12,21 +12,16 @@
 #include "power_sentinel_config.example.h"
 #endif
 
-#ifndef LV_SYMBOL_HOME
-#define LV_SYMBOL_HOME "H"
-#endif
-#ifndef LV_SYMBOL_CHARGE
-#define LV_SYMBOL_CHARGE "N"
-#endif
-#ifndef LV_SYMBOL_DRIVE
-#define LV_SYMBOL_DRIVE "P"
-#endif
-#ifndef LV_SYMBOL_WIFI
-#define LV_SYMBOL_WIFI "A"
-#endif
-#ifndef LV_SYMBOL_SETTINGS
-#define LV_SYMBOL_SETTINGS "M"
-#endif
+// Sidebar icon font: `ps_ui_tab_12` is a tiny generated LVGL bitmap font
+// containing Montserrat ASCII plus five Symbols Nerd Font / FontAwesome PUA
+// glyphs. Keep this set synchronized with the LVGL MCP fixture and regenerate
+// with `scripts/generate-lvgl-icon-font.sh` if these codepoints change.
+LV_FONT_DECLARE(ps_ui_tab_12);
+#define PS_ICON_SETTINGS "\xEF\x80\x93"       // U+F013 fa-gear
+#define PS_ICON_HOME "\xEF\x80\x95"           // U+F015 fa-home
+#define PS_ICON_NUT "\xF3\xB0\x9B\xB8"        // U+F06F8 nf-md-nut
+#define PS_ICON_HOME_ASSISTANT "\xF3\xB0\x9F\x90"  // U+F07D0 nf-md-home_assistant
+#define PS_ICON_SERVER "\xEF\x88\xB3"         // U+F233 fa-server
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
 #define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-pve-polish"
@@ -1472,7 +1467,7 @@ void applyAppTheme() {
   lv_obj_set_style_pad_hor(tabBar, 2, 0);
   lv_obj_set_style_pad_ver(tabBar, 4, 0);
   lv_obj_set_style_pad_gap(tabBar, 3, 0);
-  lv_obj_set_style_text_font(tabBar, &lv_font_montserrat_12, 0);
+  lv_obj_set_style_text_font(tabBar, &ps_ui_tab_12, 0);
   lv_obj_set_style_text_align(tabBar, LV_TEXT_ALIGN_CENTER, LV_PART_ITEMS);
   // Keep inactive sidebar labels bright like the live CoreS3; the selected
   // blue pill already provides the active-tab cue.
@@ -1514,11 +1509,11 @@ void initUi() {
   lv_obj_set_scroll_dir(tabContent, LV_DIR_VER);
   lv_obj_set_scroll_snap_y(tabContent, LV_SCROLL_SNAP_CENTER);
   applyAppTheme();
-  homeTab = lv_tabview_add_tab(tabview, LV_SYMBOL_HOME "\nHM");
-  nutTab = lv_tabview_add_tab(tabview, LV_SYMBOL_CHARGE "\nNT");
-  proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nPV");
-  haTab = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI "\nHA");
-  m5sTab = lv_tabview_add_tab(tabview, LV_SYMBOL_SETTINGS "\nM5");
+  homeTab = lv_tabview_add_tab(tabview, PS_ICON_HOME "\nHM");
+  nutTab = lv_tabview_add_tab(tabview, PS_ICON_NUT "\nNT");
+  proxmoxTab = lv_tabview_add_tab(tabview, PS_ICON_SERVER "\nPV");
+  haTab = lv_tabview_add_tab(tabview, PS_ICON_HOME_ASSISTANT "\nHA");
+  m5sTab = lv_tabview_add_tab(tabview, PS_ICON_SETTINGS "\nM5");
   forceSidebarLabelContrast(lv_tabview_get_tab_bar(tabview));
   lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED, nullptr);
 }

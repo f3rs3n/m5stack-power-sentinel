@@ -69,6 +69,29 @@ The script is intentionally generic: pass `--source`, `--name`, `--width`, `--he
 
 `power-sentinel-home-online.c` is a curated visual fixture that mirrors the production HOME tab contract: real tab order `HOME`/`NUT`/`PVE`/`HA`/`M5S`, modern dark theme, HOME hero card, status pills, real `NET`/`M5S` local row, and `SLEEP DISPLAY`. Keep it aligned with `firmware/core-s3-display/src/main.cpp`; `tools/check_core_s3_ui.py` enforces key strings so the fixture does not silently rot.
 
+Fidelity rule: every firmware UI change that affects visible layout must be mirrored in the MCP fixture before screenshots are used for review. This includes sidebar symbols/icons, tab/card topology, padding/gaps, bar heights, font choices, label widths/alignment, scroll behavior, and representative live values. If the fixture drifts, fix the fixture first; otherwise the render is not useful for iteration.
+
+## Sidebar Nerd Font subset
+
+The sidebar uses a generated LVGL bitmap font, `firmware/core-s3-display/src/ps_ui_tab_12.c`, not a full runtime TTF. It merges Montserrat ASCII (`0x20-0x7E`) with only five Symbols Nerd Font / FontAwesome-compatible PUA glyphs:
+
+```text
+U+F015 fa-home              -> HOME / HM
+U+F06F8 nf-md-nut           -> NUT / NT
+U+F233 fa-server            -> PVE / PV
+U+F07D0 nf-md-home_assistant -> HA / HA
+U+F013 fa-gear              -> M5S / M5
+```
+
+Regenerate it with:
+
+```bash
+cd /home/martino/projects/m5stack-power-sentinel
+scripts/generate-lvgl-icon-font.sh
+```
+
+Do not import a whole Nerd Font into firmware. Add new glyphs by extending the explicit `-r` list in the generator, updating the `PS_ICON_*` macros in both `firmware/core-s3-display/src/main.cpp` and `assets/lvgl-spike/power-sentinel-dashboard-fixture.c`, then rendering through DOOMTRAIN before judging the UI. The fallback wrapper copies `ps_ui_tab_12.c` to the Windows scratch workspace so MCP render fidelity tracks the firmware font exactly.
+
 For full UI review from Hermes/Linux, the preferred path is the forked LVGL MCP server running on DOOMTRAIN with Streamable HTTP enabled:
 
 ```text
@@ -108,7 +131,7 @@ cd C:\Users\marti\Progetti\lvgl-spike-work
 node .\render-power-sentinel-tabs.mjs
 ```
 
-This renders five active-tab PNG/widget-tree pairs from `power-sentinel-dashboard-fixture.c`. The fixture uses the same V1 tab topology as the firmware: 44px left sidebar with compact two-line tab labels (`H/HM`, `N/NT`, `D/PV`, `W/HA`, `S/M5`) and a 276x240 content area.
+This renders five active-tab PNG/widget-tree pairs from `power-sentinel-dashboard-fixture.c`. The fixture uses the same V1 tab topology as the firmware: 44px left sidebar with compact two-line tab labels (`home/HM`, `nf-md-nut/NT`, `server/PV`, `nf-md-home_assistant/HA`, `gear/M5`) and a 276x240 content area.
 
 ```text
 home-current.png
