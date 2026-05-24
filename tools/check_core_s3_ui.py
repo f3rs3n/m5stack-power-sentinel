@@ -153,6 +153,7 @@ def main() -> int:
         "#define PS_PAGE_CARD_HEIGHT 220",
         "lv_tabview_set_tab_bar_position(tv, LV_DIR_LEFT)",
         "lv_tabview_set_tab_bar_size(tv, 44)",
+        "force_sidebar_label_contrast(bar_obj)",
         "lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW)",
         "lv_obj_set_scroll_dir(tab, LV_DIR_HOR)",
         "lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER)",
@@ -178,7 +179,7 @@ def main() -> int:
         return fail(f"renderTab() does not dispatch every renderer in {expected_order}")
     if positions != sorted(positions):
         return fail("renderTab() dispatch order does not match tab order")
-    for needle in ["cleanInactiveTabs(active)", "saveTabScroll(renderedTabIndex)", "restoreTabScroll(renderedTabIndex)", "lv_obj_scroll_to_x(tab, tabScrollX[index], LV_ANIM_OFF)", "lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED", "lv_obj_set_style_shadow_width(card, 10", "lv_obj_set_style_shadow_width(card, 6"]:
+    for needle in ["cleanInactiveTabs(active)", "saveTabScroll(renderedTabIndex)", "restoreTabScroll(renderedTabIndex)", "lv_obj_scroll_to_x(tab, tabScrollX[index], LV_ANIM_OFF)", "lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED", "forceSidebarLabelContrast(lv_tabview_get_tab_bar(tabview))", "lv_obj_set_style_shadow_width(card, 10", "lv_obj_set_style_shadow_width(card, 6"]:
         if needle not in text:
             return fail(f"CoreS3 LVGL heap guard missing {needle}")
     print("PASS core-s3-ui sidebar + horizontal card carousel HOME/NUT/PVE/HA/M5S")

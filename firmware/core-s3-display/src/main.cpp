@@ -1474,13 +1474,36 @@ void applyAppTheme() {
   lv_obj_set_style_pad_gap(tabBar, 3, 0);
   lv_obj_set_style_text_font(tabBar, &lv_font_montserrat_12, 0);
   lv_obj_set_style_text_align(tabBar, LV_TEXT_ALIGN_CENTER, LV_PART_ITEMS);
-  lv_obj_set_style_text_color(tabBar, lv_color_hex(0x6ee7ff), LV_PART_ITEMS);
+  // Keep inactive sidebar labels bright like the live CoreS3; the selected
+  // blue pill already provides the active-tab cue.
+  lv_obj_set_style_text_color(tabBar, lv_color_hex(0xf8fbff), LV_PART_ITEMS);
+  lv_obj_set_style_text_opa(tabBar, LV_OPA_COVER, LV_PART_ITEMS);
+  lv_obj_set_style_opa(tabBar, LV_OPA_COVER, LV_PART_ITEMS);
   lv_obj_set_style_text_color(tabBar, lv_color_hex(0xf8fbff), LV_PART_ITEMS | LV_STATE_CHECKED);
+  lv_obj_set_style_text_opa(tabBar, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x0f1b2d), LV_PART_ITEMS);
   lv_obj_set_style_bg_opa(tabBar, LV_OPA_60, LV_PART_ITEMS);
   lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x2563eb), LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_set_style_bg_opa(tabBar, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_set_style_radius(tabBar, 12, LV_PART_ITEMS);
+}
+
+void forceSidebarLabelContrast(lv_obj_t *tabBar) {
+  if (!tabBar) return;
+  uint32_t count = lv_obj_get_child_count(tabBar);
+  for (uint32_t i = 0; i < count; ++i) {
+    lv_obj_t *button = lv_obj_get_child(tabBar, i);
+    if (!button) continue;
+    lv_obj_set_style_text_color(button, lv_color_hex(0xf8fbff), 0);
+    lv_obj_set_style_text_opa(button, LV_OPA_COVER, 0);
+    uint32_t childCount = lv_obj_get_child_count(button);
+    for (uint32_t j = 0; j < childCount; ++j) {
+      lv_obj_t *label = lv_obj_get_child(button, j);
+      if (!label) continue;
+      lv_obj_set_style_text_color(label, lv_color_hex(0xf8fbff), 0);
+      lv_obj_set_style_text_opa(label, LV_OPA_COVER, 0);
+    }
+  }
 }
 
 void initUi() {
@@ -1496,6 +1519,7 @@ void initUi() {
   proxmoxTab = lv_tabview_add_tab(tabview, LV_SYMBOL_DRIVE "\nPV");
   haTab = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI "\nHA");
   m5sTab = lv_tabview_add_tab(tabview, LV_SYMBOL_SETTINGS "\nM5");
+  forceSidebarLabelContrast(lv_tabview_get_tab_bar(tabview));
   lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED, nullptr);
 }
 

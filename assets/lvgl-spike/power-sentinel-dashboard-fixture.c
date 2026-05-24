@@ -149,6 +149,26 @@ static void pills3(lv_obj_t *parent, const char *a, uint32_t ca, const char *b, 
     badge(r, a, ca); badge(r, b, cb); badge(r, c, cc);
 }
 
+static void force_sidebar_label_contrast(lv_obj_t *bar_obj) {
+    // lv_tabview's generated button labels do not always inherit LV_PART_ITEMS
+    // text styles in the simulator. Force the child labels to match the live
+    // CoreS3: inactive labels are white/readable; active state is the blue pill.
+    uint32_t count = lv_obj_get_child_count(bar_obj);
+    for (uint32_t i = 0; i < count; ++i) {
+        lv_obj_t *btn = lv_obj_get_child(bar_obj, i);
+        if (!btn) continue;
+        lv_obj_set_style_text_color(btn, C(0xf8fbff), 0);
+        lv_obj_set_style_text_opa(btn, LV_OPA_COVER, 0);
+        uint32_t child_count = lv_obj_get_child_count(btn);
+        for (uint32_t j = 0; j < child_count; ++j) {
+            lv_obj_t *label = lv_obj_get_child(btn, j);
+            if (!label) continue;
+            lv_obj_set_style_text_color(label, C(0xf8fbff), 0);
+            lv_obj_set_style_text_opa(label, LV_OPA_COVER, 0);
+        }
+    }
+}
+
 static void render_home(lv_obj_t *tab) {
     page(tab);
     lv_obj_t *c = lv_obj_create(tab);
@@ -307,8 +327,14 @@ void create_ui(void) {
     lv_obj_set_style_pad_gap(bar_obj, 3, 0);
     lv_obj_set_style_text_font(bar_obj, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_align(bar_obj, LV_TEXT_ALIGN_CENTER, LV_PART_ITEMS);
-    lv_obj_set_style_text_color(bar_obj, C(0x6ee7ff), LV_PART_ITEMS);
+    // Match the live CoreS3: inactive sidebar labels stay bright/readable,
+    // selected tab is distinguished by the blue background rather than dimming
+    // every other label.
+    lv_obj_set_style_text_color(bar_obj, C(0xf8fbff), LV_PART_ITEMS);
+    lv_obj_set_style_text_opa(bar_obj, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_opa(bar_obj, LV_OPA_COVER, LV_PART_ITEMS);
     lv_obj_set_style_text_color(bar_obj, C(0xf8fbff), LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_text_opa(bar_obj, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(bar_obj, C(0x0f1b2d), LV_PART_ITEMS);
     lv_obj_set_style_bg_opa(bar_obj, LV_OPA_60, LV_PART_ITEMS);
     lv_obj_set_style_bg_color(bar_obj, C(0x2563eb), LV_PART_ITEMS | LV_STATE_CHECKED);
@@ -320,6 +346,8 @@ void create_ui(void) {
     lv_obj_t *pve = lv_tabview_add_tab(tv, "D\nPV");
     lv_obj_t *ha = lv_tabview_add_tab(tv, "W\nHA");
     lv_obj_t *m5s = lv_tabview_add_tab(tv, "S\nM5");
+
+    force_sidebar_label_contrast(bar_obj);
 
     render_home(home);
     render_nut(nut);
