@@ -69,14 +69,25 @@ The script is intentionally generic: pass `--source`, `--name`, `--width`, `--he
 
 `power-sentinel-home-online.c` is a curated visual fixture that mirrors the production HOME tab contract: real tab order `HOME`/`NUT`/`PVE`/`HA`/`M5S`, modern dark theme, HOME hero card, status pills, real `NET`/`M5S` local row, and `SLEEP DISPLAY`. Keep it aligned with `firmware/core-s3-display/src/main.cpp`; `tools/check_core_s3_ui.py` enforces key strings so the fixture does not silently rot.
 
-For full UI review from Hermes/Linux, do not render inside the Windows git checkout. Use the wrapper that copies the fixture/harness to a scratch directory outside the repo on DOOMTRAIN:
+For full UI review from Hermes/Linux, the preferred path is the forked LVGL MCP server running on DOOMTRAIN with Streamable HTTP enabled:
+
+```text
+Windows server: C:\Users\marti\Progetti\Lvgl-mcp-esp32
+Windows launcher: C:\Users\marti\Progetti\start-lvgl-mcp-http.ps1
+Hermes tunnel: systemd --user lvgl-mcp-tunnel.service
+Hermes MCP URL: http://127.0.0.1:3333/mcp
+```
+
+The Windows server is bound to `127.0.0.1`; Hermes reaches it through the user systemd SSH tunnel, so no LAN firewall exposure is needed. After Hermes is restarted, native MCP tools should appear as `mcp_lvgl_lvgl_render`, `mcp_lvgl_lvgl_render_full`, `mcp_lvgl_lvgl_inspect`, and `mcp_lvgl_lvgl_set_resolution`.
+
+Fallback: if native MCP is unavailable, do not render inside the Windows git checkout. Use the wrapper that copies the fixture/harness to a scratch directory outside the repo on DOOMTRAIN:
 
 ```bash
 cd /home/martino/projects/m5stack-power-sentinel
 assets/lvgl-spike/render-via-doomtrain.sh
 ```
 
-The wrapper uses this Windows scratch workspace:
+The fallback wrapper uses this Windows scratch workspace:
 
 ```text
 C:\Users\marti\Progetti\lvgl-spike-work
