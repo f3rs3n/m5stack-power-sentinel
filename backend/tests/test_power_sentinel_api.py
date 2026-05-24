@@ -273,7 +273,38 @@ battery.runtime.low: 120
     assert shutdown["thresholds"] == {"battery_charge_low_percent": 10, "battery_runtime_low_seconds": 120}
     assert shutdown["nut_clients"][0]["name"] == "pve"
     assert shutdown["nut_clients"][0]["state"] == "reachable_via_upsc"
+    assert shutdown["proxmox_nut_client"]["name"] == "pve"
+    assert shutdown["proxmox_nut_client"]["state"] == "reachable_via_upsc"
     assert shutdown["nut_client_summary"] == {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0}
+
+
+def test_proxmox_nut_client_is_selected_instead_of_aggregating_any_secondary():
+    api = load_module()
+    ups = api.parse_upsc_output("ups.status: OL")
+    nut = {
+        "server_active": True,
+        "driver_active": True,
+        "monitor_active": False,
+        "mode": "netserver",
+        "clients": ["192.168.2.50"],
+    }
+
+    shutdown = api.summarize_standard_nut_shutdown(
+        ups,
+        nut,
+        clients=[
+            {"name": "nas", "host": "192.168.2.50", "role": "secondary", "config_present": True, "monitor_active": True},
+            {"name": "pve", "host": "192.168.2.99", "role": "secondary", "package_installed": True, "upsc_reachable": True, "monitor_active": False},
+        ],
+        pve={"node": "pve"},
+        config={"proxmox": {"node": "pve", "host": "192.168.2.99"}},
+    )
+
+    assert shutdown["nut_client_summary"] == {"total": 2, "secondary_total": 2, "connected": 1, "armed": 1}
+    assert shutdown["secondary_ready"] is True
+    assert shutdown["proxmox_nut_client"]["name"] == "pve"
+    assert shutdown["proxmox_nut_client"]["state"] == "reachable_via_upsc"
+    assert shutdown["proxmox_nut_client"]["armed"] is False
 
 
 def test_standard_nut_shutdown_would_shutdown_on_low_battery_only():
@@ -335,6 +366,11 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
             {"iface": "vmbr1", "active": 0},
             {"iface": "vmbr0", "active": True},
         ],
+        storage=[
+            {"storage": "local", "active": 1, "enabled": 1, "used": 25, "total": 100},
+            {"storage": "tank", "active": 1, "enabled": 1, "used": 75, "total": 300},
+            {"storage": "disabled", "active": 0, "enabled": 1, "used": 99, "total": 100},
+        ],
     )
 
     assert pve["available"] is True
@@ -344,8 +380,8 @@ def test_summarize_proxmox_data_reports_node_metrics_workloads_zfs_and_smart():
     assert pve["cpu_percent"] == 18
     assert pve["ram_percent"] == 50
     assert pve["ram_total_bytes"] == 16 * 1024**3
-    assert pve["storage_percent"] == 62
-    assert pve["storage_total_bytes"] == 100
+    assert pve["storage_percent"] == 25
+    assert pve["storage_total_bytes"] == 400
     assert pve["active_network_interfaces"] == ["eth25g", "vmbr0"]
     assert pve["zfs"]["status"] == "ONLINE"
     assert pve["zfs"]["pools"][0]["capacity_percent"] == 55
@@ -389,6 +425,8 @@ def test_load_proxmox_includes_active_network_interfaces_from_node_network():
             return []
         if path == "/nodes/pve/disks/list":
             return []
+        if path == "/nodes/pve/storage":
+            return [{"storage": "local", "active": 1, "enabled": 1, "used": 20, "total": 100}, {"storage": "tank", "active": 1, "enabled": 1, "used": 40, "total": 300}]
         if path == "/nodes/pve/network":
             return [{"iface": "lo", "active": 1}, {"iface": "eth25g", "active": 1}, {"iface": "vmbr0", "active": True}]
         raise AssertionError(path)
@@ -399,8 +437,10 @@ def test_load_proxmox_includes_active_network_interfaces_from_node_network():
 
     pve = api.load_proxmox()
 
+    assert "/nodes/pve/storage" in calls
     assert "/nodes/pve/network" in calls
-    assert pve["storage_total_bytes"] == 200
+    assert pve["storage_total_bytes"] == 400
+    assert pve["storage_percent"] == 15
     assert pve["active_network_interfaces"] == ["eth25g", "vmbr0"]
 
 

@@ -67,11 +67,13 @@ Shutdown readiness is reported for Standard NUT. Power Sentinel exposes only NUT
 
 - `shutdown.real_shutdown_owner=upsmon`
 - `shutdown.primary_ready`, `shutdown.primary_monitor_active`, `shutdown.secondary_ready`
-- `shutdown.nut_clients[0].state`: `not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, or `armed`
-- `shutdown.nut_clients[0].package_installed`: whether secondary-host `nut-client`/`upsc` was observed; `null` when not yet discovered
-- `shutdown.nut_clients[0].reachable_via_upsc`: whether a configured NUT client can run `upsc homelab_ups@192.168.2.202`; `null` when not yet discovered
-- `shutdown.nut_clients[0].connected_as_upsmon`: whether the M5Stack NUT server sees a configured NUT client as connected
-- `shutdown.nut_clients[0].armed`: true only when readiness says the client `nut-monitor` is active and the NUT server sees the NUT upsmon client
+- `shutdown.nut_clients[]`: all configured NUT clients/readiness records
+- `shutdown.proxmox_nut_client`: the configured Proxmox client selected by Proxmox node name/host; the PVE dashboard NUT pill uses this object only, not aggregate secondary-client counts
+- `shutdown.proxmox_nut_client.state`: `not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, or `armed`
+- `shutdown.proxmox_nut_client.package_installed`: whether Proxmox `nut-client`/`upsc` was observed; `null` when not yet discovered
+- `shutdown.proxmox_nut_client.reachable_via_upsc`: whether Proxmox can run `upsc homelab_ups@192.168.2.202`; `null` when not yet discovered
+- `shutdown.proxmox_nut_client.connected_as_upsmon`: whether the M5Stack NUT server sees Proxmox as a connected NUT upsmon client
+- `shutdown.proxmox_nut_client.armed`: true only when Proxmox `nut-monitor` is active and the NUT server sees the Proxmox upsmon client
 - `shutdown.would_shutdown`, `shutdown.reason`
 - `shutdown.thresholds.battery_charge_low_percent`, `shutdown.thresholds.battery_runtime_low_seconds`
 
@@ -148,6 +150,7 @@ The API reads these PVE endpoints only:
 - `/api2/json/nodes/{node}/lxc`
 - `/api2/json/nodes/{node}/disks/zfs` best-effort
 - `/api2/json/nodes/{node}/disks/list` best-effort
+- `/api2/json/nodes/{node}/storage` best-effort for Total Node Capacity and aggregate storage usage across enabled/active node storages
 - `/api2/json/nodes/{node}/network` best-effort for active interface names
 
 No SSH, no shutdown action, no `smartctl` custom script, and no expected-state model are used in this V1 read-only step.
@@ -163,7 +166,7 @@ VM metric caveats implemented in the backend:
 The `proxmox` summary object includes:
 
 - `available`, `severity`, `node`, `node_status`, `api_latency_ms`
-- `cpu_percent`, `ram_percent`, `cpu_temp_c`, `storage_percent`, `storage_total_bytes`
+- `cpu_percent`, `ram_percent`, `cpu_temp_c`, `storage_percent`, `storage_total_bytes` (`/nodes/{node}/storage` aggregate Total Node Capacity)
 - `active_network_interfaces[]` from active non-loopback PVE network devices
 - `zfs.status`, `zfs.pools[]`
 - `smart.status`, `smart.failing_count`, `smart.warning_count`

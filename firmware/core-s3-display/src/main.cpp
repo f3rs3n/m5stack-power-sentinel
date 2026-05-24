@@ -17,6 +17,7 @@
 // glyphs. Keep this set synchronized with the LVGL MCP fixture and regenerate
 // with `scripts/generate-lvgl-icon-font.sh` if these codepoints change.
 LV_FONT_DECLARE(ps_ui_tab_12);
+LV_FONT_DECLARE(ps_ui_tab_18);
 #define PS_ICON_SETTINGS "\xEF\x80\x93"       // U+F013 fa-gear
 #define PS_ICON_HOME "\xEF\x80\x95"           // U+F015 fa-home
 #define PS_ICON_NUT "\xF3\xB0\x9B\xB8"        // U+F06F8 nf-md-nut
@@ -169,6 +170,9 @@ struct ShutdownState {
   int clientSecondaryTotal = 0;
   int clientConnected = 0;
   int clientArmed = 0;
+  bool proxmoxClientArmed = false;
+  bool proxmoxClientConnectedAsUpsmon = false;
+  char proxmoxClientState[28] = "not_configured";
   int clientPackageInstalled = -1;
   int clientReachableViaUpsc = -1;
   bool clientConnectedAsUpsmon = false;
@@ -448,6 +452,16 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.shutdown.clientSecondaryTotal = jsonInt(clientSummary["secondary_total"], 0);
   state.shutdown.clientConnected = jsonInt(clientSummary["connected"], 0);
   state.shutdown.clientArmed = jsonInt(clientSummary["armed"], 0);
+  JsonObjectConst pveNutClient = sd["proxmox_nut_client"].as<JsonObjectConst>();
+  if (!pveNutClient.isNull()) {
+    state.shutdown.proxmoxClientArmed = pveNutClient["armed"] | false;
+    state.shutdown.proxmoxClientConnectedAsUpsmon = pveNutClient["connected_as_upsmon"] | false;
+    safeCopy(state.shutdown.proxmoxClientState, sizeof(state.shutdown.proxmoxClientState), pveNutClient["state"] | "not_configured");
+  } else {
+    state.shutdown.proxmoxClientArmed = false;
+    state.shutdown.proxmoxClientConnectedAsUpsmon = false;
+    safeCopy(state.shutdown.proxmoxClientState, sizeof(state.shutdown.proxmoxClientState), "not_configured");
+  }
   JsonArrayConst nutClients = sd["nut_clients"].as<JsonArrayConst>();
   if (!nutClients.isNull() && nutClients.size() > 0) {
     JsonObjectConst client = nutClients[0].as<JsonObjectConst>();
@@ -579,6 +593,8 @@ void stylePanel(lv_obj_t *card, lv_color_t bg, lv_color_t border) {
   lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
 }
 
+void addBadge(lv_obj_t *parent, const char *text, lv_color_t color);
+
 lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
   lv_obj_t *card = lv_obj_create(parent);
   if (!card) return nullptr;
@@ -589,6 +605,32 @@ lv_obj_t *makeCard(lv_obj_t *parent, const char *title) {
     lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
     lv_label_set_text(label, title ? title : "");
+  }
+  return card;
+}
+
+lv_obj_t *makeStatusCard(lv_obj_t *parent, const char *title, const char *status, lv_color_t statusColor) {
+  lv_obj_t *card = lv_obj_create(parent);
+  if (!card) return nullptr;
+  stylePanel(card, lv_color_hex(0x171b24), lv_color_hex(0x394152));
+  lv_obj_set_style_pad_gap(card, 5, 0);
+
+  lv_obj_t *header = lv_obj_create(card);
+  if (header) {
+    lv_obj_remove_style_all(header);
+    lv_obj_set_width(header, lv_pct(100));
+    lv_obj_set_height(header, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *label = lv_label_create(header);
+    if (label) {
+      lv_obj_set_width(label, 160);
+      lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+      lv_obj_set_style_text_color(label, lv_color_hex(0xe8eefc), 0);
+      lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
+      lv_label_set_text(label, title ? title : "");
+    }
+    addBadge(header, status ? status : "", statusColor);
   }
   return card;
 }
@@ -1008,15 +1050,14 @@ void renderHome() {
 void renderNut() {
   lv_obj_clean(nutTab);
   setupPage(nutTab);
-  lv_obj_t *card = makeCard(nutTab, "NUT");
-  if (state.offline) {
-    addBadge(card, "NO LIVE DATA", lv_palette_main(LV_PALETTE_ORANGE));
-  }
   const char *upsBadge = !state.ups.available ? "UPS UNKNOWN" : (state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : "ONLINE"));
   lv_color_t upsColor = !state.ups.available ? lv_palette_main(LV_PALETTE_GREY) :
                         (state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) :
                          (state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN)));
-  addBadge(card, upsBadge, upsColor);
+  lv_obj_t *card = makeStatusCard(nutTab, "NUT", upsBadge, upsColor);
+  if (state.offline) {
+    addBadge(card, "NO LIVE DATA", lv_palette_main(LV_PALETTE_ORANGE));
+  }
   char line[128];
   snprintf(line, sizeof(line), "Status: %s (%s)", state.ups.statusLabel, state.ups.status);
   addLine(card, line);
@@ -1086,8 +1127,7 @@ void renderNut() {
 void renderHa() {
   lv_obj_clean(haTab);
   setupPage(haTab);
-  lv_obj_t *card = makeCard(haTab, "Home Assistant");
-  addBadge(card, state.ha.available ? "HA OK" : "HA DOWN", severityColor(state.ha.severity));
+  lv_obj_t *card = makeStatusCard(haTab, "HOME ASSISTANT", state.ha.available ? "ONLINE" : "OFFLINE", state.ha.available ? severityColor(state.ha.severity) : lv_palette_main(LV_PALETTE_RED));
   char line[128];
   snprintf(line, sizeof(line), "API %s   MQTT %s", state.ha.available ? "OK" : "DOWN", state.ha.mqtt ? "OK" : "DOWN");
   addMetricRow(card, "core", line);
@@ -1116,27 +1156,7 @@ void renderHa() {
 void renderProxmox() {
   lv_obj_clean(proxmoxTab);
   setupPage(proxmoxTab);
-  lv_obj_t *card = lv_obj_create(proxmoxTab);
-  stylePanel(card, lv_color_hex(0x171b24), lv_color_hex(0x394152));
-  lv_obj_set_style_pad_gap(card, 5, 0);
-
-  lv_obj_t *header = lv_obj_create(card);
-  if (header) {
-    lv_obj_remove_style_all(header);
-    lv_obj_set_width(header, lv_pct(100));
-    lv_obj_set_height(header, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(header, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_t *title = lv_label_create(header);
-    if (title) {
-      lv_obj_set_width(title, 160);
-      lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP);
-      lv_obj_set_style_text_color(title, lv_color_hex(0xe8eefc), 0);
-      lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
-      lv_label_set_text(title, "Proxmox");
-    }
-    addBadge(header, state.proxmox.available ? "ONLINE" : "OFFLINE", state.proxmox.available ? severityColor(state.proxmox.severity) : lv_palette_main(LV_PALETTE_RED));
-  }
+  lv_obj_t *card = makeStatusCard(proxmoxTab, "PROXMOX", state.proxmox.available ? "ONLINE" : "OFFLINE", state.proxmox.available ? severityColor(state.proxmox.severity) : lv_palette_main(LV_PALETTE_RED));
 
   char line[128];
   char ramTotal[16];
@@ -1170,8 +1190,8 @@ void renderProxmox() {
     }
   }
 
-  snprintf(line, sizeof(line), "NUT monitor %s   armed %s", state.shutdown.wouldShutdown ? "WOULD" : "idle", state.shutdown.armed ? "YES" : "NO");
-  addLine(card, line);
+  const bool nutClientArmed = state.shutdown.proxmoxClientArmed;
+  addBadge(card, nutClientArmed ? "NUT armed" : "NUT disarmed", nutClientArmed ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE));
 
   if (state.proxmox.workloadMetricCount == 0) {
     lv_obj_t *page = lv_obj_create(proxmoxTab);
@@ -1210,8 +1230,7 @@ void renderProxmox() {
 void renderM5s() {
   lv_obj_clean(m5sTab);
   setupPage(m5sTab);
-  lv_obj_t *card = makeCard(m5sTab, "M5S");
-  addBadge(card, state.m5stack.available ? "M5S OK" : "M5S DOWN", severityColor(state.m5stack.severity));
+  lv_obj_t *card = makeStatusCard(m5sTab, "M5S", state.m5stack.available ? "ONLINE" : "OFFLINE", state.m5stack.available ? severityColor(state.m5stack.severity) : lv_palette_main(LV_PALETTE_RED));
   char line[160];
   char temp[24];
   char ram[24];
@@ -1536,10 +1555,10 @@ void applyAppTheme() {
   lv_obj_t *tabBar = lv_tabview_get_tab_bar(tabview);
   lv_obj_set_style_bg_color(tabBar, lv_color_hex(0x0b1220), 0);
   lv_obj_set_style_bg_opa(tabBar, LV_OPA_COVER, 0);
-  lv_obj_set_style_pad_hor(tabBar, 2, 0);
-  lv_obj_set_style_pad_ver(tabBar, 4, 0);
-  lv_obj_set_style_pad_gap(tabBar, 3, 0);
-  lv_obj_set_style_text_font(tabBar, &ps_ui_tab_12, 0);
+  lv_obj_set_style_pad_hor(tabBar, 3, 0);
+  lv_obj_set_style_pad_ver(tabBar, 6, 0);
+  lv_obj_set_style_pad_gap(tabBar, 6, 0);
+  lv_obj_set_style_text_font(tabBar, &ps_ui_tab_18, 0);
   lv_obj_set_style_text_align(tabBar, LV_TEXT_ALIGN_CENTER, LV_PART_ITEMS);
   // Keep inactive sidebar labels bright like the live CoreS3; the selected
   // blue pill already provides the active-tab cue.
@@ -1581,11 +1600,11 @@ void initUi() {
   lv_obj_set_scroll_dir(tabContent, LV_DIR_VER);
   lv_obj_set_scroll_snap_y(tabContent, LV_SCROLL_SNAP_CENTER);
   applyAppTheme();
-  homeTab = lv_tabview_add_tab(tabview, PS_ICON_HOME "\nHM");
-  nutTab = lv_tabview_add_tab(tabview, PS_ICON_NUT "\nNT");
-  proxmoxTab = lv_tabview_add_tab(tabview, PS_ICON_SERVER "\nPV");
-  haTab = lv_tabview_add_tab(tabview, PS_ICON_HOME_ASSISTANT "\nHA");
-  m5sTab = lv_tabview_add_tab(tabview, PS_ICON_SETTINGS "\nM5");
+  homeTab = lv_tabview_add_tab(tabview, PS_ICON_HOME);
+  nutTab = lv_tabview_add_tab(tabview, PS_ICON_NUT);
+  proxmoxTab = lv_tabview_add_tab(tabview, PS_ICON_SERVER);
+  haTab = lv_tabview_add_tab(tabview, PS_ICON_HOME_ASSISTANT);
+  m5sTab = lv_tabview_add_tab(tabview, PS_ICON_SETTINGS);
   forceSidebarLabelContrast(lv_tabview_get_tab_bar(tabview));
   lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED, nullptr);
 }

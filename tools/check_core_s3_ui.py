@@ -36,8 +36,10 @@ def main() -> int:
     for marker, call in zip(EXPECTED_TAB_LABEL_MARKERS, tab_calls):
         if marker not in call:
             return fail(f"expected sidebar Nerd Font tab marker {marker}, found call {call}")
-    if "\\nHM" not in tab_calls[0] or "\\nNT" not in tab_calls[1] or "\\nPV" not in tab_calls[2]:
-        return fail("sidebar HOME/NUT/PVE labels should use HM/NT/PV until better icons are available")
+    if any("\\n" in call for call in tab_calls):
+        return fail("sidebar should be icon-only with the larger 18px tab icon font")
+    if "ps_ui_tab_18" not in text:
+        return fail("sidebar icon-only live UI should use the larger ps_ui_tab_18 font")
     for tab in FORBIDDEN_TABS:
         if f'lv_tabview_add_tab(tabview, "{tab}")' in text:
             return fail(f"legacy tab {tab!r} still present")
@@ -87,11 +89,11 @@ def main() -> int:
     for needle in required_pve:
         if needle not in text:
             return fail(f"PVE UI missing {needle}")
-    required_pve_clarity = ["CPU", "RAM", "HDD", "Storage", "NUT monitor", "healthRow", "ONLINE", "OFFLINE", "ZFS online", "SMART ok", "ramTotalGb", "storageTotalGb", "diskTotalGb", '"LXC"']
+    required_pve_clarity = ["CPU", "RAM", "HDD", "Storage", "NUT armed", "NUT disarmed", "proxmox_nut_client", "proxmoxClientArmed", "healthRow", "ONLINE", "OFFLINE", "ZFS online", "SMART ok", "ramTotalGb", "storageTotalGb", "diskTotalGb", '"LXC"']
     for needle in required_pve_clarity:
         if needle not in text:
             return fail(f"PVE UI lacks display clarity marker {needle}")
-    for stale in ["Running workloads", "node / api", "CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "PVE RO", "PVE OK", "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
+    for stale in ["Running workloads", "node / api", "CPU bar", "RAM bar", "Storage bar", "Temp n/a", '"temp / storage"', '"CT"', "PVE RO", "PVE OK", "HA OK", "HA DOWN", "M5S OK", "M5S DOWN", "NUT monitor", "addMetricRow(card, \"usage\"", "addMetricRow(card, \"workloads\""]:
         if stale in text:
             return fail(f"PVE UI still contains redundant marker {stale}")
     for needle in ["addCompactMetricWithBar(card, \"RAM\"", "PVE API %s", 'percent < 0 ? "--"']:
@@ -159,7 +161,8 @@ def main() -> int:
         "lv_tabview_set_tab_bar_size(tv, 44)",
         "force_sidebar_label_contrast(bar_obj)",
         "#include \"ps_ui_tab_12.c\"",
-        "lv_obj_set_style_text_font(bar_obj, &ps_ui_tab_12, 0)",
+        "#include \"ps_ui_tab_18.c\"",
+        "lv_obj_set_style_text_font(bar_obj, &ps_ui_tab_18, 0)",
         "lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW)",
         "lv_obj_set_scroll_dir(tab, LV_DIR_HOR)",
         "lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER)",
@@ -169,7 +172,7 @@ def main() -> int:
         "bar(parent, value, color, 10)",
         "lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100))",
         "lv_obj_set_width(right, 68)",
-        "POWER SENTINEL", "Proxmox", "VM haos", "Home Assistant", "M5S",
+        "POWER SENTINEL", "PROXMOX", "VM haos", "HOME ASSISTANT", "M5S", "NUT disarmed",
     ]
     for needle in required_dashboard_fixture:
         if needle not in dashboard_fixture:
@@ -177,14 +180,20 @@ def main() -> int:
     if "lv_obj_t *box = lv_obj_create(parent);" in dashboard_fixture:
         return fail("LVGL MCP dashboard fixture PVE metrics drifted from firmware: wrapper box reintroduced")
     font_file = ROOT / "firmware" / "core-s3-display" / "src" / "ps_ui_tab_12.c"
-    if not font_file.exists():
-        return fail("generated sidebar Nerd Font subset ps_ui_tab_12.c is missing")
+    font_file_18 = ROOT / "firmware" / "core-s3-display" / "src" / "ps_ui_tab_18.c"
+    if not font_file.exists() or not font_file_18.exists():
+        return fail("generated sidebar Nerd Font subsets ps_ui_tab_12.c/ps_ui_tab_18.c are missing")
     font_text = font_file.read_text(encoding="utf-8")
+    font_text_18 = font_file_18.read_text(encoding="utf-8")
     for needle in ["const lv_font_t ps_ui_tab_12", "0xF013", "0xF015", "0xF233", "0xF06F8", "0xF07D0"]:
         if needle not in font_text:
             return fail(f"sidebar Nerd Font subset missing {needle}")
-    if "ps_ui_tab_12.c" not in batch_script and "ps_ui_tab_12.c" not in (SPIKE_DIR / "render-via-doomtrain.sh").read_text(encoding="utf-8"):
-        return fail("LVGL MCP render path must copy/include the generated sidebar font")
+    for needle in ["const lv_font_t ps_ui_tab_18", "0xF013", "0xF015", "0xF233", "0xF06F8", "0xF07D0"]:
+        if needle not in font_text_18:
+            return fail(f"large sidebar Nerd Font subset missing {needle}")
+    render_copy_text = batch_script + "\n" + (SPIKE_DIR / "render-via-doomtrain.sh").read_text(encoding="utf-8")
+    if "ps_ui_tab_12.c" not in render_copy_text or "ps_ui_tab_18.c" not in render_copy_text:
+        return fail("LVGL MCP render path must copy/include the generated sidebar fonts")
 
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:

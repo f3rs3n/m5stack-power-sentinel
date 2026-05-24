@@ -398,6 +398,34 @@ def summarize_nut_clients(clients: list[dict[str, Any]], nut: dict[str, Any]) ->
     return [summarize_nut_client(client, nut) for client in clients]
 
 
+def select_proxmox_nut_client(clients: list[dict[str, Any]], pve: dict[str, Any] | None = None, config: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Return the NUT client entry that represents the configured Proxmox node.
+
+    The PVE dashboard pill must not aggregate all secondary clients: it should be
+    green only when the Proxmox host itself is connected/armed as an upsmon client.
+    Match on the Proxmox node name and host address from config, with the live PVE
+    payload as an additional source when tests pass a prebuilt summary.
+    """
+    if not clients:
+        return None
+    cfg = proxmox_config(config)
+    needles = {
+        str((pve or {}).get("node") or "").strip().lower(),
+        str(cfg.get("node") or "").strip().lower(),
+        str(cfg.get("host") or "").strip().lower(),
+    }
+    needles.discard("")
+    for client in clients:
+        client_fields = {
+            str(client.get("name") or "").strip().lower(),
+            str(client.get("hostname") or "").strip().lower(),
+            str(client.get("host") or "").strip().lower(),
+        }
+        if needles & client_fields:
+            return client
+    return None
+
+
 def nut_client_summary(clients: list[dict[str, Any]]) -> dict[str, int]:
     return {
         "total": len(clients),
@@ -407,13 +435,20 @@ def nut_client_summary(clients: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
-def summarize_standard_nut_shutdown(ups: dict[str, Any], nut: dict[str, Any], clients: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def summarize_standard_nut_shutdown(
+    ups: dict[str, Any],
+    nut: dict[str, Any],
+    clients: list[dict[str, Any]] | None = None,
+    pve: dict[str, Any] | None = None,
+    config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     raw = ups.get("raw", {}) if isinstance(ups.get("raw"), dict) else {}
     monitor_active = bool(nut.get("monitor_active"))
     primary_ready = bool(ups.get("available") and nut.get("server_active") and nut.get("driver_active") and nut.get("mode") == "netserver")
     raw_clients = clients or []
     summarized_clients = summarize_nut_clients(raw_clients, nut)
     summary = nut_client_summary(summarized_clients)
+    proxmox_client = select_proxmox_nut_client(summarized_clients, pve=pve, config=config)
     secondary_ready = any(client.get("role") == "secondary" and (client.get("connected_as_upsmon") or client.get("armed")) for client in summarized_clients)
     if ups.get("low_battery"):
         would_shutdown = True
@@ -435,6 +470,7 @@ def summarize_standard_nut_shutdown(ups: dict[str, Any], nut: dict[str, Any], cl
         "secondary_ready": secondary_ready,
         "nut_clients": summarized_clients,
         "nut_client_summary": summary,
+        "proxmox_nut_client": proxmox_client,
         "would_shutdown": would_shutdown,
         "reason": reason,
         "thresholds": {
@@ -732,6 +768,30 @@ def active_network_interface_names(network: list[dict[str, Any]] | None) -> list
     return names
 
 
+def node_storage_totals(storage: list[dict[str, Any]] | None) -> tuple[Any | None, Any | None]:
+    total = 0
+    used = 0
+    found = False
+    for item in storage or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("enabled") == 0 or item.get("active") == 0:
+            continue
+        item_total = item.get("total") if item.get("total") is not None else item.get("maxdisk")
+        item_used = item.get("used") if item.get("used") is not None else item.get("disk")
+        if item_total is None:
+            continue
+        try:
+            total += int(item_total)
+            used += int(item_used or 0)
+            found = True
+        except (TypeError, ValueError):
+            continue
+    if not found:
+        return None, None
+    return used, total
+
+
 def summarize_proxmox_data(
     node: str,
     latency_ms: int | None,
@@ -741,6 +801,7 @@ def summarize_proxmox_data(
     zfs: list[dict[str, Any]],
     disks: list[dict[str, Any]],
     network: list[dict[str, Any]] | None = None,
+    storage: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     cpu_percent = None
     if node_status.get("cpu") is not None:
@@ -752,8 +813,11 @@ def summarize_proxmox_data(
         ram_total,
     )
     rootfs = node_status.get("rootfs") or {}
-    storage_total = rootfs.get("total")
-    storage_percent = percent_ratio(rootfs.get("used"), storage_total)
+    storage_used, storage_total = node_storage_totals(storage)
+    if storage_total is None:
+        storage_total = rootfs.get("total")
+        storage_used = rootfs.get("used")
+    storage_percent = percent_ratio(storage_used, storage_total)
     zfs_info = zfs_summary(zfs)
     smart_info = smart_summary(disks)
     problems: list[str] = []
@@ -856,13 +920,17 @@ def load_proxmox() -> dict[str, Any]:
         except Exception:
             disks = []
         try:
+            storage = proxmox_api_get(cfg, f"/nodes/{node}/storage") or []
+        except Exception:
+            storage = []
+        try:
             network = proxmox_api_get(cfg, f"/nodes/{node}/network") or []
         except Exception:
             network = []
     except Exception as exc:
         return unavailable_proxmox(f"API read failed: {type(exc).__name__}")
     latency_ms = int(round((time.monotonic() - started) * 1000))
-    return summarize_proxmox_data(node=node, latency_ms=latency_ms, node_status=node_status, qemu=qemu, lxc=lxc, zfs=zfs, disks=disks, network=network)
+    return summarize_proxmox_data(node=node, latency_ms=latency_ms, node_status=node_status, qemu=qemu, lxc=lxc, zfs=zfs, disks=disks, network=network, storage=storage)
 
 
 def parse_mqtt_json(payload: str | None) -> Any:
@@ -1045,7 +1113,7 @@ def build_summary(
         zigbee2mqtt = load_zigbee2mqtt()
     if shutdown is None:
         nut_clients = load_nut_clients()
-        shutdown = summarize_standard_nut_shutdown(ups, nut, nut_clients)
+        shutdown = summarize_standard_nut_shutdown(ups, nut, nut_clients, pve=pve)
 
     m5_overall = bool(health_value(health, "overall_ok", default=False))
     problems: list[str] = []
