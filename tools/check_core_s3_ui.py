@@ -15,7 +15,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 SPIKE_DIR = ROOT / "assets" / "lvgl-spike"
 SPIKE_HOME_FIXTURE = SPIKE_DIR / "power-sentinel-home-online.c"
+SPIKE_DASHBOARD_FIXTURE = SPIKE_DIR / "power-sentinel-dashboard-fixture.c"
 SPIKE_RENDER_SCRIPT = SPIKE_DIR / "run-lvgl-mcp-render.mjs"
+SPIKE_BATCH_RENDER_SCRIPT = SPIKE_DIR / "render-power-sentinel-tabs.mjs"
 EXPECTED_TAB_LABEL_MARKERS = ["LV_SYMBOL_HOME", "LV_SYMBOL_CHARGE", "LV_SYMBOL_DRIVE", "LV_SYMBOL_WIFI", "LV_SYMBOL_SETTINGS"]
 FORBIDDEN_TABS = ["UPS", "Offline"]
 REQUIRED_RENDERERS = ["renderHome", "renderNut", "renderProxmox", "renderHa", "renderM5s"]
@@ -115,9 +117,16 @@ def main() -> int:
     if not SPIKE_RENDER_SCRIPT.exists():
         return fail("LVGL MCP visual render harness is missing")
     render_script = SPIKE_RENDER_SCRIPT.read_text(encoding="utf-8")
-    for needle in ["--source", "--name", "lvgl_render_full", "lvgl_set_resolution"]:
+    for needle in ["--source", "--name", "--define", "lvgl_render_full", "lvgl_set_resolution", "taskkill"]:
         if needle not in render_script:
             return fail(f"LVGL MCP render harness missing {needle}")
+
+    if not SPIKE_BATCH_RENDER_SCRIPT.exists():
+        return fail("LVGL MCP dashboard batch renderer is missing")
+    batch_script = SPIKE_BATCH_RENDER_SCRIPT.read_text(encoding="utf-8")
+    for needle in ["home-current", "nut-current", "pve-current", "ha-current", "m5s-current", "PS_ACTIVE_TAB"]:
+        if needle not in batch_script:
+            return fail(f"LVGL MCP dashboard batch renderer missing {needle}")
 
     if not SPIKE_HOME_FIXTURE.exists():
         return fail("LVGL MCP HOME visual fixture is missing")
@@ -135,6 +144,24 @@ def main() -> int:
     for needle in required_fixture_strings:
         if needle not in fixture:
             return fail(f"LVGL MCP HOME fixture missing {needle!r}")
+
+    if not SPIKE_DASHBOARD_FIXTURE.exists():
+        return fail("LVGL MCP dashboard fixture is missing")
+    dashboard_fixture = SPIKE_DASHBOARD_FIXTURE.read_text(encoding="utf-8")
+    required_dashboard_fixture = [
+        "#define PS_PAGE_CARD_WIDTH 252",
+        "#define PS_PAGE_CARD_HEIGHT 220",
+        "lv_tabview_set_tab_bar_position(tv, LV_DIR_LEFT)",
+        "lv_tabview_set_tab_bar_size(tv, 44)",
+        "lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW)",
+        "lv_obj_set_scroll_dir(tab, LV_DIR_HOR)",
+        "lv_obj_set_scroll_snap_x(tab, LV_SCROLL_SNAP_CENTER)",
+        "H\\nHM", "N\\nNT", "D\\nPV", "W\\nHA", "S\\nM5",
+        "POWER SENTINEL", "Proxmox", "VM haos", "Home Assistant", "M5S",
+    ]
+    for needle in required_dashboard_fixture:
+        if needle not in dashboard_fixture:
+            return fail(f"LVGL MCP dashboard fixture missing {needle!r}")
 
     render_all_match = re.search(r"void renderAll\(\) \{(?P<body>.*?)\n\}", text, re.S)
     if not render_all_match:

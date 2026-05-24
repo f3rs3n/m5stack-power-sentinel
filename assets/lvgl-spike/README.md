@@ -65,9 +65,28 @@ home-online-tools.json
 home-online-stderr.txt
 ```
 
-The script is intentionally generic: pass `--source`, `--name`, `--width`, `--height`, and `--results-dir` to render additional fixtures. Default resolution is the CoreS3 display size, 320x240.
+The script is intentionally generic: pass `--source`, `--name`, `--width`, `--height`, `--results-dir`, and optional `--define NAME=VALUE` to render additional fixtures. Default resolution is the CoreS3 display size, 320x240.
 
 `power-sentinel-home-online.c` is a curated visual fixture that mirrors the production HOME tab contract: real tab order `HOME`/`NUT`/`PVE`/`HA`/`M5S`, modern dark theme, HOME hero card, status pills, real `NET`/`M5S` local row, and `SLEEP DISPLAY`. Keep it aligned with `firmware/core-s3-display/src/main.cpp`; `tools/check_core_s3_ui.py` enforces key strings so the fixture does not silently rot.
+
+For full UI review, use the dashboard fixture and batch runner:
+
+```powershell
+cd C:\Users\marti\Progetti\m5stack-power-sentinel\assets\lvgl-spike
+node .\render-power-sentinel-tabs.mjs
+```
+
+This renders five active-tab PNG/widget-tree pairs from `power-sentinel-dashboard-fixture.c`. The fixture uses the same V1 tab topology as the firmware: 44px left sidebar with compact two-line tab labels (`H/HM`, `N/NT`, `D/PV`, `W/HA`, `S/M5`) and a 276x240 content area.
+
+```text
+home-current.png
+nut-current.png
+pve-current.png
+ha-current.png
+m5s-current.png
+```
+
+Internally the runner passes `--define PS_ACTIVE_TAB=0..4` to the generic MCP harness so one C fixture can represent the whole current tab set.
 
 ## Recommended local testing path: MCP Inspector
 

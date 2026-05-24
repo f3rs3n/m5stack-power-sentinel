@@ -8,7 +8,7 @@ const defaultSource = join(scriptDir, 'power-sentinel-spike-001.c');
 const defaultResultsDir = join(scriptDir, 'results');
 
 function usage() {
-  console.error(`Usage: node run-lvgl-mcp-render.mjs [--source file.c] [--name basename] [--width 320] [--height 240] [--results-dir dir]\n\nExamples:\n  node run-lvgl-mcp-render.mjs --source power-sentinel-home-online.c --name home-online\n  node run-lvgl-mcp-render.mjs --source power-sentinel-spike-001.c --name spike-001`);
+  console.error(`Usage: node run-lvgl-mcp-render.mjs [--source file.c] [--name basename] [--width 320] [--height 240] [--results-dir dir] [--define NAME=VALUE]\n\nExamples:\n  node run-lvgl-mcp-render.mjs --source power-sentinel-home-online.c --name home-online\n  node run-lvgl-mcp-render.mjs --source power-sentinel-dashboard-fixture.c --name pve-current --define PS_ACTIVE_TAB=2`);
 }
 
 function parseArgs(argv) {
@@ -18,6 +18,7 @@ function parseArgs(argv) {
     width: 320,
     height: 240,
     resultsDir: defaultResultsDir,
+    defines: [],
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -33,6 +34,7 @@ function parseArgs(argv) {
     else if (arg === '--width') args.width = Number.parseInt(next, 10);
     else if (arg === '--height') args.height = Number.parseInt(next, 10);
     else if (arg === '--results-dir') args.resultsDir = next;
+    else if (arg === '--define') args.defines.push(next);
     else throw new Error(`Unknown argument ${arg}`);
   }
   args.source = isAbsolute(args.source) ? args.source : resolve(scriptDir, args.source);
@@ -47,7 +49,12 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 mkdirSync(args.resultsDir, { recursive: true });
-const code = readFileSync(args.source, 'utf8');
+const definePrefix = args.defines.map((define) => {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*(=.*)?$/.test(define)) throw new Error(`Unsafe define ${define}`);
+  const [name, ...rest] = define.split('=');
+  return `#define ${name} ${rest.length ? rest.join('=') : '1'}`;
+}).join('\n');
+const code = `${definePrefix ? `${definePrefix}\n` : ''}${readFileSync(args.source, 'utf8')}`;
 
 const command = process.platform === 'win32' ? 'cmd.exe' : 'npx';
 const commandArgs = process.platform === 'win32'
