@@ -69,10 +69,25 @@ The script is intentionally generic: pass `--source`, `--name`, `--width`, `--he
 
 `power-sentinel-home-online.c` is a curated visual fixture that mirrors the production HOME tab contract: real tab order `HOME`/`NUT`/`PVE`/`HA`/`M5S`, modern dark theme, HOME hero card, status pills, real `NET`/`M5S` local row, and `SLEEP DISPLAY`. Keep it aligned with `firmware/core-s3-display/src/main.cpp`; `tools/check_core_s3_ui.py` enforces key strings so the fixture does not silently rot.
 
-For full UI review, use the dashboard fixture and batch runner:
+For full UI review from Hermes/Linux, do not render inside the Windows git checkout. Use the wrapper that copies the fixture/harness to a scratch directory outside the repo on DOOMTRAIN:
+
+```bash
+cd /home/martino/projects/m5stack-power-sentinel
+assets/lvgl-spike/render-via-doomtrain.sh
+```
+
+The wrapper uses this Windows scratch workspace:
+
+```text
+C:\Users\marti\Progetti\lvgl-spike-work
+```
+
+That location is intentionally outside `C:\Users\marti\Progetti\m5stack-power-sentinel` so generated MCP files cannot dirty the Windows checkout or block `git pull`. The curated source fixtures and selected baseline PNGs remain in the repo; noisy generated transport files stay ignored.
+
+For manual Windows-only experiments, prefer the same scratch directory:
 
 ```powershell
-cd C:\Users\marti\Progetti\m5stack-power-sentinel\assets\lvgl-spike
+cd C:\Users\marti\Progetti\lvgl-spike-work
 node .\render-power-sentinel-tabs.mjs
 ```
 
