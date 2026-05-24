@@ -66,8 +66,8 @@ The top Nebular status cards are the most directly useful pattern. They can tran
 Embedded adaptation:
 
 ```text
-NUT OK    PVE OK
-HA OK     NET OK
+NUT ONLINE    PVE ONLINE
+HA ONLINE     NET OK
 M5S WARN
 ```
 
@@ -227,8 +227,8 @@ GRID ONLINE
 Batt 100%      Run 6m24s
 Load 38%       In 223V
 
-NUT OK   PVE OK   HA OK
-NET OK   M5S OK
+NUT ONLINE   PVE ONLINE   HA ONLINE
+NET OK       M5S OK
 
 No active problems
 ```

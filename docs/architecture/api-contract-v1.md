@@ -54,6 +54,16 @@ Current schema:
   "proxmox": {
     "available": true,
     "severity": "ok",
+    "node": "pve",
+    "node_status": "online",
+    "cpu_percent": 18,
+    "ram_percent": 46,
+    "ram_total_bytes": 34359738368,
+    "storage_percent": 8,
+    "storage_total_bytes": 7897066643456,
+    "active_network_interfaces": ["eth25g"],
+    "zfs": {"status": "ONLINE"},
+    "smart": {"status": "OK"},
     "shutdown_state": "disarmed"
   },
   "shutdown": {
@@ -61,6 +71,15 @@ Current schema:
     "primary_ready": true,
     "primary_monitor_active": false,
     "secondary_ready": false,
+    "nut_client_summary": {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0},
+    "proxmox_nut_client": {
+      "name": "pve",
+      "host": "192.168.2.99",
+      "role": "secondary",
+      "state": "reachable_via_upsc",
+      "connected_as_upsmon": false,
+      "armed": false
+    },
     "would_shutdown": false,
     "reason": "UPS online"
   },
@@ -78,12 +97,12 @@ Current schema:
 }
 ```
 
-Implementation status, verified 2026-05-23:
+Implementation status, verified 2026-05-24:
 
 - `ups` and `nut`: implemented from live NUT/upsc data for the APC Back-UPS ES 850G2.
-- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART, running VM/LXC summaries, and optional per-running-workload CPU/RAM/disk mini-metrics. Running VM RAM is enriched from `/qemu/{vmid}/status/current`; VM disk usage is enriched through QEMU guest-agent `get-fsinfo` when `VM.GuestAgent.Audit` is available. Misleading VM `disk=0` values are rendered as unknown unless fsinfo supplies real filesystem usage; HAOS read-only `erofs` root is ignored in favor of its data filesystem.
+- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART, running VM/LXC summaries, active non-loopback network interfaces, aggregate Total Node Capacity from `/nodes/{node}/storage`, and optional per-running-workload CPU/RAM/disk mini-metrics. Running VM RAM is enriched from `/qemu/{vmid}/status/current`; VM disk usage is enriched through QEMU guest-agent `get-fsinfo` when `VM.GuestAgent.Audit` is available. Misleading VM `disk=0` values are rendered as unknown unless fsinfo supplies real filesystem usage; HAOS read-only `erofs` root is ignored in favor of its data filesystem.
 - `homeassistant`, `mqtt`, `zigbee2mqtt`: implemented as HA TCP reachability plus MQTT/Zigbee2MQTT bridge-topic health; HA update count is read from HA `/api/states` when a read-only token is configured, otherwise it defaults to `0` for display clarity.
 - `network`: implemented on the LLM Module using Linux default-route state plus a TCP probe, currently `1.1.1.1:53`.
 - `m5stack`: implemented from local healthcheck/service state.
-- `shutdown`: implemented as Standard NUT readiness state only; no custom shutdown action exists.
+- `shutdown`: implemented as Standard NUT readiness state only; no custom shutdown action exists. `shutdown.proxmox_nut_client` is selected from the configured Proxmox node/host and is the only source for the PVE dashboard `NUT armed` / `NUT disarmed` pill; aggregate `nut_client_summary` is global NUT context only.
 - Local LLM inference for dashboard enrichment / companion UI is not implemented yet; current LLM usage is baseline health and optional chat smoke.

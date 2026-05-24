@@ -70,9 +70,9 @@ Implemented and verified on the physical module:
 - UPS connected over USB OTG and served by NUT as `homelab_ups`;
 - NUT telemetry active: `nut-server` and `nut-driver` are active, while `nut-monitor` is currently disabled/inactive on both the M5Stack primary and Proxmox secondary;
 - Proxmox NUT secondary readiness proven, then deliberately disarmed;
-- backend API serving `power-sentinel.summary.v1` with live UPS/NUT, Proxmox, HA/MQTT/Zigbee2MQTT, network, M5Stack, and Standard NUT shutdown-readiness sections;
+- backend API serving `power-sentinel.summary.v1` with live UPS/NUT, Proxmox, HA/MQTT/Zigbee2MQTT, network, M5Stack, and Standard NUT shutdown-readiness sections; Proxmox data now includes aggregate Total Node Capacity from `/nodes/{node}/storage`, active non-loopback interfaces, and selected Proxmox NUT-client readiness via `shutdown.proxmox_nut_client`;
 - StackFlow transport verified: CoreS3 sends `work_id: "sentinel"` summaries over the internal UART, `llm_sys` routes to `ipc:///tmp/rpc.sentinel`, and the display renders live data;
-- CoreS3 LVGL UI implemented with five tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`, plus a HOME `SLEEP DISPLAY` control;
+- CoreS3 LVGL UI implemented with five tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`, an icon-only 18 px left sidebar, standardized uppercase card headers with right-aligned `ONLINE`/`OFFLINE` status pills for service tabs, Proxmox storage/interface/NUT-readiness pills, and a HOME `SLEEP DISPLAY` control;
 - Proxmox read-only token now includes `VM.GuestAgent.Audit` so VM disk usage can be derived from QEMU guest-agent `get-fsinfo`; HAOS currently reports RAM from `/status/current` and HDD usage from `/mnt/data`, while read-only root filesystems such as HAOS `erofs` are ignored;
 - global SSH aliases in Martino's Hermes environment are `ssh pve`, `ssh m5stack`, and `ssh doomtrain` for Proxmox, the LLM Module, and the Windows workstation respectively;
 - LLM Module dependency inventory exists in `docs/operations/llm-module-dependencies.md` so the backend install can be reproduced on a fresh stack;

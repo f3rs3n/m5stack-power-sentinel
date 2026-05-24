@@ -35,7 +35,7 @@ Navigation:
 
 - `HOME` is the default boot page.
 - Top-level navigation uses a compact left sidebar to preserve the scarce 240 px vertical space.
-- Sidebar labels should favor small monochrome/low-color icon or spia-style affordances plus short text (`HM`, `NT`, `PV`, `HA`, `M5`) until better custom icons are available. Inactive labels should remain bright/readable; the selected tab is identified by the blue pill/background, not by dimming every other label.
+- Sidebar navigation uses icon-only 18 px glyphs in a fixed 44 px left rail. Text suffixes such as `HM`, `NT`, `PV`, `HA`, and `M5` are no longer part of the normal live UI; the selected tab is identified by the blue pill/background while inactive icons remain bright/readable.
 - Top-level tab switching is via the sidebar or vertical swipe through the left-sidebar tab stack; horizontal gestures inside the content area belong to the current tab's card carousel, not to changing tabs.
 - No automatic tab switch in V1.
 - No automatic return-to-HOME timer in V1.
@@ -124,11 +124,11 @@ Required visible elements:
   - load percent
   - input voltage
 - Subsystem status row:
-  - `NUT OK/WARN/CRIT/UNK`
-  - `PVE OK/DOWN`
-  - `HA OK/DOWN/WARN`
+  - `NUT ONLINE/OFFLINE/WARN`
+  - `PVE ONLINE/OFFLINE`
+  - `HA ONLINE/OFFLINE/WARN`
   - `NET OK/DOWN/UNK`
-  - `M5S OK/WARN/CRIT`
+  - `M5S ONLINE/OFFLINE/WARN`
 - Problems summary:
   - show max 2-3 human-readable problems.
   - if none: `No active problems`.
@@ -149,8 +149,8 @@ GRID ONLINE
 Batt 100%     Run 6m24s
 Load 38%      In 226V
 
-NUT OK   PVE OK   HA OK
-NET OK   M5S OK
+NUT ONLINE   PVE ONLINE   HA ONLINE
+NET OK       M5S ONLINE
 
 No active problems
 ```
@@ -283,15 +283,16 @@ Security/config direction:
 
 Top PVE section:
 
-- `PVE OK/DOWN`
+- Header title is `PROXMOX` with a right-aligned status pill using `ONLINE` / `OFFLINE`, not `PVE OK` / `PVE DOWN`.
 - node/API diagnostics are intentionally not in the compact PVE card; API latency moved to the M5S transport/debug card
 - CPU usage % plus percent bar, labelled simply `CPU N%`.
 - RAM usage % plus percent bar, labelled simply `RAM N%`, with total RAM right-aligned when available.
 - CPU temperature is intentionally omitted from the compact V1 PVE card until the backend can expose a meaningful host/sensor-specific value; do not show a permanent `Temp n/a` placeholder.
-- storage usage % plus percent bar, labelled simply `Storage N%`.
-- ZFS status as a compact status pill.
-- SMART/disk health status as a compact status pill.
-- NUT monitor/readiness context.
+- storage usage % plus percent bar, labelled simply `Storage N%`, with Total Node Capacity right-aligned when available. Total Node Capacity is `proxmox.storage_total_bytes`, aggregated from `/nodes/{node}/storage` enabled/active storages, not the node rootfs total except as fallback.
+- ZFS status as a compact status pill, rendered as `ZFS online` / `ZFS warn`.
+- SMART/disk health status as a compact status pill, rendered as `SMART ok` / `SMART warn`.
+- active non-loopback Proxmox interfaces from `proxmox.active_network_interfaces[]` render as compact pills such as `eth25g` or `vmbr0`.
+- PVE NUT readiness renders as `NUT armed` / `NUT disarmed` and must refer only to the configured Proxmox NUT client (`shutdown.proxmox_nut_client.armed`), not aggregate readiness of any secondary client.
 
 Do not show Proxmox API shutdown triggers in V1. Avoid implying an armed shutdown policy before Standard NUT readiness is understood.
 
@@ -326,16 +327,18 @@ SMART/disk section:
 Example PVE layout:
 
 ```text
-PVE                 OK
+PROXMOX            ONLINE
 
 CPU 18%
 [percent bar]
 RAM 46%        32GB
 [percent bar]
-Storage 62%
+Storage 8%     7.2TB
+[percent bar]
 
-[ZFS ONLINE] [SMART PASSED] [PVE RO]
-NUT monitor idle   armed NO
+[ZFS online] [SMART ok]
+[eth25g] [vmbr0]
+[NUT disarmed]
 
 -- horizontal mini-card page --
 VM haos
