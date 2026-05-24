@@ -78,7 +78,13 @@ Hermes tunnel: systemd --user lvgl-mcp-tunnel.service
 Hermes MCP URL: http://127.0.0.1:3333/mcp
 ```
 
-The Windows server is bound to `127.0.0.1`; Hermes reaches it through the user systemd SSH tunnel, so no LAN firewall exposure is needed. After Hermes is restarted, native MCP tools should appear as `mcp_lvgl_lvgl_render`, `mcp_lvgl_lvgl_render_full`, `mcp_lvgl_lvgl_inspect`, and `mcp_lvgl_lvgl_set_resolution`.
+The Windows server is bound to `127.0.0.1`; Hermes reaches it through the user systemd SSH tunnel, so no LAN firewall exposure is needed. It is intentionally on-demand, not auto-started: the Windows scheduled task `LvglMcpHttp` is disabled. Start it only when visual rendering is needed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\marti\Progetti\start-lvgl-mcp-http.ps1
+```
+
+After Hermes is restarted/reloaded while the server is up, native MCP tools should appear as `mcp_lvgl_lvgl_render`, `mcp_lvgl_lvgl_render_full`, `mcp_lvgl_lvgl_inspect`, and `mcp_lvgl_lvgl_set_resolution`.
 
 Fallback: if native MCP is unavailable, do not render inside the Windows git checkout. Use the wrapper that copies the fixture/harness to a scratch directory outside the repo on DOOMTRAIN:
 
