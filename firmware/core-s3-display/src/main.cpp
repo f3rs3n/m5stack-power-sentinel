@@ -955,32 +955,32 @@ lv_obj_t *makeNutClientMiniCard(lv_obj_t *parent, const NutClientCard &client) {
   lv_obj_t *card = lv_obj_create(parent);
   if (!card) return nullptr;
   lv_obj_set_width(card, lv_pct(100));
-  lv_obj_set_height(card, (PAGE_CARD_HEIGHT - 8) / 2);
-  lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_all(card, 8, 0);
-  lv_obj_set_style_pad_gap(card, 5, 0);
-  lv_obj_set_style_radius(card, 12, 0);
+  lv_obj_set_height(card, 44);
+  lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(card, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_all(card, 6, 0);
+  lv_obj_set_style_pad_gap(card, 4, 0);
+  lv_obj_set_style_radius(card, 10, 0);
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_set_style_border_color(card, lv_color_hex(0x394152), 0);
   lv_obj_set_style_bg_color(card, lv_color_hex(0x171b24), 0);
-  lv_obj_set_style_shadow_width(card, 6, 0);
-  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_width(card, 4, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_40, 0);
   lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
-  lv_obj_set_style_shadow_ofs_y(card, 2, 0);
+  lv_obj_set_style_shadow_ofs_y(card, 1, 0);
   lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
 
   char title[48];
   snprintf(title, sizeof(title), "%s %s", strcmp(client.role, "primary") == 0 ? "PRIMARY" : "SECONDARY", client.name);
   lv_obj_t *headline = lv_label_create(card);
   if (headline) {
-    lv_obj_set_width(headline, lv_pct(100));
+    lv_obj_set_width(headline, 132);
     lv_label_set_long_mode(headline, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_color(headline, lv_color_hex(0xe8eefc), 0);
     lv_obj_set_style_text_font(headline, &lv_font_montserrat_14, 0);
     lv_label_set_text(headline, title);
   }
   addBadge(card, nutClientDisplayState(client), nutClientStateColor(client));
-  addLine(card, strcmp(client.role, "primary") == 0 ? "local NUT upsmon" : "downstream client");
   return card;
 }
 
@@ -1137,6 +1137,20 @@ void renderHome() {
   lv_obj_center(sleepLabel);
 }
 
+const char *batteryStatusBadge() {
+  if (state.ups.lowBattery) return "LOW";
+  if (state.ups.onBattery) return "DISCHARGING";
+  if (state.ups.available) return "CHARGING";
+  return "UNKNOWN";
+}
+
+lv_color_t batteryStatusColor() {
+  if (state.ups.lowBattery) return lv_palette_main(LV_PALETTE_RED);
+  if (state.ups.onBattery) return lv_palette_main(LV_PALETTE_ORANGE);
+  if (state.ups.available) return lv_palette_main(LV_PALETTE_GREEN);
+  return lv_palette_main(LV_PALETTE_GREY);
+}
+
 void renderNut() {
   lv_obj_clean(nutTab);
   setupPage(nutTab);
@@ -1169,15 +1183,13 @@ void renderNut() {
   snprintf(line, sizeof(line), "Input %s", floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
   addLine(ups, line);
 
-  lv_obj_t *batteryCard = makeCard(nutTab, "BATTERY");
+  lv_obj_t *batteryCard = makeStatusCard(nutTab, "BATTERY", batteryStatusBadge(), batteryStatusColor());
   snprintf(line, sizeof(line), "Battery Charge %s", intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"));
   addLine(batteryCard, line);
   addPercentBar(batteryCard, state.ups.batteryPercent, state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) : lv_palette_main(LV_PALETTE_GREEN));
   snprintf(line, sizeof(line), "Runtime Remaining %s", runtimeText(state.ups.runtimeSeconds, runtime, sizeof(runtime)));
   addLine(batteryCard, line);
   snprintf(line, sizeof(line), "Battery Voltage %s", floatOrUnknown(state.ups.batteryVoltage, batteryV, sizeof(batteryV), "V"));
-  addLine(batteryCard, line);
-  snprintf(line, sizeof(line), "Battery Status %s", state.ups.lowBattery ? "LOW" : (state.ups.onBattery ? "DISCHARGING" : (state.ups.available ? "CHARGING" : "UNKNOWN")));
   addLine(batteryCard, line);
 
   lv_obj_t *powerCard = makeCard(nutTab, "POWER");

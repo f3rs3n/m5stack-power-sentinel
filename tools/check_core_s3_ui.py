@@ -116,8 +116,9 @@ def main() -> int:
         if needle not in text:
             return fail(f"NUT functional-ready UI missing {needle}")
     required_mini_nutify = [
-        "makeStatusCard(nutTab, \"UPS\"", "Model %s", "Runtime", "Power", "BATTERY", "Battery Charge",
-        "Battery Voltage", "Battery Status %s", "CHARGING", "POWER", "Power Usage", "System Load", "Input Voltage", "PROTECTION",
+        "makeStatusCard(nutTab, \"UPS\"", "Model %s", "Runtime", "Power", "makeStatusCard(nutTab, \"BATTERY\"",
+        "batteryStatusBadge()", "batteryStatusColor()", "Battery Charge", "Battery Voltage", "CHARGING", "DISCHARGING",
+        "POWER", "Power Usage", "System Load", "Input Voltage", "PROTECTION", "lv_obj_set_height(card, 44)",
         "Connected clients %d/%d", "state.shutdown.clientConnected", "state.shutdown.clientTotal", "makeNutClientMiniCard(protection, client)"
     ]
     for needle in required_mini_nutify:
@@ -125,7 +126,8 @@ def main() -> int:
             return fail(f"Mini Nutify NUT tab missing dynamic semantic marker {needle}")
     forbidden_shutdown = [
         "DRY-RUN", "dry-run", "Status: %s (%s)", "mode %s", "owner %s", "NUT shutdown readiness", "primary monitor", "client list:",
-        "NUT details", "NUT upsmon:", "clients %d / %d", "Capacity %s"
+        "NUT details", "NUT upsmon:", "clients %d / %d", "Capacity %s", "local NUT upsmon", "downstream client",
+        "Battery Status %s"
     ]
     for needle in forbidden_shutdown:
         if needle in text:
@@ -188,7 +190,7 @@ def main() -> int:
         "lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100))",
         "lv_obj_set_width(right, 68)",
         "POWER SENTINEL", "PROXMOX", "VM haos", "HOME ASSISTANT", "M5S", "NUT disarmed",
-        "UPS", "Model APC Back-UPS BX", "BATTERY", "Battery Charge", "POWER", "Power Usage", "PROTECTION", "Connected clients 0/2",
+        "UPS", "Model APC Back-UPS BX", "BATTERY", "CHARGING", "Battery Charge", "POWER", "Power Usage", "PROTECTION", "Connected clients 0/2",
     ]
     for needle in required_dashboard_fixture:
         if needle not in dashboard_fixture:

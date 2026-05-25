@@ -282,26 +282,31 @@ static void render_home(lv_obj_t *tab) {
     lv_obj_center(sleep);
 }
 
-static lv_obj_t *mini_card(lv_obj_t *parent, const char *title, const char *state, uint32_t color, const char *detail) {
+static lv_obj_t *mini_card(lv_obj_t *parent, const char *title, const char *state, uint32_t color) {
     lv_obj_t *m = lv_obj_create(parent);
     lv_obj_set_width(m, lv_pct(100));
-    lv_obj_set_height(m, (PS_PAGE_CARD_HEIGHT - 8) / 2);
-    lv_obj_set_flex_flow(m, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(m, 8, 0);
-    lv_obj_set_style_pad_gap(m, 5, 0);
-    lv_obj_set_style_radius(m, 12, 0);
+    lv_obj_set_height(m, 44);
+    lv_obj_set_flex_flow(m, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(m, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(m, 6, 0);
+    lv_obj_set_style_pad_gap(m, 4, 0);
+    lv_obj_set_style_radius(m, 10, 0);
     lv_obj_set_style_border_width(m, 1, 0);
     lv_obj_set_style_border_color(m, C(0x394152), 0);
     lv_obj_set_style_bg_color(m, C(0x171b24), 0);
     lv_obj_set_style_bg_opa(m, LV_OPA_COVER, 0);
-    lv_obj_set_style_shadow_width(m, 6, 0);
-    lv_obj_set_style_shadow_opa(m, LV_OPA_60, 0);
+    lv_obj_set_style_shadow_width(m, 4, 0);
+    lv_obj_set_style_shadow_opa(m, LV_OPA_40, 0);
     lv_obj_set_style_shadow_color(m, C(0x000000), 0);
-    lv_obj_set_style_shadow_ofs_y(m, 2, 0);
+    lv_obj_set_style_shadow_ofs_y(m, 1, 0);
     lv_obj_set_scrollbar_mode(m, LV_SCROLLBAR_MODE_OFF);
-    line(m, title, 0xe8eefc, &lv_font_montserrat_14);
+    lv_obj_t *label = lv_label_create(m);
+    lv_label_set_text(label, title);
+    lv_obj_set_width(label, 132);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(label, C(0xe8eefc), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
     badge(m, state, color);
-    line(m, detail, 0xc8d0df, &lv_font_montserrat_12);
     return m;
 }
 
@@ -315,12 +320,11 @@ static void render_nut(lv_obj_t *tab) {
     bar(ups, 19, 0x3b82f6, 10);
     line(ups, "Input 232.0V", 0xc8d0df, &lv_font_montserrat_14);
 
-    lv_obj_t *bat = card(tab, "BATTERY");
+    lv_obj_t *bat = status_card(tab, "BATTERY", "CHARGING", 0x22c55e);
     line(bat, "Battery Charge 100%", 0xc8d0df, &lv_font_montserrat_14);
     bar(bat, 100, 0x22c55e, 10);
     line(bat, "Runtime Remaining 57m00s", 0xc8d0df, &lv_font_montserrat_14);
     line(bat, "Battery Voltage 27.2V", 0xc8d0df, &lv_font_montserrat_14);
-    line(bat, "Battery Status CHARGING", 0xc8d0df, &lv_font_montserrat_14);
 
     lv_obj_t *pwr = card(tab, "POWER");
     line(pwr, "Power Usage 95W", 0xc8d0df, &lv_font_montserrat_14);
@@ -332,8 +336,8 @@ static void render_nut(lv_obj_t *tab) {
     lv_obj_t *prot = status_card(tab, "PROTECTION", "DISARMED", 0xf59e0b);
     line(prot, "Connected clients 0/2", 0xc8d0df, &lv_font_montserrat_14);
     line(prot, "NUT services: upsd OK driver OK", 0xc8d0df, &lv_font_montserrat_14);
-    mini_card(prot, "PRIMARY m5stack", "DISARMED", 0xf59e0b, "local NUT upsmon");
-    mini_card(prot, "SECONDARY pve", "REACHABLE", 0x3b82f6, "downstream client");
+    mini_card(prot, "PRIMARY m5stack", "DISARMED", 0xf59e0b);
+    mini_card(prot, "SECONDARY pve", "REACHABLE", 0x3b82f6);
 }
 
 static void render_pve(lv_obj_t *tab) {
