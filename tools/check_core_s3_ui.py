@@ -110,15 +110,26 @@ def main() -> int:
     required_shutdown = [
         "ShutdownState", "nut_upsmon", "nutClients", "clientSummary", "reachable_via_upsc", "connected_as_upsmon",
         "struct NutClientCard", "MAX_NUT_CLIENT_CARDS", "makeNutClientMiniCard", "PRIMARY", "SECONDARY",
-        "NUT upsmon:", "DISARMED", "clients %d / %d", "Capacity", "state.ups.model", "PAGE_CARD_HEIGHT - 8) / 2"
+        "DISARMED", "PAGE_CARD_HEIGHT - 8) / 2"
     ]
     for needle in required_shutdown:
         if needle not in text:
             return fail(f"NUT functional-ready UI missing {needle}")
-    forbidden_shutdown = ["DRY-RUN", "dry-run", "Status: %s (%s)", "mode %s", "owner %s", "NUT shutdown readiness", "primary monitor", "client list:"]
+    required_mini_nutify = [
+        "makeStatusCard(nutTab, \"UPS\"", "Online Charging", "Runtime", "Power", "BATTERY", "Battery Charge",
+        "Battery Voltage", "POWER", "Power Usage", "System Load", "Input Voltage", "PROTECTION",
+        "Protection %s", "state.shutdown.clientArmed", "state.shutdown.clientTotal", "Armed %d/%d", "state.shutdown.nutClients[i]"
+    ]
+    for needle in required_mini_nutify:
+        if needle not in text:
+            return fail(f"Mini Nutify NUT tab missing dynamic semantic marker {needle}")
+    forbidden_shutdown = [
+        "DRY-RUN", "dry-run", "Status: %s (%s)", "mode %s", "owner %s", "NUT shutdown readiness", "primary monitor", "client list:",
+        "NUT details", "NUT upsmon:", "clients %d / %d", "Capacity %s"
+    ]
     for needle in forbidden_shutdown:
         if needle in text:
-            return fail(f"NUT UI still contains ambiguous shutdown wording {needle}")
+            return fail(f"NUT UI still contains ambiguous/details wording {needle}")
 
     if not SPIKE_RENDER_SCRIPT.exists():
         return fail("LVGL MCP visual render harness is missing")
@@ -177,7 +188,7 @@ def main() -> int:
         "lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100))",
         "lv_obj_set_width(right, 68)",
         "POWER SENTINEL", "PROXMOX", "VM haos", "HOME ASSISTANT", "M5S", "NUT disarmed",
-        "NUT details", "PRIMARY m5stack", "SECONDARY pve", "NUT upsmon: DISARMED", "Capacity 500W",
+        "UPS", "Online Charging", "BATTERY", "Battery Charge", "POWER", "Power Usage", "PROTECTION", "Armed 0/2",
     ]
     for needle in required_dashboard_fixture:
         if needle not in dashboard_fixture:

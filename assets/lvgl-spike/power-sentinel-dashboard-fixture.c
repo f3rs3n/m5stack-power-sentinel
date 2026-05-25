@@ -307,31 +307,35 @@ static lv_obj_t *mini_card(lv_obj_t *parent, const char *title, const char *stat
 
 static void render_nut(lv_obj_t *tab) {
     page(tab);
-    lv_obj_t *c = status_card(tab, "NUT", "ONLINE", 0x22c55e);
-    line(c, "Battery 100%   Runtime 57m00s", 0xc8d0df, &lv_font_montserrat_14);
-    bar(c, 100, 0x22c55e, 10);
-    line(c, "Load 19% / 95W", 0xc8d0df, &lv_font_montserrat_14);
-    bar(c, 19, 0x3b82f6, 10);
-    line(c, "Input 232.0V", 0xc8d0df, &lv_font_montserrat_14);
+    lv_obj_t *ups = status_card(tab, "UPS", "ONLINE", 0x22c55e);
+    line(ups, "Online Charging", 0xc8d0df, &lv_font_montserrat_14);
+    line(ups, "Batt 100%   Runtime 57m00s", 0xc8d0df, &lv_font_montserrat_14);
+    bar(ups, 100, 0x22c55e, 10);
+    line(ups, "Load 19%   Power 95W", 0xc8d0df, &lv_font_montserrat_14);
+    bar(ups, 19, 0x3b82f6, 10);
+    line(ups, "Input 232.0V", 0xc8d0df, &lv_font_montserrat_14);
 
-    lv_obj_t *clients = lv_obj_create(tab);
-    panel(clients, 0x111827, 0x394152);
-    lv_obj_set_style_pad_all(clients, 0, 0);
-    lv_obj_set_style_pad_gap(clients, 8, 0);
-    lv_obj_set_style_border_width(clients, 0, 0);
-    lv_obj_set_style_bg_opa(clients, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_shadow_width(clients, 0, 0);
-    lv_obj_set_scrollbar_mode(clients, LV_SCROLLBAR_MODE_OFF);
-    mini_card(clients, "PRIMARY m5stack", "DISARMED", 0xf59e0b, "local NUT upsmon");
-    mini_card(clients, "SECONDARY pve", "REACHABLE", 0xf59e0b, "downstream client");
+    lv_obj_t *bat = card(tab, "BATTERY");
+    line(bat, "Battery Charge 100%", 0xc8d0df, &lv_font_montserrat_14);
+    bar(bat, 100, 0x22c55e, 10);
+    line(bat, "Runtime Remaining 57m00s", 0xc8d0df, &lv_font_montserrat_14);
+    line(bat, "Battery Voltage 27.2V", 0xc8d0df, &lv_font_montserrat_14);
+    line(bat, "Battery Status OK", 0xc8d0df, &lv_font_montserrat_14);
 
-    lv_obj_t *d = card(tab, "NUT details");
-    line(d, "upsd OK   driver OK", 0xc8d0df, &lv_font_montserrat_14);
-    line(d, "clients 0 / 2", 0xc8d0df, &lv_font_montserrat_14);
-    line(d, "NUT upsmon: DISARMED", 0xc8d0df, &lv_font_montserrat_14);
-    line(d, "UPS Back-UPS ES 850G2", 0xc8d0df, &lv_font_montserrat_14);
-    line(d, "Capacity 500W", 0xc8d0df, &lv_font_montserrat_14);
-    line(d, "Unknown 0   Unreach 0", 0xc8d0df, &lv_font_montserrat_14);
+    lv_obj_t *pwr = card(tab, "POWER");
+    line(pwr, "Power Usage 95W", 0xc8d0df, &lv_font_montserrat_14);
+    line(pwr, "System Load 19%", 0xc8d0df, &lv_font_montserrat_14);
+    bar(pwr, 19, 0x3b82f6, 10);
+    line(pwr, "Input Voltage 232.0V", 0xc8d0df, &lv_font_montserrat_14);
+    line(pwr, "Output Voltage unknown", 0xc8d0df, &lv_font_montserrat_14);
+    line(pwr, "Nominal Power 500W", 0xc8d0df, &lv_font_montserrat_14);
+
+    lv_obj_t *prot = status_card(tab, "PROTECTION", "DISARMED", 0xf59e0b);
+    line(prot, "Protection DISARMED", 0xc8d0df, &lv_font_montserrat_14);
+    line(prot, "Armed 0/2", 0xc8d0df, &lv_font_montserrat_14);
+    line(prot, "NUT services: upsd OK driver OK", 0xc8d0df, &lv_font_montserrat_14);
+    row(prot, "PRI m5stack", "DISARMED");
+    row(prot, "SEC pve", "REACHABLE");
 }
 
 static void render_pve(lv_obj_t *tab) {
