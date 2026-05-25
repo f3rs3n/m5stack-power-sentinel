@@ -174,9 +174,12 @@ ups.status_label: Online
 severity: ok
 shutdown.real_shutdown_owner: upsmon
 shutdown.primary_monitor_active: false
+shutdown.nut_upsmon: {armed:false, state:disarmed, label:DISARMED}
 shutdown.armed: false
-shutdown.nut_client_summary: {total, secondary_total, connected, armed, unknown, unavailable}
-shutdown.nut_clients[].state: armed | connected_as_upsmon | reachable_via_upsc | configured_not_connected | not_configured | unknown | unavailable
+shutdown.nut_client_summary: {total, secondary_total, connected, armed, unknown, unavailable}; total includes the local primary plus configured secondaries
+shutdown.nut_clients[0]: {role:primary, name:m5stack, state:reachable_via_upsc, armed:false}
+shutdown.nut_clients[1]: {role:secondary, name:pve, state:reachable_via_upsc, armed:false}
+shutdown.nut_clients[].state: armed | disarmed | connected_as_upsmon | reachable_via_upsc | configured_not_connected | not_configured | unknown | unavailable
 shutdown.proxmox_nut_client.state: reachable_via_upsc
 ```
 
@@ -244,13 +247,13 @@ Because the first secondary host has `nut-client` installed and `upsc` can read 
 }
 ```
 
-The API exposes the corresponding summary under `shutdown.nut_clients[]` and aggregate counts under `shutdown.nut_client_summary`. The inventory can contain zero, one, or many configured clients; the current live file above records only the first Proxmox secondary, while `backend/config/nut-clients.example.json` shows the broader multi-client shape.
+The API exposes the local primary plus the inventory clients under `shutdown.nut_clients[]` and aggregate counts under `shutdown.nut_client_summary`. The local primary is injected by the backend as `shutdown.nut_clients[0]` (`role=primary`, `name=m5stack`) so firmware can render clients in API order without special casing. The inventory can contain zero, one, or many configured secondary clients; the current live file above records only the first Proxmox secondary, while `backend/config/nut-clients.example.json` shows the broader multi-client shape. Local primary upsmon arming is exposed separately under `shutdown.nut_upsmon` and should be rendered explicitly as `NUT upsmon: ARMED/DISARMED`, not as a client-reachability state.
 
 State meanings:
 
 - `armed`: that client's inventory says `monitor_active=true` and the M5Stack NUT server sees the NUT upsmon client.
 - `connected_as_upsmon`: the M5Stack NUT server sees a NUT client connection on port 3493; not necessarily armed.
-- `reachable_via_upsc`: a secondary host has `upsc`/`nut-client` and can read `homelab_ups@192.168.2.202`, but upsmon is not connected.
+- `reachable_via_upsc`: the local primary or a secondary host can read the UPS via `upsc` (`homelab_ups@localhost` for the primary, `homelab_ups@192.168.2.202` for secondaries), but upsmon is not connected/armed.
 - `configured_not_connected`: client inventory/config exists, but no current upsmon connection is observed.
 - `not_configured`: no client inventory entry and no observed NUT upsmon client.
 - `unknown`: a configured/readiness inventory record exists but the read-only probe result is not known. It is reported for operator visibility only and does not count as connected, armed, or secondary-ready.
