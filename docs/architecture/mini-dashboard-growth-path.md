@@ -476,6 +476,8 @@ Reject.
 
 Reason: charts with axes, legends, dense histories, and tables waste the CoreS3's limited pixels and increase LVGL object/draw cost. Tiny sparklines may be tested later, but only for a few values and only after fixture and hardware stability checks.
 
+For NUT, a future temporal-graph spike should start with UPS load only: backend-side sampling of `load_percent`/`load_w`, a small retention window, and a downsampled endpoint returning 60–120 display-ready points. NUT/`upsd` itself should be treated as current-state telemetry; `upslog` is useful reference tooling, not a CoreS3 history API.
+
 ### Raw debug/API detail page
 
 Reject as user-facing navigation.
@@ -521,6 +523,7 @@ Reason: network health is important, but a vendor/router page would require anot
    - Update `assets/lvgl-spike/power-sentinel-dashboard-fixture.c` whenever firmware UI changes.
    - Keep the 44 px sidebar, horizontal carousel, bright inactive icons, and exact tab/card topology faithful to firmware.
    - Add representative OK/WARN/CRITICAL/UNAVAILABLE payload samples for new mini-dashboard cards.
+   - For horizontal carousel edits, validation must cover every changed card, not just the first visible per-tab screenshot. Use card-specific/scroll-position renders where possible; otherwise say the render is only partial evidence.
 
 5. Extend `tools/check_core_s3_ui.py` before adding cards.
    - Guard the five tab names/order.
@@ -573,7 +576,7 @@ Reason: network health is important, but a vendor/router page would require anot
 Use now.
 
 - Add Network card under HOME.
-- Add NUT readiness/client card under NUT.
+- NUT already has separate `UPS`, `BATTERY`, `POWER`, and `PROTECTION` cards; future growth should refine or add compact trend cards rather than reintroducing control UI.
 - Split M5S appliance and transport cards if crowded.
 - Keep all top-level navigation unchanged.
 

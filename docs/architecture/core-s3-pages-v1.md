@@ -167,16 +167,30 @@ Purpose: UPS + NUT server operational view.
 
 The NUT tab is strictly an observer/readiness UI. It may show whether the LLM Module primary `upsmon` and configured downstream NUT clients appear ready/armed, but it must not expose arming/disarming, hold/release, or maintenance buttons. Downstream clients such as Proxmox own their own `upsmon` service state; Power Sentinel only reports it. NUT has no native safe remote-control function for disabling all client `upsmon` services, and adding one would require custom SSH/agent/orchestration that the project intentionally excludes.
 
-The `NUT` tab uses a Mini Nutify-style horizontal carousel for V1d: Nutify is treated as a terminology and information-hierarchy reference, not as a feature target. The CoreS3 version stays read-only and intentionally omits multi-UPS management, historical databases/charts, reports, UPS commands, remappers, setup wizards, and configuration editing.
+The `NUT` tab uses a Mini Nutify-style horizontal carousel for V1d: Nutify is treated as a terminology and information-hierarchy reference, not as a feature target. The CoreS3 version stays read-only and intentionally omits multi-UPS management, historical databases/charts, reports, UPS commands, remappers, setup wizards, and configuration editing. Future tiny sparklines may be tested separately, but only with backend-side history/downsampling and compact display payloads.
 
 1. `UPS`: synthetic UPS state (`ONLINE`, `ON BATT`, `LOW BATT`, `UNAVAILABLE`, `STALE`), UPS model, battery/runtime, load/power W estimate, and input voltage. Do not duplicate the `ONLINE` pill with an `Online Charging` body line and do not expose raw NUT status tokens such as `OL`/`OB`/`LB` on the normal card.
 2. `BATTERY`: battery-centric terms such as `Battery Charge`, `Runtime Remaining`, and `Battery Voltage`; the header pill carries compact battery state (`CHARGING`, `DISCHARGING`, `LOW`, `UNKNOWN`) instead of a body row.
 3. `POWER`: electrical/load terms such as `Power Usage`, `System Load`, `Input Voltage`, `Output Voltage` when available, and nominal power.
 4. `PROTECTION`: Standard NUT shutdown-readiness, including `upsd`/driver service state plus dynamic `upsmon` client readiness from `shutdown.nut_clients[]`. Client names and counts must come from the API payload, not hardcoded UI assumptions. The header pill carries the protection state; the body should avoid repeating `Protection ARMED/DISARMED`, summarize `Connected clients N/T`, and render each client as a thin single-row card with role/name plus status badge only. `reachable_via_upsc` is not `armed` and must not be rendered as fully protected/green.
 
-Next NUT UI pass: keep the tab read-only, but revise the information hierarchy so the actual NUT model is clearer at a glance: `upsd`/driver telemetry is not shutdown automation; primary/secondary are `upsmon` roles; `reachable_via_upsc` is not the same as armed.
+Keep future NUT UI changes read-only and preserve the information hierarchy: `upsd`/driver telemetry is not shutdown automation; primary/secondary are `upsmon` roles; `reachable_via_upsc` is not the same as armed.
 
 If this becomes too dense, V2 may split into separate `UPS` and `NUT` pages or use tap-to-open subpages.
+
+### Future NUT temporal graph spike
+
+NUT/`upsd` exposes current driver values; it is not a queryable history database. NUT's `upslog` can poll selected variables and write a log file, but the preferred Power Sentinel implementation is a backend-owned history/ring buffer so the API can expose normalized and downsampled data.
+
+Candidate first spike:
+
+- sample `ups.load` as normalized `load_percent` and derived `load_w` every 30 seconds;
+- retain 24h initially;
+- expose a compact endpoint such as `GET /history/nut/load?window=1h&points=60` or a future `/api/v1/history/nut/load` equivalent;
+- return at most 60–120 display-ready points for the CoreS3;
+- render a tiny sparkline without axes/legend/table chrome.
+
+Do not send raw long histories to the CoreS3 and do not add full desktop-style charts to V1.
 
 ### NUT: UPS essentials section
 

@@ -288,9 +288,16 @@ Power Sentinel remains an observer:
 - Show known client readiness/armed state when available from inventory/probes.
 - Leave actual client arming/disarming to each host's own NUT/admin procedure.
 
-### Product/UI follow-up
+### Product/UI state and follow-up
 
-Because the button/control idea is abandoned, revisit the NUT tab information hierarchy next. The current three-card layout is functional-ready, but the next UI pass should focus on presenting the real NUT mental model more clearly for a read-only observer:
+The current CoreS3 NUT tab is a read-only Mini Nutify-style carousel: `UPS`, `BATTERY`, `POWER`, and `PROTECTION`.
+
+- `UPS` shows synthetic UPS state, model, battery/runtime, load/power, and input voltage without duplicating `ONLINE` as body text.
+- `BATTERY` uses a header pill for compact battery state (`CHARGING`, `DISCHARGING`, `LOW`, `UNKNOWN`) and keeps charge/runtime/voltage in the body.
+- `POWER` shows electrical/load metrics and hides output voltage when NUT does not expose it.
+- `PROTECTION` separates `upsd`/driver service health from client readiness, summarizes `Connected clients N/T`, and renders each known `upsmon` client as a thin role/name row with a state badge.
+
+Preserve these semantic boundaries:
 
 - `upsd`/driver telemetry health is separate from `upsmon` shutdown automation.
 - Primary/secondary are `upsmon` roles, not `upsd` roles.
