@@ -1,4 +1,4 @@
-# Standard NUT arming runbook and maintenance-control gate
+# Standard NUT arming runbook and control boundary
 
 Date: 2026-05-25
 Status: deliberate operations note; no service changes executed by this document
@@ -111,7 +111,7 @@ Do not issue FSD.
 Do not stop all NUT services unless telemetry itself is the maintenance target.
 ```
 
-This is the only mechanism that is plausibly compatible with a future conservative CoreS3 maintenance control, and only if additional safety gates are implemented.
+Do not describe this as a future CoreS3 feature. The product decision is read-only observation: Power Sentinel should report the local primary `upsmon` state and downstream client readiness, but should not expose a hold/release button or any API path that controls NUT client services.
 
 ### Full NUT telemetry outage
 
@@ -266,66 +266,36 @@ ssh m5stack 'upsc homelab_ups@localhost || true'
 ssh m5stack 'lsusb | grep -i "051d:0002\|American Power" || true'
 ```
 
-## CoreS3 local maintenance control evaluation
+## CoreS3 / API control boundary
 
-Recommendation for V1: do not add a normal CoreS3 NUT tab button for arming/disarming. Keep the default path as operator shell/runbook action.
+Product decision: do not implement a CoreS3 button or backend write API for NUT arming, disarming, hold, release, or LAN-wide maintenance control.
 
-A future control is only conditionally viable if it is narrowly scoped as LLM Module local NUT shutdown-automation hold/release. It must not control downstream clients. It must not trigger FSD. It must not stop telemetry by default. It must not implement custom shutdown orchestration.
+Reason: NUT does not provide a native, safe remote-control function for disabling all registered `upsmon` clients. Implementing such a button would require custom orchestration such as SSH, agents, Ansible, systemd remote control, or client-side APIs. That reintroduces the custom shutdown/orchestration role that Power Sentinel intentionally avoids.
 
-### If implemented later, the control should mean exactly this
+Therefore:
 
-- Hold: stop/disable `nut-monitor` / `upsmon` on the LLM Module only.
-- Release: enable/start `nut-monitor` / `upsmon` on the LLM Module only, after preflight checks pass.
-- Leave `nut-server` / `upsd` and NUT drivers running so telemetry remains available.
-- Do not change Proxmox, Home Assistant, or any other downstream client's service state.
-- Do not edit NUT config files from the CoreS3 path in V1.
-- Do not call `upsmon -c fsd`.
+- No LAN-wide NUT disarm/hold button.
+- No local LLM Module `upsmon` hold/release button in the normal CoreS3 UI.
+- No SSH/control requirement from Power Sentinel to Proxmox, Home Assistant, or other NUT clients.
+- No client agent requirement.
+- No Power Sentinel API endpoint that starts/stops/enables/disables `nut-monitor` on clients.
+- No FSD control in the UI/API.
 
-Operator-facing label should be explicit, for example:
+Power Sentinel remains an observer:
 
-```text
-Local NUT shutdown hold
-LLM Module only. Telemetry stays online. Clients are not controlled.
-```
+- Show whether `upsd`/driver telemetry is available.
+- Show local primary `upsmon` armed/disarmed state.
+- Show known client readiness/armed state when available from inventory/probes.
+- Leave actual client arming/disarming to each host's own NUT/admin procedure.
 
-Avoid labels like `Disarm NUT server`, `Shutdown off`, or `Disable UPS`, because those imply the wrong component or hide the blast radius.
+### Product/UI follow-up
 
-### Required safety gates before any UI/API implementation
+Because the button/control idea is abandoned, revisit the NUT tab information hierarchy next. The current three-card layout is functional-ready, but the next UI pass should focus on presenting the real NUT mental model more clearly for a read-only observer:
 
-Backend/API:
-
-- Feature flag disabled by default.
-- Local-only admin API; no unauthenticated LAN write endpoint.
-- Authentication/authorization appropriate for a privileged service action.
-- Explicit action names such as `hold_local_upsmon` and `release_local_upsmon`, not vague `disarm`.
-- Mandatory finite TTL for a hold, with auto-release or persistent degraded-safety alarm when TTL expires/fails.
-- Operator reason required and audit logged.
-- Preflight checks before release: UPS telemetry available, config present, credentials sane enough for `upsmon` start, service not masked, no active low-battery/FSD state.
-- Idempotent service operations with read-after-write verification.
-- Failure must leave a clear degraded state in the API summary and logs.
-
-CoreS3 UX:
-
-- Hidden behind an admin/maintenance affordance, not on the normal first NUT card.
-- Multi-step confirmation with clear blast-radius text.
-- Accidental-touch prevention: long press, hold-to-confirm, or equivalent deliberate gesture; no single tap.
-- Visible active hold banner with remaining TTL and `LLM only` scope.
-- Release/re-arm flow must be at least as deliberate as hold, because release re-enables shutdown automation.
-- If auth/session/feature flag/preflight is unavailable, render as disabled with a reason, not as a tappable control.
-
-Failure modes that must be designed before implementation:
-
-- API request succeeds but systemd action fails.
-- `nut-monitor` starts then exits due to config/credential errors.
-- CoreS3 loses transport during a hold.
-- LLM Module reboots during a hold.
-- UPS goes on battery/low battery during a hold.
-- TTL expiry cannot release the hold.
-- Operator believes Proxmox was controlled by the button; UI text must prevent this.
-
-### Product decision
-
-For now, this belongs in the runbook, not on-device. The CoreS3 should continue to show state/readiness and make the disarmed/armed condition obvious. If the project later needs field maintenance without shell access, implement the conservative local-only hold/release design above behind a disabled-by-default feature flag and security review.
+- `upsd`/driver telemetry health is separate from `upsmon` shutdown automation.
+- Primary/secondary are `upsmon` roles, not `upsd` roles.
+- A reachable client is not necessarily armed.
+- Avoid implying that Power Sentinel can or should control downstream clients.
 
 ## Design constraints to preserve
 

@@ -185,7 +185,7 @@ shutdown.proxmox_nut_client.state: reachable_via_upsc
 
 ## NUT client readiness
 
-The deliberate arming/disarming procedure and CoreS3 maintenance-control safety gate are documented in `docs/operations/standard-nut-arming-runbook.md`. Short version: Power Sentinel observes readiness; downstream clients such as Proxmox own their own `upsmon` arming/disarming; any future CoreS3 maintenance control may only target the LLM Module local `upsmon` hold/release path, never arbitrary clients or FSD.
+The deliberate arming/disarming procedure and control boundary are documented in `docs/operations/standard-nut-arming-runbook.md`. Short version: Power Sentinel observes readiness; downstream clients such as Proxmox own their own `upsmon` arming/disarming; there will be no CoreS3/API hold/disarm button or SSH/client-control requirement.
 
 The primary monitor on the M5Stack and the secondary monitor on Proxmox have both been proven and then disabled. Current readiness remains staged: do not leave either `nut-monitor` enabled, and do not trigger FSD/shutdown, until an explicit Standard NUT arming operation is chosen and verified.
 

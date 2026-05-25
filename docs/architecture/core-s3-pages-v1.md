@@ -165,13 +165,15 @@ Network status in HOME:
 
 Purpose: UPS + NUT server operational view.
 
-The NUT tab is primarily an observer/readiness UI. It may show whether the LLM Module primary `upsmon` and configured downstream NUT clients appear ready/armed, but V1 must not expose a normal arming/disarming button. Downstream clients such as Proxmox own their own `upsmon` service state; Power Sentinel only reports it. If a future maintenance control is added, it must follow `docs/operations/standard-nut-arming-runbook.md`: local LLM Module `upsmon` hold/release only, feature-flagged/admin-only, finite TTL, audited, explicit confirmation, no downstream client control, no FSD, and no custom shutdown orchestration.
+The NUT tab is strictly an observer/readiness UI. It may show whether the LLM Module primary `upsmon` and configured downstream NUT clients appear ready/armed, but it must not expose arming/disarming, hold/release, or maintenance buttons. Downstream clients such as Proxmox own their own `upsmon` service state; Power Sentinel only reports it. NUT has no native safe remote-control function for disabling all client `upsmon` services, and adding one would require custom SSH/agent/orchestration that the project intentionally excludes.
 
 The `NUT` tab combines horizontal cards for V1d:
 
 1. UPS essentials: synthetic UPS state (`ONLINE`, `ON BATT`, `LOW BATT`, `UNAVAILABLE`, `STALE`), battery/runtime, load/W estimate, and input voltage. Do not expose raw NUT status tokens such as `OL`/`OB`/`LB` on the normal card.
 2. NUT clients: a vertical stack of half-height mini-cards, matching the PVE VM/LXC card rhythm. The backend normalizes the local primary into `shutdown.nut_clients[0]`, so the firmware renders cards in API order: `PRIMARY m5stack` first, then configured secondary clients such as `SECONDARY pve`.
 3. NUT details: `upsd` state, driver state, connected/total client count, explicit `NUT upsmon ARMED` / `NUT upsmon DISARMED`, UPS model, and nominal capacity.
+
+Next NUT UI pass: keep the tab read-only, but revise the information hierarchy so the actual NUT model is clearer at a glance: `upsd`/driver telemetry is not shutdown automation; primary/secondary are `upsmon` roles; `reachable_via_upsc` is not the same as armed.
 
 If this becomes too dense, V2 may split into separate `UPS` and `NUT` pages or use tap-to-open subpages.
 
