@@ -165,6 +165,8 @@ Network status in HOME:
 
 Purpose: UPS + NUT server operational view.
 
+The NUT tab is primarily an observer/readiness UI. It may show whether the LLM Module primary `upsmon` and configured downstream NUT clients appear ready/armed, but V1 must not expose a normal arming/disarming button. Downstream clients such as Proxmox own their own `upsmon` service state; Power Sentinel only reports it. If a future maintenance control is added, it must follow `docs/operations/standard-nut-arming-runbook.md`: local LLM Module `upsmon` hold/release only, feature-flagged/admin-only, finite TTL, audited, explicit confirmation, no downstream client control, no FSD, and no custom shutdown orchestration.
+
 The `NUT` tab combines horizontal cards for V1d:
 
 1. UPS essentials

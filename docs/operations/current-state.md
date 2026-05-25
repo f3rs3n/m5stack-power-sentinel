@@ -106,6 +106,8 @@ Proxmox nut-monitor: disabled/inactive on the first secondary host
 
 `nut-monitor` was temporarily enabled on the M5Stack primary and then on the Proxmox secondary to prove the Standard NUT path. Both monitors have since been explicitly stopped and disabled for the current staged/safe state. Shutdown is handled only by Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox) when the monitors are deliberately re-enabled. Power Sentinel is only a dashboard/readiness observer and must not orchestrate Proxmox shutdown through the Proxmox API.
 
+The precise operations note for this tested-but-disarmed state, deliberate arming, rollback/recovery, and CoreS3 maintenance-control safety gate is `docs/operations/standard-nut-arming-runbook.md`. That runbook keeps downstream client arming/disarming outside Power Sentinel control and recommends no normal CoreS3 arming/disarming button in V1.
+
 Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host. The controlled test verified that the M5Stack can run as `upsmon` primary and that Proxmox can connect as `upsmon` secondary; after the test, both `nut-monitor` services were disabled/inactive. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
 
 Verified live UPS values after connection:
@@ -202,13 +204,16 @@ shutdown.real_shutdown_owner: upsmon
 shutdown.primary_ready: true
 shutdown.primary_monitor_active: false
 shutdown.armed: false
-shutdown.secondary_ready: false
+shutdown.secondary_ready: false (aggregate secondary readiness; true only when at least one secondary client is connected/armed)
+shutdown.nut_client_summary: {total, secondary_total, connected, armed, unknown, unavailable}
+shutdown.nut_clients[].state enum: armed, connected_as_upsmon, reachable_via_upsc, configured_not_connected, not_configured, unknown, unavailable
 shutdown.nut_clients[0].state: reachable_via_upsc
 shutdown.nut_clients[0].package_installed: true
 shutdown.nut_clients[0].reachable_via_upsc: true
 shutdown.nut_clients[0].configured: true
 shutdown.nut_clients[0].connected_as_upsmon: false
 shutdown.nut_clients[0].armed: false
+shutdown.proxmox_nut_client: selected host-specific NUT record for the configured Proxmox node/host; PVE NUT pill uses this object only
 shutdown.would_shutdown: false
 shutdown.reason: UPS online
 problems: []
@@ -284,7 +289,7 @@ The firmware currently has:
 - HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
 - HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
 - HA tab now shows HA core reachability, MQTT, update count, Zigbee2MQTT state, coordinator type/firmware, and `Z2M devices: interviewed/total` from the MQTT-first Z2M backend summary. It deliberately does not show the HA birth-topic retained/debug state or the installed Z2M version.
-- NUT tab now shows NUT shutdown readiness: owner `upsmon`, primary readiness, generic NUT client readiness state (`not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, `armed`), and NUT low-battery thresholds.
+- NUT tab now shows NUT shutdown readiness: owner `upsmon`, primary readiness, aggregate multi-client NUT readiness counts, selected Proxmox NUT-client state, and NUT low-battery thresholds. Client state enum is `armed`, `connected_as_upsmon`, `reachable_via_upsc`, `configured_not_connected`, `not_configured`, `unknown`, or `unavailable`; unknown/unavailable inventory records do not count as connected or armed.
 - PVE tab consumes read-only Proxmox API data: CPU/RAM/storage, ZFS, SMART, VM/LXC running names/counts and optional per-running-workload mini-metrics. The main PVE card now uses `PROXMOX` with a right-aligned `ONLINE`/`OFFLINE` pill, storage uses aggregate Total Node Capacity from `/nodes/{node}/storage` with the total shown right-aligned, active non-loopback PVE interfaces render as pills, and the NUT pill is `NUT armed`/`NUT disarmed` based only on `shutdown.proxmox_nut_client.armed` for the Proxmox node, not on aggregate secondary-client readiness. The main PVE card no longer shows the old `node / api` latency row; API timing moved to the M5S transport/debug card. CPU/RAM/storage bars are explicitly labelled, main RAM and workload RAM/HDD totals are right-aligned, workload mini-cards show CPU/RAM/HDD bars with totals where meaningful, and LXC workloads are labelled as `LXC` rather than `CT`. When no per-workload mini-metrics are available, the old full fallback card is replaced by a half-height info mini-card. The old combined temp/storage row, `PVE RO` pill, and `NUT monitor idle` row were removed.
 - M5S tab treats missing/not-run chat smoke as `n/a`, not `FAIL`; StackFlow/OpenAI health remain the primary live checks.
 - No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
@@ -336,7 +341,7 @@ This choice is deliberate: preserving `llm_sys` avoids UART contention and keeps
 
 Not yet implemented:
 
-- Standard NUT shutdown is staged, not armed. `nut-monitor` remains disabled/inactive on the M5Stack primary and first Proxmox secondary until a deliberate arming step.
+- Standard NUT shutdown is staged, not armed. `nut-monitor` remains disabled/inactive on the M5Stack primary and first Proxmox secondary until a deliberate arming operation following `docs/operations/standard-nut-arming-runbook.md`.
 - Only the first Proxmox secondary has been prepared/verified as a NUT client; broader client inventory is future work.
 - LLM Module dependency inventory now exists in `docs/operations/llm-module-dependencies.md`, but there is not yet an idempotent installer script for replicating the install on a fresh stack.
 - The CoreS3 has current mini-dashboards for HOME, NUT, PVE, HA, and M5S. Additional LAN mini-dashboards are future extensions.
@@ -350,5 +355,6 @@ Not yet implemented:
 - `docs/architecture/api-contract-v1.md` — JSON contract.
 - `docs/operations/power-sentinel-api.md` — backend API operations.
 - `docs/operations/backend-ops.md` — backend service operations.
+- `docs/operations/standard-nut-arming-runbook.md` — deliberate Standard NUT arming, rollback, and maintenance-control safety gate.
 - `docs/operations/llm-module-dependencies.md` — dependency inventory and installer-script roadmap for reproducing the LLM Module install.
 - `docs/plans/homelab-power-sentinel-plan-2026-05-15.md` — original project plan.

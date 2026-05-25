@@ -275,7 +275,48 @@ battery.runtime.low: 120
     assert shutdown["nut_clients"][0]["state"] == "reachable_via_upsc"
     assert shutdown["proxmox_nut_client"]["name"] == "pve"
     assert shutdown["proxmox_nut_client"]["state"] == "reachable_via_upsc"
-    assert shutdown["nut_client_summary"] == {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0}
+    assert shutdown["nut_client_summary"] == {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0, "unknown": 0, "unavailable": 0}
+
+
+def test_nut_client_readiness_reports_unavailable_and_unknown_clients_without_counting_them_ready():
+    api = load_module()
+    nut = {"server_active": True, "driver_active": True, "monitor_active": False, "mode": "netserver", "clients": []}
+
+    unavailable = api.summarize_nut_client(
+        {"name": "nas", "host": "192.168.2.50", "role": "secondary", "available": False, "discovery_error": "read-only probe unavailable"},
+        nut,
+    )
+    unknown = api.summarize_nut_client(
+        {"name": "pve", "host": "192.168.2.99", "role": "secondary", "config_present": True, "probe_state": "unknown"},
+        nut,
+    )
+
+    assert unavailable["state"] == "unavailable"
+    assert unavailable["available"] is False
+    assert unavailable["connected_as_upsmon"] is False
+    assert unavailable["armed"] is False
+    assert unavailable["discovery_error"] == "read-only probe unavailable"
+    assert unknown["state"] == "unknown"
+    assert unknown["available"] is None
+    assert unknown["configured"] is True
+    assert unknown["connected_as_upsmon"] is False
+    assert unknown["armed"] is False
+    assert api.nut_client_summary([unavailable, unknown]) == {
+        "total": 2,
+        "secondary_total": 2,
+        "connected": 0,
+        "armed": 0,
+        "unknown": 1,
+        "unavailable": 1,
+    }
+
+    shutdown = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OL"), nut, clients=[
+        {"name": "nas", "host": "192.168.2.50", "role": "secondary", "available": False},
+        {"name": "pve", "host": "192.168.2.99", "role": "secondary", "config_present": True, "probe_state": "unknown"},
+    ])
+    assert shutdown["secondary_ready"] is False
+    assert shutdown["nut_client_summary"]["unavailable"] == 1
+    assert shutdown["nut_client_summary"]["unknown"] == 1
 
 
 def test_proxmox_nut_client_is_selected_instead_of_aggregating_any_secondary():
@@ -300,7 +341,7 @@ def test_proxmox_nut_client_is_selected_instead_of_aggregating_any_secondary():
         config={"proxmox": {"node": "pve", "host": "192.168.2.99"}},
     )
 
-    assert shutdown["nut_client_summary"] == {"total": 2, "secondary_total": 2, "connected": 1, "armed": 1}
+    assert shutdown["nut_client_summary"] == {"total": 2, "secondary_total": 2, "connected": 1, "armed": 1, "unknown": 0, "unavailable": 0}
     assert shutdown["secondary_ready"] is True
     assert shutdown["proxmox_nut_client"]["name"] == "pve"
     assert shutdown["proxmox_nut_client"]["state"] == "reachable_via_upsc"

@@ -8,6 +8,29 @@
       "upsc_reachable": true,
       "config_present": false,
       "monitor_active": false
+    },
+    {
+      "name": "nas",
+      "host": "192.168.2.50",
+      "role": "secondary",
+      "package_installed": true,
+      "upsc_reachable": true,
+      "config_present": true,
+      "monitor_active": true
+    },
+    {
+      "name": "backup-host",
+      "host": "192.168.2.60",
+      "role": "secondary",
+      "config_present": true,
+      "probe_state": "unknown"
+    },
+    {
+      "name": "lab-host",
+      "host": "192.168.2.70",
+      "role": "secondary",
+      "available": false,
+      "discovery_error": "read-only discovery not yet run"
     }
   ]
 }

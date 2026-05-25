@@ -70,8 +70,40 @@ Current schema:
     "real_shutdown_owner": "upsmon",
     "primary_ready": true,
     "primary_monitor_active": false,
-    "secondary_ready": false,
-    "nut_client_summary": {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0},
+    "secondary_ready": true,
+    "nut_client_summary": {"total": 3, "secondary_total": 3, "connected": 1, "armed": 1, "unknown": 1, "unavailable": 0},
+    "nut_clients": [
+      {
+        "name": "nas",
+        "host": "192.168.2.50",
+        "role": "secondary",
+        "available": null,
+        "state": "armed",
+        "configured": true,
+        "connected_as_upsmon": true,
+        "armed": true
+      },
+      {
+        "name": "pve",
+        "host": "192.168.2.99",
+        "role": "secondary",
+        "available": null,
+        "state": "reachable_via_upsc",
+        "connected_as_upsmon": false,
+        "armed": false
+      },
+      {
+        "name": "backup-host",
+        "host": "192.168.2.60",
+        "role": "secondary",
+        "available": null,
+        "state": "unknown",
+        "configured": true,
+        "connected_as_upsmon": false,
+        "armed": false,
+        "discovery_error": null
+      }
+    ],
     "proxmox_nut_client": {
       "name": "pve",
       "host": "192.168.2.99",
@@ -104,5 +136,5 @@ Implementation status, verified 2026-05-24:
 - `homeassistant`, `mqtt`, `zigbee2mqtt`: implemented as HA TCP reachability plus MQTT/Zigbee2MQTT bridge-topic health; HA update count is read from HA `/api/states` when a read-only token is configured, otherwise it defaults to `0` for display clarity.
 - `network`: implemented on the LLM Module using Linux default-route state plus a TCP probe, currently `1.1.1.1:53`.
 - `m5stack`: implemented from local healthcheck/service state.
-- `shutdown`: implemented as Standard NUT readiness state only; no custom shutdown action exists. `shutdown.proxmox_nut_client` is selected from the configured Proxmox node/host and is the only source for the PVE dashboard `NUT armed` / `NUT disarmed` pill; aggregate `nut_client_summary` is global NUT context only.
+- `shutdown`: implemented as Standard NUT readiness state only; no custom shutdown action exists. `shutdown.nut_clients[]` is a multi-client inventory/readiness list with state enum `armed`, `connected_as_upsmon`, `reachable_via_upsc`, `configured_not_connected`, `not_configured`, `unknown`, and `unavailable`. `shutdown.nut_client_summary` counts `total`, `secondary_total`, `connected`, `armed`, `unknown`, and `unavailable`; unknown/unavailable clients never contribute to connected/armed counts or to `secondary_ready`. `shutdown.proxmox_nut_client` is selected from the configured Proxmox node/host and is the only source for the PVE dashboard `NUT armed` / `NUT disarmed` pill; aggregate `nut_client_summary` is global NUT context only. Any future maintenance-control endpoint must be designed separately from this V1 read-only summary contract and must be limited to LLM Module local `upsmon` hold/release as described in `docs/operations/standard-nut-arming-runbook.md`; downstream client control, Proxmox orchestration, and FSD are explicitly out of scope.
 - Local LLM inference for dashboard enrichment / companion UI is not implemented yet; current LLM usage is baseline health and optional chat smoke.

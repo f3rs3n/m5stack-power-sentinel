@@ -175,12 +175,16 @@ severity: ok
 shutdown.real_shutdown_owner: upsmon
 shutdown.primary_monitor_active: false
 shutdown.armed: false
-shutdown.nut_clients[0].state: not_configured | reachable_via_upsc | connected_as_upsmon | armed
+shutdown.nut_client_summary: {total, secondary_total, connected, armed, unknown, unavailable}
+shutdown.nut_clients[].state: armed | connected_as_upsmon | reachable_via_upsc | configured_not_connected | not_configured | unknown | unavailable
+shutdown.proxmox_nut_client.state: reachable_via_upsc
 ```
 
 ## NUT client readiness
 
-The primary monitor on the M5Stack and the secondary monitor on Proxmox have both been proven and then disabled. Current readiness remains staged: do not leave either `nut-monitor` enabled, and do not trigger FSD/shutdown, until the final deliberate arming step.
+The deliberate arming/disarming procedure and CoreS3 maintenance-control safety gate are documented in `docs/operations/standard-nut-arming-runbook.md`. Short version: Power Sentinel observes readiness; downstream clients such as Proxmox own their own `upsmon` arming/disarming; any future CoreS3 maintenance control may only target the LLM Module local `upsmon` hold/release path, never arbitrary clients or FSD.
+
+The primary monitor on the M5Stack and the secondary monitor on Proxmox have both been proven and then disabled. Current readiness remains staged: do not leave either `nut-monitor` enabled, and do not trigger FSD/shutdown, until an explicit Standard NUT arming operation is chosen and verified.
 
 Discovery from Hermes uses the global SSH alias for the first secondary host:
 
@@ -240,14 +244,17 @@ Because the first secondary host has `nut-client` installed and `upsc` can read 
 }
 ```
 
-The API exposes the corresponding summary under `shutdown.nut_clients[]` and aggregate counts under `shutdown.nut_client_summary`.
+The API exposes the corresponding summary under `shutdown.nut_clients[]` and aggregate counts under `shutdown.nut_client_summary`. The inventory can contain zero, one, or many configured clients; the current live file above records only the first Proxmox secondary, while `backend/config/nut-clients.example.json` shows the broader multi-client shape.
 
 State meanings:
 
-- `not_configured`: no client inventory entry and no observed NUT upsmon client.
-- `reachable_via_upsc`: a secondary host has `upsc`/`nut-client` and can read `homelab_ups@192.168.2.202`, but upsmon is not connected.
-- `connected_as_upsmon`: the M5Stack NUT server sees a NUT client connection on port 3493; not necessarily armed.
 - `armed`: that client's inventory says `monitor_active=true` and the M5Stack NUT server sees the NUT upsmon client.
+- `connected_as_upsmon`: the M5Stack NUT server sees a NUT client connection on port 3493; not necessarily armed.
+- `reachable_via_upsc`: a secondary host has `upsc`/`nut-client` and can read `homelab_ups@192.168.2.202`, but upsmon is not connected.
+- `configured_not_connected`: client inventory/config exists, but no current upsmon connection is observed.
+- `not_configured`: no client inventory entry and no observed NUT upsmon client.
+- `unknown`: a configured/readiness inventory record exists but the read-only probe result is not known. It is reported for operator visibility only and does not count as connected, armed, or secondary-ready.
+- `unavailable`: read-only discovery for that client was unavailable or failed. It is reported for operator visibility only and does not count as connected, armed, or secondary-ready; see `discovery_error` when present.
 
 Optional client inventory file on the LLM Module:
 

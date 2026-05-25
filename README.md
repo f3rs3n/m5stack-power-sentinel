@@ -80,8 +80,8 @@ Implemented and verified on the physical module:
 
 Still missing / future work:
 
-- final deliberate arming of Standard NUT monitors, if/when desired: enable M5Stack primary `nut-monitor` first, then Proxmox secondary, with verification after each step;
-- broader NUT client inventory beyond the first Proxmox secondary;
+- deliberate Standard NUT arming, if/when desired, following `docs/operations/standard-nut-arming-runbook.md`: keep the current tested-but-disarmed state until an operator explicitly enables the LLM Module primary `nut-monitor`, then each downstream client owner arms that client's own secondary `upsmon` as appropriate;
+- live discovery/maintenance workflow for broader NUT client inventories beyond the current configured/read-only records;
 - idempotent LLM Module installer script generated from `docs/operations/llm-module-dependencies.md`;
 - real use of local LLM inference for dashboard enrichment or a companion tab;
 - additional mini-dashboards beyond the current UPS/NUT, PVE, HA/Z2M, and M5Stack views;
@@ -91,6 +91,7 @@ See:
 
 - `docs/operations/current-state.md`
 - `docs/operations/backend-ops.md`
+- `docs/operations/standard-nut-arming-runbook.md`
 - `docs/operations/llm-module-dependencies.md`
 - `docs/architecture/api-contract-v1.md`
 - `docs/architecture/core-s3-pages-v1.md`

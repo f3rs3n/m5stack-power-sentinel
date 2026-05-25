@@ -349,14 +349,26 @@ def summarize_nut_client(client: dict[str, Any], nut: dict[str, Any]) -> dict[st
     host = str(client.get("host") or "")
     role = str(client.get("role") or "secondary")
     matchers = [name, host, str(client.get("hostname") or "")]
-    connected = any(client_list_mentions_target(clients, matcher) for matcher in matchers)
+    connected_observed = any(client_list_mentions_target(clients, matcher) for matcher in matchers)
     package_installed = client.get("package_installed")
     upsc_reachable = client.get("upsc_reachable")
     config_present = client.get("config_present")
     monitor_active = client.get("monitor_active")
-    configured = bool(config_present) or connected or bool(monitor_active)
-    armed = bool(monitor_active and connected)
-    if armed:
+    explicit_state = str(client.get("state") or client.get("probe_state") or "").strip().lower()
+    unavailable = client.get("available") is False or explicit_state == "unavailable"
+    unknown = explicit_state == "unknown"
+    configured = bool(config_present) or connected_observed or bool(monitor_active)
+
+    # Unknown/unavailable records are inventory/readiness records, not proof that
+    # an upsmon client is connected or armed. Keep booleans false so aggregate
+    # readiness remains conservative while nullable probe fields preserve detail.
+    connected = False if (unavailable or unknown) else connected_observed
+    armed = False if (unavailable or unknown) else bool(monitor_active and connected)
+    if unavailable:
+        state = "unavailable"
+    elif unknown:
+        state = "unknown"
+    elif armed:
         state = "armed"
     elif connected:
         state = "connected_as_upsmon"
@@ -370,12 +382,14 @@ def summarize_nut_client(client: dict[str, Any], nut: dict[str, Any]) -> dict[st
         "name": name,
         "host": host or None,
         "role": role,
+        "available": False if unavailable else None,
         "package_installed": package_installed,
         "reachable_via_upsc": upsc_reachable,
         "configured": configured,
         "connected_as_upsmon": connected,
         "armed": armed,
         "state": state,
+        "discovery_error": client.get("discovery_error") or client.get("error"),
     }
 
 
@@ -432,6 +446,8 @@ def nut_client_summary(clients: list[dict[str, Any]]) -> dict[str, int]:
         "secondary_total": sum(1 for client in clients if client.get("role") == "secondary"),
         "connected": sum(1 for client in clients if client.get("connected_as_upsmon")),
         "armed": sum(1 for client in clients if client.get("armed")),
+        "unknown": sum(1 for client in clients if client.get("state") == "unknown"),
+        "unavailable": sum(1 for client in clients if client.get("state") == "unavailable"),
     }
 
 

@@ -67,9 +67,11 @@ Shutdown readiness is reported for Standard NUT. Power Sentinel exposes only NUT
 
 - `shutdown.real_shutdown_owner=upsmon`
 - `shutdown.primary_ready`, `shutdown.primary_monitor_active`, `shutdown.secondary_ready`
-- `shutdown.nut_clients[]`: all configured NUT clients/readiness records
+- `shutdown.nut_clients[]`: all configured NUT client inventory/readiness records. Each record includes `name`, `host`, `role`, `available`, `package_installed`, `reachable_via_upsc`, `configured`, `connected_as_upsmon`, `armed`, `state`, and optional `discovery_error`.
+- `shutdown.nut_clients[].state`: one of `armed`, `connected_as_upsmon`, `reachable_via_upsc`, `configured_not_connected`, `not_configured`, `unknown`, or `unavailable`. `unknown`/`unavailable` records are inventory records only: they do not increment connected/armed counts and do not make `secondary_ready=true`.
+- `shutdown.nut_client_summary`: aggregate counts across all records: `total`, `secondary_total`, `connected`, `armed`, `unknown`, and `unavailable`.
 - `shutdown.proxmox_nut_client`: the configured Proxmox client selected by Proxmox node name/host; the PVE dashboard NUT pill uses this object only, not aggregate secondary-client counts
-- `shutdown.proxmox_nut_client.state`: `not_configured`, `reachable_via_upsc`, `connected_as_upsmon`, or `armed`
+- `shutdown.proxmox_nut_client.state`: same enum as `shutdown.nut_clients[].state`
 - `shutdown.proxmox_nut_client.package_installed`: whether Proxmox `nut-client`/`upsc` was observed; `null` when not yet discovered
 - `shutdown.proxmox_nut_client.reachable_via_upsc`: whether Proxmox can run `upsc homelab_ups@192.168.2.202`; `null` when not yet discovered
 - `shutdown.proxmox_nut_client.connected_as_upsmon`: whether the M5Stack NUT server sees Proxmox as a connected NUT upsmon client
