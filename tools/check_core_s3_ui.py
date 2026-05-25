@@ -116,9 +116,9 @@ def main() -> int:
         if needle not in text:
             return fail(f"NUT functional-ready UI missing {needle}")
     required_mini_nutify = [
-        "makeStatusCard(nutTab, \"UPS\"", "Online Charging", "Runtime", "Power", "BATTERY", "Battery Charge",
-        "Battery Voltage", "POWER", "Power Usage", "System Load", "Input Voltage", "PROTECTION",
-        "Protection %s", "state.shutdown.clientArmed", "state.shutdown.clientTotal", "Armed %d/%d", "state.shutdown.nutClients[i]"
+        "makeStatusCard(nutTab, \"UPS\"", "Model %s", "Runtime", "Power", "BATTERY", "Battery Charge",
+        "Battery Voltage", "Battery Status %s", "CHARGING", "POWER", "Power Usage", "System Load", "Input Voltage", "PROTECTION",
+        "Connected clients %d/%d", "state.shutdown.clientConnected", "state.shutdown.clientTotal", "makeNutClientMiniCard(protection, client)"
     ]
     for needle in required_mini_nutify:
         if needle not in text:
@@ -188,7 +188,7 @@ def main() -> int:
         "lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100))",
         "lv_obj_set_width(right, 68)",
         "POWER SENTINEL", "PROXMOX", "VM haos", "HOME ASSISTANT", "M5S", "NUT disarmed",
-        "UPS", "Online Charging", "BATTERY", "Battery Charge", "POWER", "Power Usage", "PROTECTION", "Armed 0/2",
+        "UPS", "Model APC Back-UPS BX", "BATTERY", "Battery Charge", "POWER", "Power Usage", "PROTECTION", "Connected clients 0/2",
     ]
     for needle in required_dashboard_fixture:
         if needle not in dashboard_fixture:

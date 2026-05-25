@@ -169,10 +169,10 @@ The NUT tab is strictly an observer/readiness UI. It may show whether the LLM Mo
 
 The `NUT` tab uses a Mini Nutify-style horizontal carousel for V1d: Nutify is treated as a terminology and information-hierarchy reference, not as a feature target. The CoreS3 version stays read-only and intentionally omits multi-UPS management, historical databases/charts, reports, UPS commands, remappers, setup wizards, and configuration editing.
 
-1. `UPS`: synthetic UPS state (`ONLINE`, `ON BATT`, `LOW BATT`, `UNAVAILABLE`, `STALE`), `Online Charging`/`On Battery` style state text, battery/runtime, load/power W estimate, and input voltage. Do not expose raw NUT status tokens such as `OL`/`OB`/`LB` on the normal card.
-2. `BATTERY`: battery-focused terms from Nutify such as `Battery Charge`, `Runtime Remaining`, `Battery Voltage`, and `Battery Status`.
+1. `UPS`: synthetic UPS state (`ONLINE`, `ON BATT`, `LOW BATT`, `UNAVAILABLE`, `STALE`), UPS model, battery/runtime, load/power W estimate, and input voltage. Do not duplicate the `ONLINE` pill with an `Online Charging` body line and do not expose raw NUT status tokens such as `OL`/`OB`/`LB` on the normal card.
+2. `BATTERY`: battery-centric terms such as `Battery Charge`, `Runtime Remaining`, `Battery Voltage`, and `Battery Status` (`CHARGING`, `DISCHARGING`, `LOW`, `UNKNOWN`).
 3. `POWER`: electrical/load terms such as `Power Usage`, `System Load`, `Input Voltage`, `Output Voltage` when available, and nominal power.
-4. `PROTECTION`: Standard NUT shutdown-readiness, including `upsd`/driver service state plus dynamic `upsmon` client readiness from `shutdown.nut_clients[]`. Client names and counts must come from the API payload, not hardcoded UI assumptions. Summary counts should be phrased as armed/protected clients, not generic client inventory. `reachable_via_upsc` is not `armed` and must not be rendered as fully protected/green.
+4. `PROTECTION`: Standard NUT shutdown-readiness, including `upsd`/driver service state plus dynamic `upsmon` client readiness from `shutdown.nut_clients[]`. Client names and counts must come from the API payload, not hardcoded UI assumptions. The header pill carries the protection state; the body should avoid repeating `Protection ARMED/DISARMED`, summarize `Connected clients N/T`, and render client entries as compact visual cards. `reachable_via_upsc` is not `armed` and must not be rendered as fully protected/green.
 
 Next NUT UI pass: keep the tab read-only, but revise the information hierarchy so the actual NUT model is clearer at a glance: `upsd`/driver telemetry is not shutdown automation; primary/secondary are `upsmon` roles; `reachable_via_upsc` is not the same as armed.
 

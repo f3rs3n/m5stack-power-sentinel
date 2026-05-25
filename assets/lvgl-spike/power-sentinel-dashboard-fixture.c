@@ -308,7 +308,7 @@ static lv_obj_t *mini_card(lv_obj_t *parent, const char *title, const char *stat
 static void render_nut(lv_obj_t *tab) {
     page(tab);
     lv_obj_t *ups = status_card(tab, "UPS", "ONLINE", 0x22c55e);
-    line(ups, "Online Charging", 0xc8d0df, &lv_font_montserrat_14);
+    line(ups, "Model APC Back-UPS BX", 0xc8d0df, &lv_font_montserrat_14);
     line(ups, "Batt 100%   Runtime 57m00s", 0xc8d0df, &lv_font_montserrat_14);
     bar(ups, 100, 0x22c55e, 10);
     line(ups, "Load 19%   Power 95W", 0xc8d0df, &lv_font_montserrat_14);
@@ -320,22 +320,20 @@ static void render_nut(lv_obj_t *tab) {
     bar(bat, 100, 0x22c55e, 10);
     line(bat, "Runtime Remaining 57m00s", 0xc8d0df, &lv_font_montserrat_14);
     line(bat, "Battery Voltage 27.2V", 0xc8d0df, &lv_font_montserrat_14);
-    line(bat, "Battery Status OK", 0xc8d0df, &lv_font_montserrat_14);
+    line(bat, "Battery Status CHARGING", 0xc8d0df, &lv_font_montserrat_14);
 
     lv_obj_t *pwr = card(tab, "POWER");
     line(pwr, "Power Usage 95W", 0xc8d0df, &lv_font_montserrat_14);
     line(pwr, "System Load 19%", 0xc8d0df, &lv_font_montserrat_14);
     bar(pwr, 19, 0x3b82f6, 10);
     line(pwr, "Input Voltage 232.0V", 0xc8d0df, &lv_font_montserrat_14);
-    line(pwr, "Output Voltage unknown", 0xc8d0df, &lv_font_montserrat_14);
     line(pwr, "Nominal Power 500W", 0xc8d0df, &lv_font_montserrat_14);
 
     lv_obj_t *prot = status_card(tab, "PROTECTION", "DISARMED", 0xf59e0b);
-    line(prot, "Protection DISARMED", 0xc8d0df, &lv_font_montserrat_14);
-    line(prot, "Armed 0/2", 0xc8d0df, &lv_font_montserrat_14);
+    line(prot, "Connected clients 0/2", 0xc8d0df, &lv_font_montserrat_14);
     line(prot, "NUT services: upsd OK driver OK", 0xc8d0df, &lv_font_montserrat_14);
-    row(prot, "PRI m5stack", "DISARMED");
-    row(prot, "SEC pve", "REACHABLE");
+    mini_card(prot, "PRIMARY m5stack", "DISARMED", 0xf59e0b, "local NUT upsmon");
+    mini_card(prot, "SECONDARY pve", "REACHABLE", 0x3b82f6, "downstream client");
 }
 
 static void render_pve(lv_obj_t *tab) {

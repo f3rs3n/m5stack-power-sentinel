@@ -1151,11 +1151,11 @@ void renderNut() {
   char load[24];
   char watts[24];
   char inputV[24];
-  char outputV[24];
   char batteryV[24];
 
   lv_obj_t *ups = makeStatusCard(nutTab, "UPS", upsBadge, upsColor);
-  addLine(ups, state.offline ? "Stale Data" : (!state.ups.available ? "No Communication" : (state.ups.lowBattery ? "Low Battery" : (state.ups.onBattery ? "On Battery" : "Online Charging"))));
+  snprintf(line, sizeof(line), "Model %s", state.ups.model);
+  addLine(ups, line);
   snprintf(line, sizeof(line), "Batt %s   Runtime %s",
            intOrUnknown(state.ups.batteryPercent, battery, sizeof(battery), "%"),
            runtimeText(state.ups.runtimeSeconds, runtime, sizeof(runtime)));
@@ -1177,7 +1177,7 @@ void renderNut() {
   addLine(batteryCard, line);
   snprintf(line, sizeof(line), "Battery Voltage %s", floatOrUnknown(state.ups.batteryVoltage, batteryV, sizeof(batteryV), "V"));
   addLine(batteryCard, line);
-  snprintf(line, sizeof(line), "Battery Status %s", state.ups.lowBattery ? "LOW" : (state.ups.available ? "OK" : "UNKNOWN"));
+  snprintf(line, sizeof(line), "Battery Status %s", state.ups.lowBattery ? "LOW" : (state.ups.onBattery ? "DISCHARGING" : (state.ups.available ? "CHARGING" : "UNKNOWN")));
   addLine(batteryCard, line);
 
   lv_obj_t *powerCard = makeCard(nutTab, "POWER");
@@ -1188,15 +1188,16 @@ void renderNut() {
   addPercentBar(powerCard, state.ups.loadPercent, lv_palette_main(LV_PALETTE_BLUE));
   snprintf(line, sizeof(line), "Input Voltage %s", floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
   addLine(powerCard, line);
-  snprintf(line, sizeof(line), "Output Voltage %s", floatOrUnknown(state.ups.outputVoltage, outputV, sizeof(outputV), "V"));
-  addLine(powerCard, line);
+  if (state.ups.outputVoltage > 0.0f) {
+    char outputV[24];
+    snprintf(line, sizeof(line), "Output Voltage %s", floatOrUnknown(state.ups.outputVoltage, outputV, sizeof(outputV), "V"));
+    addLine(powerCard, line);
+  }
   snprintf(line, sizeof(line), "Nominal Power %s", intOrUnknown(state.ups.realpowerNominalW, watts, sizeof(watts), "W"));
   addLine(powerCard, line);
 
   lv_obj_t *protection = makeStatusCard(nutTab, "PROTECTION", state.shutdown.clientArmed > 0 ? "ARMED" : "DISARMED", state.shutdown.clientArmed > 0 ? lv_palette_main(LV_PALETTE_GREEN) : lv_palette_main(LV_PALETTE_ORANGE));
-  snprintf(line, sizeof(line), "Protection %s", state.shutdown.clientArmed > 0 ? "ARMED" : "DISARMED");
-  addLine(protection, line);
-  snprintf(line, sizeof(line), "Armed %d/%d", state.shutdown.clientArmed, state.shutdown.clientTotal);
+  snprintf(line, sizeof(line), "Connected clients %d/%d", state.shutdown.clientConnected, state.shutdown.clientTotal);
   addLine(protection, line);
   snprintf(line, sizeof(line), "NUT services: upsd %s driver %s", okDown(state.nut.serverActive), okDown(state.nut.driverActive));
   addLine(protection, line);
@@ -1205,8 +1206,7 @@ void renderNut() {
   } else {
     for (int i = 0; i < state.shutdown.nutClientCardCount; ++i) {
       const NutClientCard &client = state.shutdown.nutClients[i];
-      snprintf(line, sizeof(line), "%s %s", strcmp(client.role, "primary") == 0 ? "PRI" : "SEC", client.name);
-      addMetricRow(protection, line, nutClientDisplayState(client));
+      makeNutClientMiniCard(protection, client);
     }
   }
 }
