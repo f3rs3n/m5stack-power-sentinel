@@ -274,7 +274,7 @@ battery.runtime.low: 120
     assert shutdown["nut_upsmon"] == {"armed": False, "state": "disarmed", "label": "DISARMED"}
     assert shutdown["nut_clients"][0]["role"] == "primary"
     assert shutdown["nut_clients"][0]["name"] == "m5stack"
-    assert shutdown["nut_clients"][0]["state"] == "disarmed"
+    assert shutdown["nut_clients"][0]["state"] == "reachable_via_upsc"
     assert shutdown["nut_clients"][0]["armed"] is False
     assert shutdown["nut_clients"][0]["available"] is True
     assert shutdown["nut_clients"][0]["last_seen_seconds"] == 0

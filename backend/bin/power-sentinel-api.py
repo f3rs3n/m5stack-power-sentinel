@@ -429,7 +429,7 @@ def summarize_primary_nut_client(ups: dict[str, Any], nut: dict[str, Any]) -> di
     elif monitor_active:
         state = "armed"
     else:
-        state = "disarmed"
+        state = "reachable_via_upsc"
     return {
         "name": "m5stack",
         "host": "localhost",

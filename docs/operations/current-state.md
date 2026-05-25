@@ -208,7 +208,7 @@ shutdown.armed: false
 shutdown.secondary_ready: false (aggregate secondary readiness; true only when at least one secondary client is connected/armed)
 shutdown.nut_client_summary: {total, secondary_total, connected, armed, unknown, unavailable}; total includes the local primary plus configured secondaries
 shutdown.nut_clients[].state enum: armed, disarmed, connected_as_upsmon, reachable_via_upsc, configured_not_connected, not_configured, unknown, unavailable
-shutdown.nut_clients[0].role/name/state: primary / m5stack / disarmed
+shutdown.nut_clients[0].role/name/state: primary / m5stack / reachable_via_upsc
 shutdown.nut_clients[1].state: reachable_via_upsc
 shutdown.nut_clients[1].package_installed: true
 shutdown.nut_clients[1].reachable_via_upsc: true

@@ -79,7 +79,7 @@ Current schema:
         "host": "localhost",
         "role": "primary",
         "available": true,
-        "state": "disarmed",
+        "state": "reachable_via_upsc",
         "configured": true,
         "connected_as_upsmon": false,
         "armed": false,
