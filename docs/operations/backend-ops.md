@@ -42,9 +42,9 @@ doomtrain  -> marti@192.168.2.199
 
 ## Runtime dependency inventory
 
-A living dependency/reproduction checklist is maintained in `docs/operations/llm-module-dependencies.md`. It currently records the verified Ubuntu 22.04 / Python 3.10 / apt package set for the LLM Module, including NUT, Mosquitto clients, `python3-zmq`, StackFlow/vendor runtime assumptions, runtime config files, and post-install smoke checks.
+A living dependency/reproduction inventory is maintained in `docs/operations/llm-module-dependencies.md`. It currently records the verified Ubuntu 22.04 / Python 3.10 / apt package set for the LLM Module, including NUT, Mosquitto clients, `python3-zmq`, StackFlow/vendor runtime assumptions, runtime config files, and post-install smoke checks.
 
-Roadmap item: turn that inventory into an idempotent installer, probably `backend/install/install-llm-module.sh`. The installer must install dependencies, place scripts/units, create only sanitized config stubs, preserve/back up secret-bearing config, leave `nut-monitor` disabled unless explicitly armed, and never install a parallel `/dev/ttyS1` bridge.
+The implementation checklist for the future idempotent installer is maintained in `docs/operations/llm-module-installer-checklist.md`. It cross-checks the dependency inventory against current `backend/` files and captures package, executable, systemd unit, template, ordering, validation, and safety requirements for `backend/install/install-llm-module.sh`. The installer must install dependencies, place scripts/units, create only sanitized config stubs, preserve/back up secret-bearing config, leave `nut-monitor` disabled unless explicitly armed, and never install a parallel `/dev/ttyS1` bridge.
 
 ## MQTT / HA / Zigbee2MQTT
 

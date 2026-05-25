@@ -346,7 +346,7 @@ Not yet implemented:
 - Standard NUT shutdown is staged, not armed. `nut-monitor` remains disabled/inactive on the M5Stack primary and first Proxmox secondary until a deliberate arming operation following `docs/operations/standard-nut-arming-runbook.md`.
 - NUT trend/history graphs are not implemented. Future spike: record backend-side UPS history (start with `load_percent`/`load_w` every 30s, 24h retention), expose a downsampled endpoint such as `/history/nut/load?window=1h&points=60`, and render only a compact 60–120 point sparkline on CoreS3. NUT/`upsd` provides current values; `upslog` can log polling samples, but the display should not consume raw long histories.
 - Only the first Proxmox secondary has been prepared/verified as a NUT client; broader client inventory is future work.
-- LLM Module dependency inventory now exists in `docs/operations/llm-module-dependencies.md`, but there is not yet an idempotent installer script for replicating the install on a fresh stack.
+- LLM Module dependency inventory now exists in `docs/operations/llm-module-dependencies.md`, and the implementation checklist for a future idempotent installer is tracked in `docs/operations/llm-module-installer-checklist.md`. The installer script itself does not exist yet.
 - The CoreS3 has current mini-dashboards for HOME, NUT, PVE, HA, and M5S. Additional LAN mini-dashboards are future extensions.
 - Local LLM inference is not used yet to enrich dashboard summaries or provide a companion tab. Current LLM use is baseline health/OpenAI availability and optional chat smoke.
 - OTA/agent-driven flashing is not implemented; Windows + VSCode + PlatformIO remains the normal flash workflow.
@@ -360,4 +360,5 @@ Not yet implemented:
 - `docs/operations/backend-ops.md` — backend service operations.
 - `docs/operations/standard-nut-arming-runbook.md` — deliberate Standard NUT arming, rollback, and Power Sentinel's no-control boundary for NUT clients/CoreS3/API buttons.
 - `docs/operations/llm-module-dependencies.md` — dependency inventory and installer-script roadmap for reproducing the LLM Module install.
+- `docs/operations/llm-module-installer-checklist.md` — implementation checklist for a future `backend/install/install-llm-module.sh`, including package/script/unit/template mapping, safety invariants, and remaining blockers.
 - `docs/plans/homelab-power-sentinel-plan-2026-05-15.md` — original project plan.
