@@ -169,8 +169,9 @@ The NUT tab is primarily an observer/readiness UI. It may show whether the LLM M
 
 The `NUT` tab combines horizontal cards for V1d:
 
-1. UPS essentials
-2. NUT server / clients
+1. UPS essentials: synthetic UPS state (`ONLINE`, `ON BATT`, `LOW BATT`, `UNAVAILABLE`, `STALE`), battery/runtime, load/W estimate, and input voltage. Do not expose raw NUT status tokens such as `OL`/`OB`/`LB` on the normal card.
+2. NUT clients: a vertical stack of half-height mini-cards, matching the PVE VM/LXC card rhythm. The backend normalizes the local primary into `shutdown.nut_clients[0]`, so the firmware renders cards in API order: `PRIMARY m5stack` first, then configured secondary clients such as `SECONDARY pve`.
+3. NUT details: `upsd` state, driver state, connected/total client count, explicit `NUT upsmon ARMED` / `NUT upsmon DISARMED`, UPS model, and nominal capacity.
 
 If this becomes too dense, V2 may split into separate `UPS` and `NUT` pages or use tap-to-open subpages.
 
@@ -178,8 +179,7 @@ If this becomes too dense, V2 may split into separate `UPS` and `NUT` pages or u
 
 Always visible near the top:
 
-- UPS state label: `Online`, `On battery`, `Low battery`, `Unavailable`, `Stale`.
-- Raw NUT status: e.g. `OL`, `OB`, `LB`, `CHRG`, `DISCHRG`, `RB` if present.
+- UPS state label: `ONLINE`, `ON BATT`, `LOW BATT`, `UNAVAILABLE`, or `STALE`.
 - Battery percent with large bar.
 - Runtime in min/sec as a prominent number.
 - Load percent with smaller bar.
@@ -234,7 +234,6 @@ Runtime 6m24s
 Load [####------] 38%  ~198W
 
 Input 226V
-Status OL   Age 0s
 ```
 
 ### NUT: server / clients section

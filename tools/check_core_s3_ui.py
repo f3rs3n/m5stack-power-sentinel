@@ -107,11 +107,15 @@ def main() -> int:
             return fail(f"HA/Z2M UI missing {needle}")
     if "HA birth topic" in text or "Version %s" in text:
         return fail("HA tab should not waste display space on HA birth topic or Z2M version")
-    required_shutdown = ["ShutdownState", "owner", "upsmon", "primary monitor", "nutClients", "clientSummary", "reachable_via_upsc", "connected_as_upsmon"]
+    required_shutdown = [
+        "ShutdownState", "nut_upsmon", "nutClients", "clientSummary", "reachable_via_upsc", "connected_as_upsmon",
+        "struct NutClientCard", "MAX_NUT_CLIENT_CARDS", "makeNutClientMiniCard", "PRIMARY", "SECONDARY",
+        "NUT upsmon:", "DISARMED", "clients %d / %d", "Capacity", "state.ups.model", "PAGE_CARD_HEIGHT - 8) / 2"
+    ]
     for needle in required_shutdown:
         if needle not in text:
-            return fail(f"NUT shutdown/readiness UI missing {needle}")
-    forbidden_shutdown = ["DRY-RUN", "dry-run"]
+            return fail(f"NUT functional-ready UI missing {needle}")
+    forbidden_shutdown = ["DRY-RUN", "dry-run", "Status: %s (%s)", "mode %s", "owner %s", "NUT shutdown readiness", "primary monitor", "client list:"]
     for needle in forbidden_shutdown:
         if needle in text:
             return fail(f"NUT UI still contains ambiguous shutdown wording {needle}")
@@ -173,6 +177,7 @@ def main() -> int:
         "lv_obj_set_width(left, total && total[0] ? 132 : lv_pct(100))",
         "lv_obj_set_width(right, 68)",
         "POWER SENTINEL", "PROXMOX", "VM haos", "HOME ASSISTANT", "M5S", "NUT disarmed",
+        "NUT details", "PRIMARY m5stack", "SECONDARY pve", "NUT upsmon: DISARMED", "Capacity 500W",
     ]
     for needle in required_dashboard_fixture:
         if needle not in dashboard_fixture:

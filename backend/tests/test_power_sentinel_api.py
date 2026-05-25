@@ -271,11 +271,18 @@ battery.runtime.low: 120
     assert shutdown["would_shutdown"] is False
     assert shutdown["reason"] == "UPS online"
     assert shutdown["thresholds"] == {"battery_charge_low_percent": 10, "battery_runtime_low_seconds": 120}
-    assert shutdown["nut_clients"][0]["name"] == "pve"
-    assert shutdown["nut_clients"][0]["state"] == "reachable_via_upsc"
+    assert shutdown["nut_upsmon"] == {"armed": False, "state": "disarmed", "label": "DISARMED"}
+    assert shutdown["nut_clients"][0]["role"] == "primary"
+    assert shutdown["nut_clients"][0]["name"] == "m5stack"
+    assert shutdown["nut_clients"][0]["state"] == "disarmed"
+    assert shutdown["nut_clients"][0]["armed"] is False
+    assert shutdown["nut_clients"][0]["available"] is True
+    assert shutdown["nut_clients"][0]["last_seen_seconds"] == 0
+    assert shutdown["nut_clients"][1]["name"] == "pve"
+    assert shutdown["nut_clients"][1]["state"] == "reachable_via_upsc"
     assert shutdown["proxmox_nut_client"]["name"] == "pve"
     assert shutdown["proxmox_nut_client"]["state"] == "reachable_via_upsc"
-    assert shutdown["nut_client_summary"] == {"total": 1, "secondary_total": 1, "connected": 0, "armed": 0, "unknown": 0, "unavailable": 0}
+    assert shutdown["nut_client_summary"] == {"total": 2, "secondary_total": 1, "connected": 0, "armed": 0, "unknown": 0, "unavailable": 0}
 
 
 def test_nut_client_readiness_reports_unavailable_and_unknown_clients_without_counting_them_ready():
@@ -341,7 +348,7 @@ def test_proxmox_nut_client_is_selected_instead_of_aggregating_any_secondary():
         config={"proxmox": {"node": "pve", "host": "192.168.2.99"}},
     )
 
-    assert shutdown["nut_client_summary"] == {"total": 2, "secondary_total": 2, "connected": 1, "armed": 1, "unknown": 0, "unavailable": 0}
+    assert shutdown["nut_client_summary"] == {"total": 3, "secondary_total": 2, "connected": 1, "armed": 1, "unknown": 0, "unavailable": 0}
     assert shutdown["secondary_ready"] is True
     assert shutdown["proxmox_nut_client"]["name"] == "pve"
     assert shutdown["proxmox_nut_client"]["state"] == "reachable_via_upsc"

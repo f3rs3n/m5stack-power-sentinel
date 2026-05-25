@@ -107,6 +107,7 @@ struct ServiceState {
 };
 
 constexpr int MAX_PVE_WORKLOAD_CARDS = 6;
+constexpr int MAX_NUT_CLIENT_CARDS = 6;
 
 struct WorkloadMetric {
   char kind[4] = "VM";
@@ -116,6 +117,15 @@ struct WorkloadMetric {
   int diskPercent = -1;
   float ramTotalGb = 0.0f;
   float diskTotalGb = 0.0f;
+};
+
+struct NutClientCard {
+  char role[10] = "secondary";
+  char name[24] = "none";
+  char state[28] = "unknown";
+  bool armed = false;
+  bool available = false;
+  int lastSeenSeconds = -1;
 };
 
 struct ProxmoxState {
@@ -164,12 +174,18 @@ struct ShutdownState {
   bool primaryReady = false;
   bool primaryMonitorActive = false;
   bool secondaryReady = false;
+  char nutUpsmonState[16] = "disarmed";
+  char nutUpsmonLabel[16] = "DISARMED";
   char clientState[28] = "not_configured";
   char clientName[24] = "none";
   int clientTotal = 0;
   int clientSecondaryTotal = 0;
   int clientConnected = 0;
   int clientArmed = 0;
+  int clientUnknown = 0;
+  int clientUnavailable = 0;
+  int nutClientCardCount = 0;
+  NutClientCard nutClients[MAX_NUT_CLIENT_CARDS];
   bool proxmoxClientArmed = false;
   bool proxmoxClientConnectedAsUpsmon = false;
   char proxmoxClientState[28] = "not_configured";
@@ -444,6 +460,14 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.shutdown.secondaryReady = sd["secondary_ready"] | false;
   safeCopy(state.shutdown.owner, sizeof(state.shutdown.owner), sd["real_shutdown_owner"] | "upsmon");
   safeCopy(state.shutdown.reason, sizeof(state.shutdown.reason), sd["reason"] | "waiting");
+  JsonObjectConst nutUpsmon = sd["nut_upsmon"].as<JsonObjectConst>();
+  if (!nutUpsmon.isNull()) {
+    safeCopy(state.shutdown.nutUpsmonState, sizeof(state.shutdown.nutUpsmonState), nutUpsmon["state"] | (state.shutdown.armed ? "armed" : "disarmed"));
+    safeCopy(state.shutdown.nutUpsmonLabel, sizeof(state.shutdown.nutUpsmonLabel), nutUpsmon["label"] | (state.shutdown.armed ? "ARMED" : "DISARMED"));
+  } else {
+    safeCopy(state.shutdown.nutUpsmonState, sizeof(state.shutdown.nutUpsmonState), state.shutdown.armed ? "armed" : "disarmed");
+    safeCopy(state.shutdown.nutUpsmonLabel, sizeof(state.shutdown.nutUpsmonLabel), state.shutdown.armed ? "ARMED" : "DISARMED");
+  }
   JsonObjectConst thresholds = sd["thresholds"].as<JsonObjectConst>();
   state.shutdown.chargeLowPercent = jsonInt(thresholds["battery_charge_low_percent"], -1);
   state.shutdown.runtimeLowSeconds = jsonInt(thresholds["battery_runtime_low_seconds"], -1);
@@ -452,6 +476,8 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.shutdown.clientSecondaryTotal = jsonInt(clientSummary["secondary_total"], 0);
   state.shutdown.clientConnected = jsonInt(clientSummary["connected"], 0);
   state.shutdown.clientArmed = jsonInt(clientSummary["armed"], 0);
+  state.shutdown.clientUnknown = jsonInt(clientSummary["unknown"], 0);
+  state.shutdown.clientUnavailable = jsonInt(clientSummary["unavailable"], 0);
   JsonObjectConst pveNutClient = sd["proxmox_nut_client"].as<JsonObjectConst>();
   if (!pveNutClient.isNull()) {
     state.shutdown.proxmoxClientArmed = pveNutClient["armed"] | false;
@@ -462,8 +488,19 @@ void parseSummary(const String &json, bool fromNetwork) {
     state.shutdown.proxmoxClientConnectedAsUpsmon = false;
     safeCopy(state.shutdown.proxmoxClientState, sizeof(state.shutdown.proxmoxClientState), "not_configured");
   }
+  state.shutdown.nutClientCardCount = 0;
   JsonArrayConst nutClients = sd["nut_clients"].as<JsonArrayConst>();
   if (!nutClients.isNull() && nutClients.size() > 0) {
+    for (JsonObjectConst client : nutClients) {
+      if (state.shutdown.nutClientCardCount >= MAX_NUT_CLIENT_CARDS) break;
+      NutClientCard &card = state.shutdown.nutClients[state.shutdown.nutClientCardCount++];
+      safeCopy(card.role, sizeof(card.role), client["role"] | "secondary");
+      safeCopy(card.name, sizeof(card.name), client["name"] | "client");
+      safeCopy(card.state, sizeof(card.state), client["state"] | "unknown");
+      card.armed = client["armed"] | false;
+      card.available = client["available"].isNull() ? true : client["available"].as<bool>();
+      card.lastSeenSeconds = jsonInt(client["last_seen_seconds"], -1);
+    }
     JsonObjectConst client = nutClients[0].as<JsonObjectConst>();
     safeCopy(state.shutdown.clientName, sizeof(state.shutdown.clientName), client["name"] | "client");
     safeCopy(state.shutdown.clientState, sizeof(state.shutdown.clientState), client["state"] | "not_configured");
@@ -894,6 +931,58 @@ lv_obj_t *makeWorkloadInfoMiniCard(lv_obj_t *parent, const char *title, const ch
   return card;
 }
 
+const char *nutClientDisplayState(const NutClientCard &client) {
+  if (!client.available) return "UNREACHABLE";
+  if (client.armed) return "ARMED";
+  if (strcmp(client.state, "disarmed") == 0) return "DISARMED";
+  if (strcmp(client.state, "reachable_via_upsc") == 0) return "REACHABLE";
+  if (strcmp(client.state, "connected_as_upsmon") == 0) return "CONNECTED";
+  if (strcmp(client.state, "configured_not_connected") == 0) return "CONFIGURED";
+  if (strcmp(client.state, "unknown") == 0) return "UNKNOWN";
+  if (strcmp(client.state, "unavailable") == 0) return "UNREACHABLE";
+  return "UNKNOWN";
+}
+
+lv_color_t nutClientStateColor(const NutClientCard &client) {
+  if (!client.available || strcmp(client.state, "unavailable") == 0) return lv_palette_main(LV_PALETTE_RED);
+  if (client.armed) return lv_palette_main(LV_PALETTE_GREEN);
+  if (strcmp(client.state, "reachable_via_upsc") == 0 || strcmp(client.state, "configured_not_connected") == 0 || strcmp(client.state, "disarmed") == 0) return lv_palette_main(LV_PALETTE_ORANGE);
+  return lv_palette_main(LV_PALETTE_GREY);
+}
+
+lv_obj_t *makeNutClientMiniCard(lv_obj_t *parent, const NutClientCard &client) {
+  lv_obj_t *card = lv_obj_create(parent);
+  if (!card) return nullptr;
+  lv_obj_set_width(card, lv_pct(100));
+  lv_obj_set_height(card, (PAGE_CARD_HEIGHT - 8) / 2);
+  lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_all(card, 8, 0);
+  lv_obj_set_style_pad_gap(card, 5, 0);
+  lv_obj_set_style_radius(card, 12, 0);
+  lv_obj_set_style_border_width(card, 1, 0);
+  lv_obj_set_style_border_color(card, lv_color_hex(0x394152), 0);
+  lv_obj_set_style_bg_color(card, lv_color_hex(0x171b24), 0);
+  lv_obj_set_style_shadow_width(card, 6, 0);
+  lv_obj_set_style_shadow_opa(card, LV_OPA_60, 0);
+  lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_shadow_ofs_y(card, 2, 0);
+  lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+
+  char title[48];
+  snprintf(title, sizeof(title), "%s %s", strcmp(client.role, "primary") == 0 ? "PRIMARY" : "SECONDARY", client.name);
+  lv_obj_t *headline = lv_label_create(card);
+  if (headline) {
+    lv_obj_set_width(headline, lv_pct(100));
+    lv_label_set_long_mode(headline, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(headline, lv_color_hex(0xe8eefc), 0);
+    lv_obj_set_style_text_font(headline, &lv_font_montserrat_14, 0);
+    lv_label_set_text(headline, title);
+  }
+  addBadge(card, nutClientDisplayState(client), nutClientStateColor(client));
+  addLine(card, strcmp(client.role, "primary") == 0 ? "local NUT upsmon" : "downstream client");
+  return card;
+}
+
 void setupPage(lv_obj_t *tab) {
   lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_ROW);
   lv_obj_set_style_pad_all(tab, 8, 0);
@@ -1050,17 +1139,13 @@ void renderHome() {
 void renderNut() {
   lv_obj_clean(nutTab);
   setupPage(nutTab);
-  const char *upsBadge = !state.ups.available ? "UPS UNKNOWN" : (state.ups.lowBattery ? "LOW BATTERY" : (state.ups.onBattery ? "ON BATTERY" : "ONLINE"));
-  lv_color_t upsColor = !state.ups.available ? lv_palette_main(LV_PALETTE_GREY) :
-                        (state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) :
-                         (state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN)));
+  const char *upsBadge = state.offline ? "STALE" : (!state.ups.available ? "UNAVAILABLE" : (state.ups.lowBattery ? "LOW BATT" : (state.ups.onBattery ? "ON BATT" : "ONLINE")));
+  lv_color_t upsColor = state.offline ? lv_palette_main(LV_PALETTE_ORANGE) :
+                        (!state.ups.available ? lv_palette_main(LV_PALETTE_GREY) :
+                         (state.ups.lowBattery ? lv_palette_main(LV_PALETTE_RED) :
+                          (state.ups.onBattery ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN))));
   lv_obj_t *card = makeStatusCard(nutTab, "NUT", upsBadge, upsColor);
-  if (state.offline) {
-    addBadge(card, "NO LIVE DATA", lv_palette_main(LV_PALETTE_ORANGE));
-  }
   char line[128];
-  snprintf(line, sizeof(line), "Status: %s (%s)", state.ups.statusLabel, state.ups.status);
-  addLine(card, line);
   char battery[24];
   char runtime[24];
   snprintf(line, sizeof(line), "Battery %s   Runtime %s",
@@ -1071,56 +1156,42 @@ void renderNut() {
   char load[24];
   char watts[24];
   char inputV[24];
-  snprintf(line, sizeof(line), "Load %s / %s   Input %s",
+  snprintf(line, sizeof(line), "Load %s / %s",
            intOrUnknown(state.ups.loadPercent, load, sizeof(load), "%"),
-           intOrUnknown(state.ups.loadW, watts, sizeof(watts), "W"),
-           floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
+           intOrUnknown(state.ups.loadW, watts, sizeof(watts), "W"));
   addLine(card, line);
   addPercentBar(card, state.ups.loadPercent, lv_palette_main(LV_PALETTE_BLUE));
+  snprintf(line, sizeof(line), "Input %s", floatOrUnknown(state.ups.inputVoltage, inputV, sizeof(inputV), "V"));
+  addLine(card, line);
 
-  lv_obj_t *nutCard = makeCard(nutTab, "NUT server");
-  snprintf(line, sizeof(line), "server %s   driver %s", okDown(state.nut.serverActive), okDown(state.nut.driverActive));
-  addLine(nutCard, line);
-  snprintf(line, sizeof(line), "monitor %s   mode %s", state.nut.monitorActive ? "ARMED" : "off", state.nut.mode);
-  addLine(nutCard, line);
-  char clientCount[24];
-  snprintf(line, sizeof(line), "shutdown %s   clients %s", state.nut.shutdownState, state.nut.clientCount < 0 ? "unknown" : intOrUnknown(state.nut.clientCount, clientCount, sizeof(clientCount)));
-  addLine(nutCard, line);
-  snprintf(line, sizeof(line), "client list: %s", state.nut.clients);
-  addLine(nutCard, line);
+  lv_obj_t *clientsPage = lv_obj_create(nutTab);
+  stylePanel(clientsPage, lv_color_hex(0x111827), lv_color_hex(0x394152));
+  lv_obj_set_style_pad_all(clientsPage, 0, 0);
+  lv_obj_set_style_pad_gap(clientsPage, 8, 0);
+  lv_obj_set_style_border_width(clientsPage, 0, 0);
+  lv_obj_set_style_bg_opa(clientsPage, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_width(clientsPage, 0, 0);
+  lv_obj_set_scrollbar_mode(clientsPage, LV_SCROLLBAR_MODE_OFF);
+  if (state.shutdown.nutClientCardCount == 0) {
+    makeWorkloadInfoMiniCard(clientsPage, "PRIMARY m5stack", "NUT client data unavailable");
+  } else {
+    for (int i = 0; i < state.shutdown.nutClientCardCount; ++i) {
+      makeNutClientMiniCard(clientsPage, state.shutdown.nutClients[i]);
+    }
+  }
 
-  lv_obj_t *shutdownCard = makeCard(nutTab, "NUT shutdown readiness");
-  addBadge(shutdownCard, state.shutdown.wouldShutdown ? "WOULD SHUTDOWN" : "NO ACTION", state.shutdown.wouldShutdown ? lv_palette_main(LV_PALETTE_ORANGE) : lv_palette_main(LV_PALETTE_GREEN));
-  snprintf(line, sizeof(line), "owner %s   armed %s", state.shutdown.owner, state.shutdown.armed ? "YES" : "NO");
-  addMetricRow(shutdownCard, "owner", line);
-  snprintf(line, sizeof(line), "primary monitor %s", state.shutdown.primaryMonitorActive ? "active" : "off");
-  addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "clients %d/%d connected", state.shutdown.clientConnected, state.shutdown.clientTotal);
-  addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "%s %s", state.shutdown.clientName, state.shutdown.clientState);
-  addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "pkg %s   reachable_via_upsc %s", triText(state.shutdown.clientPackageInstalled), triText(state.shutdown.clientReachableViaUpsc));
-  addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "connected_as_upsmon %s", state.shutdown.clientConnectedAsUpsmon ? "yes" : "no");
-  addLine(shutdownCard, line);
-  snprintf(line, sizeof(line), "LOW %s%% / %ss", intOrUnknown(state.shutdown.chargeLowPercent, battery, sizeof(battery)), intOrUnknown(state.shutdown.runtimeLowSeconds, runtime, sizeof(runtime)));
-  addLine(shutdownCard, line);
-  addLine(shutdownCard, state.shutdown.reason);
-
-  lv_obj_t *details = makeCard(nutTab, "UPS details");
-  char battV[24];
-  char outV[24];
-  snprintf(line, sizeof(line), "Model: %s", state.ups.model);
+  lv_obj_t *details = makeCard(nutTab, "NUT details");
+  snprintf(line, sizeof(line), "upsd %s   driver %s", okDown(state.nut.serverActive), okDown(state.nut.driverActive));
   addLine(details, line);
-  snprintf(line, sizeof(line), "BattV %s   Out %s",
-           floatOrUnknown(state.ups.batteryVoltage, battV, sizeof(battV), "V"),
-           floatOrUnknown(state.ups.outputVoltage, outV, sizeof(outV), "V"));
+  snprintf(line, sizeof(line), "clients %d / %d", state.shutdown.clientConnected, state.shutdown.clientTotal);
   addLine(details, line);
-  snprintf(line, sizeof(line), "Nominal %s   Driver %s", intOrUnknown(state.ups.realpowerNominalW, watts, sizeof(watts), "W"), state.ups.driver);
+  snprintf(line, sizeof(line), "NUT upsmon: %s", state.shutdown.nutUpsmonLabel);
   addLine(details, line);
-  snprintf(line, sizeof(line), "Beeper %s", state.ups.beeperStatus);
+  snprintf(line, sizeof(line), "UPS %s", state.ups.model);
   addLine(details, line);
-  snprintf(line, sizeof(line), "Transfer: %s", state.ups.transferReason);
+  snprintf(line, sizeof(line), "Capacity %s", intOrUnknown(state.ups.realpowerNominalW, watts, sizeof(watts), "W"));
+  addLine(details, line);
+  snprintf(line, sizeof(line), "Unknown %d   Unreach %d", state.shutdown.clientUnknown, state.shutdown.clientUnavailable);
   addLine(details, line);
 }
 

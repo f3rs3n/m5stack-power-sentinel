@@ -412,6 +412,40 @@ def summarize_nut_clients(clients: list[dict[str, Any]], nut: dict[str, Any]) ->
     return [summarize_nut_client(client, nut) for client in clients]
 
 
+def nut_upsmon_summary(monitor_active: bool | None) -> dict[str, Any]:
+    armed = bool(monitor_active)
+    return {
+        "armed": armed,
+        "state": "armed" if armed else "disarmed",
+        "label": "ARMED" if armed else "DISARMED",
+    }
+
+
+def summarize_primary_nut_client(ups: dict[str, Any], nut: dict[str, Any]) -> dict[str, Any]:
+    monitor_active = bool(nut.get("monitor_active"))
+    telemetry_available = bool(ups.get("available") and nut.get("server_active") and nut.get("driver_active"))
+    if not telemetry_available:
+        state = "unavailable"
+    elif monitor_active:
+        state = "armed"
+    else:
+        state = "disarmed"
+    return {
+        "name": "m5stack",
+        "host": "localhost",
+        "role": "primary",
+        "available": telemetry_available,
+        "package_installed": None,
+        "reachable_via_upsc": bool(ups.get("available")) if telemetry_available else False,
+        "configured": bool(nut.get("server_active") and nut.get("driver_active")),
+        "connected_as_upsmon": monitor_active,
+        "armed": monitor_active,
+        "state": state,
+        "last_seen_seconds": as_int(ups.get("age_seconds")) if telemetry_available else None,
+        "discovery_error": None if telemetry_available else "local NUT telemetry unavailable",
+    }
+
+
 def select_proxmox_nut_client(clients: list[dict[str, Any]], pve: dict[str, Any] | None = None, config: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Return the NUT client entry that represents the configured Proxmox node.
 
@@ -462,10 +496,11 @@ def summarize_standard_nut_shutdown(
     monitor_active = bool(nut.get("monitor_active"))
     primary_ready = bool(ups.get("available") and nut.get("server_active") and nut.get("driver_active") and nut.get("mode") == "netserver")
     raw_clients = clients or []
-    summarized_clients = summarize_nut_clients(raw_clients, nut)
+    summarized_clients = [summarize_primary_nut_client(ups, nut)] + summarize_nut_clients(raw_clients, nut)
     summary = nut_client_summary(summarized_clients)
     proxmox_client = select_proxmox_nut_client(summarized_clients, pve=pve, config=config)
     secondary_ready = any(client.get("role") == "secondary" and (client.get("connected_as_upsmon") or client.get("armed")) for client in summarized_clients)
+    upsmon = nut_upsmon_summary(nut.get("monitor_active"))
     if ups.get("low_battery"):
         would_shutdown = True
         reason = "UPS low battery; standard NUT upsmon would initiate shutdown"
@@ -480,6 +515,7 @@ def summarize_standard_nut_shutdown(
         reason = "UPS unavailable"
     return {
         "armed": monitor_active,
+        "nut_upsmon": upsmon,
         "real_shutdown_owner": "upsmon",
         "primary_ready": primary_ready,
         "primary_monitor_active": monitor_active,

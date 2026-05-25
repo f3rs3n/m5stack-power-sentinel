@@ -282,20 +282,56 @@ static void render_home(lv_obj_t *tab) {
     lv_obj_center(sleep);
 }
 
+static lv_obj_t *mini_card(lv_obj_t *parent, const char *title, const char *state, uint32_t color, const char *detail) {
+    lv_obj_t *m = lv_obj_create(parent);
+    lv_obj_set_width(m, lv_pct(100));
+    lv_obj_set_height(m, (PS_PAGE_CARD_HEIGHT - 8) / 2);
+    lv_obj_set_flex_flow(m, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(m, 8, 0);
+    lv_obj_set_style_pad_gap(m, 5, 0);
+    lv_obj_set_style_radius(m, 12, 0);
+    lv_obj_set_style_border_width(m, 1, 0);
+    lv_obj_set_style_border_color(m, C(0x394152), 0);
+    lv_obj_set_style_bg_color(m, C(0x171b24), 0);
+    lv_obj_set_style_bg_opa(m, LV_OPA_COVER, 0);
+    lv_obj_set_style_shadow_width(m, 6, 0);
+    lv_obj_set_style_shadow_opa(m, LV_OPA_60, 0);
+    lv_obj_set_style_shadow_color(m, C(0x000000), 0);
+    lv_obj_set_style_shadow_ofs_y(m, 2, 0);
+    lv_obj_set_scrollbar_mode(m, LV_SCROLLBAR_MODE_OFF);
+    line(m, title, 0xe8eefc, &lv_font_montserrat_14);
+    badge(m, state, color);
+    line(m, detail, 0xc8d0df, &lv_font_montserrat_12);
+    return m;
+}
+
 static void render_nut(lv_obj_t *tab) {
     page(tab);
     lv_obj_t *c = status_card(tab, "NUT", "ONLINE", 0x22c55e);
-    line(c, "Status: Online (OL)", 0xc8d0df, &lv_font_montserrat_14);
     line(c, "Battery 100%   Runtime 57m00s", 0xc8d0df, &lv_font_montserrat_14);
     bar(c, 100, 0x22c55e, 10);
-    line(c, "Load 19% / 95W   Input 232.0V", 0xc8d0df, &lv_font_montserrat_14);
+    line(c, "Load 19% / 95W", 0xc8d0df, &lv_font_montserrat_14);
     bar(c, 19, 0x3b82f6, 10);
+    line(c, "Input 232.0V", 0xc8d0df, &lv_font_montserrat_14);
 
-    lv_obj_t *n = card(tab, "NUT server");
-    line(n, "server OK   driver OK", 0xc8d0df, &lv_font_montserrat_14);
-    line(n, "monitor off   mode netserver", 0xc8d0df, &lv_font_montserrat_14);
-    line(n, "shutdown not_armed   clients 1", 0xc8d0df, &lv_font_montserrat_14);
-    line(n, "client list: pve", 0xc8d0df, &lv_font_montserrat_14);
+    lv_obj_t *clients = lv_obj_create(tab);
+    panel(clients, 0x111827, 0x394152);
+    lv_obj_set_style_pad_all(clients, 0, 0);
+    lv_obj_set_style_pad_gap(clients, 8, 0);
+    lv_obj_set_style_border_width(clients, 0, 0);
+    lv_obj_set_style_bg_opa(clients, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_width(clients, 0, 0);
+    lv_obj_set_scrollbar_mode(clients, LV_SCROLLBAR_MODE_OFF);
+    mini_card(clients, "PRIMARY m5stack", "DISARMED", 0xf59e0b, "local NUT upsmon");
+    mini_card(clients, "SECONDARY pve", "REACHABLE", 0xf59e0b, "downstream client");
+
+    lv_obj_t *d = card(tab, "NUT details");
+    line(d, "upsd OK   driver OK", 0xc8d0df, &lv_font_montserrat_14);
+    line(d, "clients 0 / 2", 0xc8d0df, &lv_font_montserrat_14);
+    line(d, "NUT upsmon: DISARMED", 0xc8d0df, &lv_font_montserrat_14);
+    line(d, "UPS Back-UPS ES 850G2", 0xc8d0df, &lv_font_montserrat_14);
+    line(d, "Capacity 500W", 0xc8d0df, &lv_font_montserrat_14);
+    line(d, "Unknown 0   Unreach 0", 0xc8d0df, &lv_font_montserrat_14);
 }
 
 static void render_pve(lv_obj_t *tab) {

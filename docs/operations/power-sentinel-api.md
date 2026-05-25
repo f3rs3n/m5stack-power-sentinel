@@ -67,8 +67,9 @@ Shutdown readiness is reported for Standard NUT. Power Sentinel exposes only NUT
 
 - `shutdown.real_shutdown_owner=upsmon`
 - `shutdown.primary_ready`, `shutdown.primary_monitor_active`, `shutdown.secondary_ready`
-- `shutdown.nut_clients[]`: all configured NUT client inventory/readiness records. Each record includes `name`, `host`, `role`, `available`, `package_installed`, `reachable_via_upsc`, `configured`, `connected_as_upsmon`, `armed`, `state`, and optional `discovery_error`.
-- `shutdown.nut_clients[].state`: one of `armed`, `connected_as_upsmon`, `reachable_via_upsc`, `configured_not_connected`, `not_configured`, `unknown`, or `unavailable`. `unknown`/`unavailable` records are inventory records only: they do not increment connected/armed counts and do not make `secondary_ready=true`.
+- `shutdown.nut_upsmon`: explicit local primary upsmon summary, `{armed,state,label}`; the CoreS3 UI should render this as `NUT upsmon: ARMED` or `NUT upsmon: DISARMED` rather than conflating it with telemetry health.
+- `shutdown.nut_clients[]`: normalized NUT client inventory/readiness records. The first record is always the local primary (`name=m5stack`, `role=primary`); configured secondary clients follow in inventory order. Each record includes `name`, `host`, `role`, `available`, `package_installed`, `reachable_via_upsc`, `configured`, `connected_as_upsmon`, `armed`, `state`, and optional `discovery_error`/`last_seen_seconds`.
+- `shutdown.nut_clients[].state`: one of `armed`, `disarmed`, `connected_as_upsmon`, `reachable_via_upsc`, `configured_not_connected`, `not_configured`, `unknown`, or `unavailable`. `unknown`/`unavailable` records are inventory records only: they do not increment connected/armed counts and do not make `secondary_ready=true`.
 - `shutdown.nut_client_summary`: aggregate counts across all records: `total`, `secondary_total`, `connected`, `armed`, `unknown`, and `unavailable`.
 - `shutdown.proxmox_nut_client`: the configured Proxmox client selected by Proxmox node name/host; the PVE dashboard NUT pill uses this object only, not aggregate secondary-client counts
 - `shutdown.proxmox_nut_client.state`: same enum as `shutdown.nut_clients[].state`
