@@ -144,6 +144,25 @@ def main() -> int:
         if needle not in render_harness_text:
             return fail(f"LVGL MCP render harness missing {needle}")
 
+    ledcards_interface_cpp = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
+    ledcards_interface_h = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
+    if not ledcards_interface_cpp.exists() or not ledcards_interface_h.exists():
+        return fail("Ledcards Interface live page source/header are missing")
+    ledcards_interface_text = ledcards_interface_cpp.read_text(encoding="utf-8")
+    ledcards_interface_header = ledcards_interface_h.read_text(encoding="utf-8")
+    for needle in [
+        "struct LedcardsInterfaceNutView", "createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)", "updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
+        "choose_hero_metric", "move_metric_to_front", "kHeroCooldownMs", "format_tte", "STATE_ON_BATTERY", "STATE_LOW_BATTERY",
+        "STATE_STALE", "STATE_HIGH_LOAD", "STATE_INPUT_LOW", "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT",
+    ]:
+        if needle not in ledcards_interface_text + "\n" + ledcards_interface_header:
+            return fail(f"Ledcards Interface live-data adapter missing {needle}")
+    if "PS_NUT_HOME_STATE ==" in ledcards_interface_text:
+        return fail("Ledcards Interface firmware page must no longer be selected by compile-time PS_NUT_HOME_STATE")
+    for needle in ["LedcardsInterfaceNutView makeLedcardsInterfaceNutView()", "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())", "updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView())"]:
+        if needle not in text:
+            return fail(f"main firmware missing Ledcards Interface live-data hook {needle}")
+
     if not SPIKE_BATCH_RENDER_SCRIPT.exists():
         return fail("LVGL MCP dashboard batch renderer is missing")
     batch_script = SPIKE_BATCH_RENDER_SCRIPT.read_text(encoding="utf-8")

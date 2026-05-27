@@ -1,364 +1,104 @@
-# Power Sentinel current state
+# Current State
 
-Last updated: 2026-05-23
+This document records the current verified Power Sentinel runtime state. Keep it sanitized for public repo use.
 
-This file exists to survive chat/context compaction. It records the hardware facts, firmware decisions, verified paths, and remaining gaps that must not be rediscovered unless hardware/firmware changes.
+## Hardware / topology
 
-Current product goal:
+- M5Stack LLM Module is the autonomous Linux appliance.
+- CoreS3 is the display surface.
+- UPS is connected to the LLM Module over USB OTG and exposed through NUT as `homelab_ups`.
+- CoreS3 display data is delivered through StackFlow/`llm_sys` using `work_id: "sentinel"` and `ipc:///tmp/rpc.sentinel`.
 
-```text
-Turn the stack into an autonomous multi-function Linux server with:
-- NUT server for the attached UPS;
-- modern practical CoreS3 dashboards for UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, network, and the M5Stack itself;
-- an extensible mini-dashboard model;
-- future local LLM inference for dashboard enrichment or a companion tab;
-- MQTT exposure of stack sensors/health to Home Assistant.
-```
+## Verified services
 
-## Hardware stack
+Verified on the physical module:
 
-Current assembled order, bottom to top:
+- SSH key login works; password/telnet/rpcbind hardening was applied.
+- LLM/OpenAI-compatible API baseline is stable.
+- Local LLM healthcheck is installed.
+- MQTT/Home Assistant discovery for LLM module health is installed and verified.
+- `nut-server` and UPS driver are active.
+- `power-sentinel-api` serves `power-sentinel.summary.v1`.
+- `power-sentinel-stackflow-unit` sends live summaries to CoreS3.
 
-```text
-DIN BASE -> LLM MATE -> LLM MODULE -> CORE S3
-```
-
-No DIP switch changes were needed for the confirmed UART path.
-
-## Power behavior
-
-Observed behavior:
-
-| Firmware / config | CoreS3 powered from stack | CoreS3 USB-C powers stack |
-| --- | --- | --- |
-| M5Stack stock/demo firmware | yes | yes |
-| Power Sentinel firmware with `cfg.output_power = true` | no | yes |
-| Power Sentinel firmware with `cfg.output_power = false` | yes | no |
-
-Interpretation:
-
-- M5Stack stock/demo firmware appears to manage the shared power rail bidirectionally/dynamically.
-- M5Unified exposes this as an explicit external output enable bit via `cfg.output_power` -> `Power.setExtOutput()`.
-- For Power Sentinel appliance mode, use the safe external-input mode:
-
-```cpp
-#define POWER_SENTINEL_STACK_POWER_OUT 0
-```
-
-This lets the CoreS3 boot when powered from LLM Mate/LLM Module/base, but the CoreS3 USB-C will not feed 5V back into the stack.
-
-## CoreS3 firmware config file location
-
-The local, ignored config file must be here:
-
-```text
-firmware/core-s3-display/include/power_sentinel_config.h
-```
-
-The template is:
-
-```text
-firmware/core-s3-display/include/power_sentinel_config.example.h
-```
-
-A file at this path is wrong and is not used by the firmware include path:
-
-```text
-firmware/core-s3-display/power_sentinel_config.h
-```
-
-## Confirmed internal UART path
-
-The internal CoreS3 <-> LLM Module UART path is confirmed working:
-
-```text
-CoreS3 RX = G18
-CoreS3 TX = G17
-Baud      = 115200 8N1
-LLM side  = llm_sys owning /dev/ttyS1
-```
-
-Important: `/dev/ttyS1` is owned by the vendor `llm_sys` service. Power Sentinel no longer runs a parallel Linux serial bridge on that device. The CoreS3 still uses the physical stacked UART, but speaks official StackFlow JSON and lets `llm_sys` route `work_id: "sentinel"` to the custom unit.
-
-`/dev/ttyS2` through `/dev/ttyS5` returned I/O errors during scan. `/dev/ttyS0` is the Linux console and must not be used.
-
-## Current UPS / NUT state
-
-The UPS is physically connected over USB OTG to the LLM Module and is detected as:
-
-```text
-Vendor/Product: 051d:0002
-Vendor: American Power Conversion
-Model: Back-UPS ES 850G2
-Serial: 5B2350TD6030
-NUT driver: usbhid-ups
-NUT UPS name: homelab_ups@localhost
-```
-
-Current verified NUT service state after the controlled primary/secondary upsmon test and safety disable:
-
-```text
-nut-server: enabled/active
-nut-driver: static/active
-nut-monitor: disabled/inactive on the M5Stack primary
-Proxmox nut-monitor: disabled/inactive on the first secondary host
-```
-
-`nut-monitor` was temporarily enabled on the M5Stack primary and then on the Proxmox secondary to prove the Standard NUT path. Both monitors have since been explicitly stopped and disabled for the current staged/safe state. Shutdown is handled only by Standard NUT (`upsmon` primary on the USB-attached LLM Module, `upsmon` secondary on clients such as Proxmox) when the monitors are deliberately re-enabled. Power Sentinel is only a dashboard/readiness observer and must not orchestrate Proxmox shutdown through the Proxmox API.
-
-The precise operations note for this tested-but-disarmed state, deliberate arming, rollback/recovery, and the NUT control boundary is `docs/operations/standard-nut-arming-runbook.md`. That runbook keeps all client arming/disarming outside Power Sentinel control and records the product decision to avoid CoreS3/API NUT hold/disarm buttons rather than reintroducing SSH/client orchestration.
-
-Real NUT monitor users and `upsmon.conf` files have been prepared on the M5Stack and first secondary host. The controlled test verified that the M5Stack can run as `upsmon` primary and that Proxmox can connect as `upsmon` secondary; after the test, both `nut-monitor` services were disabled/inactive. The M5Stack currently runs NUT 2.7.4, so the deployed config uses legacy `master`/`slave` keywords for the Standard NUT primary/secondary roles.
+## UPS / NUT
 
 Verified live UPS values after connection:
 
 ```text
+ups.available: true
 ups.status: OL
-battery.charge: 100
-battery.runtime: 384 seconds
-input.voltage: 223.0 V
-ups.load: 38 %
+ups.status_label: Online
+battery.charge: available
+battery.runtime: available
+ups.load: available
+input.voltage: available
+battery.voltage: available
+ups.realpower.nominal: available
 ```
 
-The local API and StackFlow path now report `ups.available=true`, `status=OL`, and overall `severity=ok` from live `upsc` data rather than placeholder values.
+The local API and StackFlow path report live UPS/NUT data rather than placeholder values.
 
 Sanitized example configs are in:
 
 ```text
-backend/config/nut.conf.example
 backend/config/ups.conf.example
 backend/config/upsd.conf.example
-backend/config/upsd.users.standard-nut.example
-backend/config/upsmon.primary.example
-backend/config/upsmon.secondary.example
 backend/config/nut-clients.example.json
 ```
 
-## Current backend
-
-The LLM Module backend is reachable at:
+## API summary fields currently expected
 
 ```text
-http://192.168.2.202:8088/api/v1/summary
-```
-
-The shared schema is:
-
-```text
-power-sentinel.summary.v1
-```
-
-Current backend services:
-
-```text
-power-sentinel-api.service
-power-sentinel-stackflow-unit.service
-llm-sys.service
-```
-
-The StackFlow custom unit listens on:
-
-```text
-ipc:///tmp/rpc.sentinel
-```
-
-The custom unit calls the API using the non-recursive safe endpoint:
-
-```text
-http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
-```
-
-See:
-
-```text
-docs/architecture/api-contract-v1.md
-docs/operations/power-sentinel-api.md
-docs/operations/backend-ops.md
-```
-
-Verified V1 backend state after Proxmox/network integration:
-
-```text
+schema: power-sentinel.summary.v1
+severity: ok
+ups.available: true
+ups.status_label: Online
+nut.server_available: true
+nut.driver_available: true
+nut.connected_client_count: integer
+nut.connected_clients: optional host list
 proxmox.available: true
-proxmox.severity: ok
 proxmox.node: pve
-proxmox.node_status: online
-proxmox.zfs.status: ONLINE
-proxmox.smart.status: OK
-proxmox.vm.running_names: ["haos"] plus optional running_items mini-metrics
-proxmox.lxc.running_names: ["docker", "hermes"] plus optional running_items mini-metrics
-proxmox.shutdown_state: disarmed (compatibility/display only; real shutdown path is NUT secondary upsmon)
+proxmox.cpu_percent / ram_percent / storage_percent: available
+proxmox.active_network_interfaces: available
+homeassistant.available: true/false/unknown depending on current probe
+mqtt.available: true/false
+zigbee2mqtt.available: true/false
 network.available: true
-network.default_route: true
-network.probe: tcp
-network.target: 1.1.1.1:53
-mqtt.available: true
-homeassistant.status: unknown    # homeassistant/status is not retained on the current HA install
-zigbee2mqtt.available: true
-zigbee2mqtt.state: online
-zigbee2mqtt.version: 2.10.1
-zigbee2mqtt.coordinator.type: EmberZNet
-zigbee2mqtt.coordinator.firmware: 7.4.5 [GA]
-zigbee2mqtt.devices: total=29 interviewed=29 disabled=0
-shutdown.real_shutdown_owner: upsmon
-shutdown.primary_ready: true
-shutdown.primary_monitor_active: false
-shutdown.nut_upsmon: {armed:false, state:disarmed, label:DISARMED}
-shutdown.armed: false
-shutdown.secondary_ready: false (aggregate secondary readiness; true only when at least one secondary client is connected/armed)
-shutdown.nut_client_summary: {total, secondary_total, connected, armed, unknown, unavailable}; total includes the local primary plus configured secondaries
-shutdown.nut_clients[].state enum: armed, disarmed, connected_as_upsmon, reachable_via_upsc, configured_not_connected, not_configured, unknown, unavailable
-shutdown.nut_clients[0].role/name/state: primary / m5stack / reachable_via_upsc
-shutdown.nut_clients[1].state: reachable_via_upsc
-shutdown.nut_clients[1].package_installed: true
-shutdown.nut_clients[1].reachable_via_upsc: true
-shutdown.nut_clients[1].configured: true
-shutdown.nut_clients[1].connected_as_upsmon: false
-shutdown.nut_clients[1].armed: false
-shutdown.proxmox_nut_client: selected host-specific NUT record for the configured Proxmox node/host; PVE NUT pill uses this object only
-shutdown.would_shutdown: false
-shutdown.reason: UPS online
+m5stack.available: true
 problems: []
 ```
 
-The Proxmox API token lives only in root-owned runtime config on the LLM Module:
+## CoreS3 UI
 
-```text
-/etc/power-sentinel.json
-mode: 600
-owner: root:root
-```
+Current CoreS3 LVGL UI:
 
-Do not print or commit the token secret. The token is read-only and the service has no shutdown action. Real shutdown is delegated to Standard NUT, not custom shutdown orchestration.
+- Five tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
+- 44 px icon-only left sidebar.
+- Horizontal card carousel inside each tab.
+- HOME shows power state, UPS essentials, subsystem row, and problem summary.
+- NUT shows `UPS`, `BATTERY`, `POWER`, and `CLIENTS` cards.
+- PVE shows Proxmox node health/capacity/interfaces/workload summary.
+- HA shows HA/MQTT/Zigbee2MQTT state and update/device counts.
+- M5S shows appliance health and transport freshness.
+- No boot/demo/sample payload: initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
 
-Current Proxmox token/role details that matter for future sessions:
+## Not yet implemented
 
-```text
-Proxmox role: PowerSentinelReadOnly
-Privileges: Sys.Audit VM.Audit Datastore.Audit VM.GuestAgent.Audit
-Token: power-sentinel@pve!readonly, privilege-separated
-ACL scope: / with propagate=1 for both the owning user and token
-```
+- NUT connected-host list polish beyond the current connected-count display.
+- NUT trend/history graphs. Future spike: backend-side UPS history, downsampled endpoint, compact sparkline on CoreS3.
+- Idempotent LLM Module installer script.
+- Local LLM dashboard enrichment or companion UI.
+- Additional LAN mini-dashboards.
+- Optional OTA or more automated flash workflow.
 
-`VM.GuestAgent.Audit` is intentionally included so the backend can read `qemu/{vmid}/agent/get-fsinfo` for VM filesystem usage. For HAOS, Proxmox list data reports `disk=0` even though the VM has a 64G disk, and `/status/current` is needed for accurate RAM. The backend therefore enriches running VM data with `/status/current`, then reads guest-agent fsinfo when available. HAOS exposes `/` as a tiny read-only `erofs` filesystem at 100%; this is ignored so displayed HDD usage comes from `/mnt/data` instead. Verified live HAOS mini-metrics after this fix:
+## Reference docs
 
-```text
-ram_percent: 90
-ram_total_bytes: 4294967296
-disk_percent: 15
-disk_total_bytes: 64121331712
-```
-
-Global SSH aliases available in Martino's Hermes environment:
-
-```text
-ssh pve        # Proxmox node, root@192.168.2.99
-ssh m5stack    # M5Stack LLM Module, root@192.168.2.202
-ssh doomtrain  # Windows workstation, marti@192.168.2.199
-```
-
-## Current firmware state
-
-CoreS3 frontend:
-
-```text
-firmware/core-s3-display/
-```
-
-Current dependency strategy in `platformio.ini`:
-
-```text
-M5Unified latest via PlatformIO registry
-M5GFX     transitive dependency of M5Unified
-LVGL      ^9.0.0 via PlatformIO registry
-ArduinoJson ^7.0.4
-```
-
-Important LVGL/M5GFX integration detail:
-
-- `src/main.cpp` must include the real external `<lvgl.h>` and must not include `<M5Unified.h>` in the same translation unit.
-- M5GFX includes its own internal LVGL-compatible font shim at `lgfx/v1/lvgl.h`; if the same translation unit includes both M5Unified/M5GFX and external LVGL, symbols such as `lv_area_t`, `lv_color_format_t`, and `lv_font_glyph_format_t` collide.
-- The firmware avoids that by isolating M5Unified/M5GFX calls in `src/m5_hal.cpp` and exposing a tiny wrapper declared by `src/m5_hal.h`.
-- Use `-DLV_CONF_INCLUDE_SIMPLE` plus `-I include` for `include/lv_conf.h`.
-- RGB565 color order is handled explicitly in the LVGL flush callback with `lv_draw_sw_rgb565_swap(pxMap, w * h)` before writing to M5GFX with its swap flag disabled.
-
-The firmware currently has:
-
-- Five LVGL tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`.
-- V1b/V1c/V1d modern polish plus current PVE polish: dark theme, compact left sidebar navigation as icon-only 18 px glyphs in a fixed 44 px rail with vertical swipe between tabs, fixed-height horizontal card carousel per tab, HOME hero/local-control cards, card radius/shadow, structured metric rows, status pills, percent bars, and `SLEEP DISPLAY`.
-- The LVGL MCP Windows spike is validated and kept under `assets/lvgl-spike/`. Preferred workflow is now native MCP over Streamable HTTP: Martino's fork `f3rs3n/Lvgl-mcp-esp32` runs on DOOMTRAIN from `C:\Users\marti\Progetti\Lvgl-mcp-esp32`, launched on demand by `C:\Users\marti\Progetti\start-lvgl-mcp-http.ps1` on localhost `127.0.0.1:3333`; the Windows scheduled task `LvglMcpHttp` exists but is disabled so the MCP server does not auto-start. Hermes reaches it through the enabled user service `lvgl-mcp-tunnel.service` and has `mcp_servers.lvgl` configured at `http://127.0.0.1:3333/mcp` with a local bearer header. After starting the server and reloading/restarting Hermes MCP, expect tools `mcp_lvgl_lvgl_render`, `mcp_lvgl_lvgl_render_full`, `mcp_lvgl_lvgl_inspect`, and `mcp_lvgl_lvgl_set_resolution`. Fallback remains `run-lvgl-mcp-render.mjs` / `render-via-doomtrain.sh`, which copies the harness to the out-of-repo Windows scratch workspace `C:\Users\marti\Progetti\lvgl-spike-work`. Do not generate new MCP outputs directly inside the Windows git checkout.
-- The MCP render caught a real HOME overflow/clipping issue; the current HOME layout keeps the first card dense and moves local controls/problems/sleep to a second horizontal card so vertical scrolling no longer becomes the primary way to traverse a tab.
-- HOME severity badge text is uppercase (`OK`, `WARN`, `CRITICAL`).
-- HOME `NET` comes from the backend `network` object, which checks the LLM Module Linux default route plus a short TCP probe to `1.1.1.1:53`; it is not inferred from Proxmox.
-- HA tab now shows HA core reachability, MQTT, update count, Zigbee2MQTT state, coordinator type/firmware, and `Z2M devices: interviewed/total` from the MQTT-first Z2M backend summary. It deliberately does not show the HA birth-topic retained/debug state or the installed Z2M version.
-- NUT tab now uses a Mini Nutify-style four-card read-only carousel: `UPS`, `BATTERY`, `POWER`, and `PROTECTION`. The firmware shows synthetic UPS states (`ONLINE`, `ON BATT`, `LOW BATT`, `UNAVAILABLE`, `STALE`) instead of raw NUT status tokens. `UPS` shows the UPS model and live essentials without duplicating `ONLINE` as body text. `BATTERY` carries compact battery state in the header pill (`CHARGING`, `DISCHARGING`, `LOW`, `UNKNOWN`) and keeps charge/runtime/voltage in the body. `POWER` hides `Output Voltage` when NUT does not expose it. `PROTECTION` summarizes `Connected clients N/T` and renders each `shutdown.nut_clients[]` entry as a thin role/name row with a status badge; `reachable_via_upsc` remains blue/readable, not green/armed. The tab remains observer-only: no hold/disarm, FSD, Proxmox shutdown, or downstream-client control affordances.
-- PVE tab consumes read-only Proxmox API data: CPU/RAM/storage, ZFS, SMART, VM/LXC running names/counts and optional per-running-workload mini-metrics. The main PVE card now uses `PROXMOX` with a right-aligned `ONLINE`/`OFFLINE` pill, storage uses aggregate Total Node Capacity from `/nodes/{node}/storage` with the total shown right-aligned, active non-loopback PVE interfaces render as pills, and the NUT pill is `NUT armed`/`NUT disarmed` based only on `shutdown.proxmox_nut_client.armed` for the Proxmox node, not on aggregate secondary-client readiness. The main PVE card no longer shows the old `node / api` latency row; API timing moved to the M5S transport/debug card. CPU/RAM/storage bars are explicitly labelled, main RAM and workload RAM/HDD totals are right-aligned, workload mini-cards show CPU/RAM/HDD bars with totals where meaningful, and LXC workloads are labelled as `LXC` rather than `CT`. When no per-workload mini-metrics are available, the old full fallback card is replaced by a half-height info mini-card. The old combined temp/storage row, `PVE RO` pill, and `NUT monitor idle` row were removed.
-- M5S tab treats missing/not-run chat smoke as `n/a`, not `FAIL`; StackFlow/OpenAI health remain the primary live checks.
-- No boot/demo/sample payload. Initial display state is explicit `boot`/`offline`/`waiting` until the first live StackFlow summary arrives.
-- Internal UART StackFlow transport enabled by default:
-
-```cpp
-#define POWER_SENTINEL_TRANSPORT_SERIAL 1
-#define POWER_SENTINEL_SERIAL_TIMEOUT_MS 3500UL
-#define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
-#define POWER_SENTINEL_SERIAL_RETRIES 3
-```
-
-- Optional WiFi HTTP fallback/development transport:
-
-```cpp
-#define POWER_SENTINEL_HTTP_FALLBACK 1
-#define POWER_SENTINEL_SUMMARY_URL "http://192.168.2.202:8088/api/v1/summary"
-```
-
-## Verified StackFlow path
-
-Verified by the user from VSCode on Windows over COM4 after flashing the StackFlow firmware:
-
-```text
-Serial TX StackFlow sentinel.summary id=ps-3 attempt 1/3
-Serial RX StackFlow: {"request_id":"ps-3","work_id":"sentinel","created":...,"object":"power-sentinel.summary.v1",...}
-StackFlow summary OK: 843 bytes
-```
-
-The user reported 38 consecutive OK polls with no misses. This validates the full path:
-
-```text
-CoreS3
--> internal UART / M-Bus
--> llm_sys
--> ipc:///tmp/rpc.sentinel
--> power-sentinel-stackflow-unit
--> http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
--> CoreS3 display
-```
-
-## Deprecated implementation status
-
-The previous parallel serial-bridge implementation is no longer part of the active architecture. The deployed LLM Module currently has no parallel bridge service or executable; `llm_sys` is the sole owner of `/dev/ttyS1`, and Power Sentinel integrates through the StackFlow custom unit.
-
-This choice is deliberate: preserving `llm_sys` avoids UART contention and keeps the vendor StackFlow/assistant path available.
-
-## Remaining gaps / next capabilities
-
-Not yet implemented:
-
-- Standard NUT shutdown is staged, not armed. `nut-monitor` remains disabled/inactive on the M5Stack primary and first Proxmox secondary until a deliberate arming operation following `docs/operations/standard-nut-arming-runbook.md`.
-- NUT trend/history graphs are not implemented. Future spike: record backend-side UPS history (start with `load_percent`/`load_w` every 30s, 24h retention), expose a downsampled endpoint such as `/history/nut/load?window=1h&points=60`, and render only a compact 60–120 point sparkline on CoreS3. NUT/`upsd` provides current values; `upslog` can log polling samples, but the display should not consume raw long histories.
-- Only the first Proxmox secondary has been prepared/verified as a NUT client; broader client inventory is future work.
-- LLM Module dependency inventory now exists in `docs/operations/llm-module-dependencies.md`, and the implementation checklist for a future idempotent installer is tracked in `docs/operations/llm-module-installer-checklist.md`. The installer script itself does not exist yet.
-- The CoreS3 has current mini-dashboards for HOME, NUT, PVE, HA, and M5S. Additional LAN mini-dashboards are future extensions.
-- Local LLM inference is not used yet to enrich dashboard summaries or provide a companion tab. Current LLM use is baseline health/OpenAI availability and optional chat smoke.
-- OTA/agent-driven flashing is not implemented; Windows + VSCode + PlatformIO remains the normal flash workflow.
-
-## Related docs
-
-- `docs/operations/core-s3-llm-uart-discovery.md` — detailed UART discovery and confirmed scan output.
-- `docs/architecture/frontend-core-s3-decisions.md` — frontend framework and workflow decisions.
-- `docs/architecture/api-contract-v1.md` — JSON contract.
-- `docs/operations/power-sentinel-api.md` — backend API operations.
-- `docs/operations/backend-ops.md` — backend service operations.
-- `docs/operations/standard-nut-arming-runbook.md` — deliberate Standard NUT arming, rollback, and Power Sentinel's no-control boundary for NUT clients/CoreS3/API buttons.
-- `docs/operations/llm-module-dependencies.md` — dependency inventory and installer-script roadmap for reproducing the LLM Module install.
-- `docs/operations/llm-module-installer-checklist.md` — implementation checklist for a future `backend/install/install-llm-module.sh`, including package/script/unit/template mapping, safety invariants, and remaining blockers.
-- `docs/plans/homelab-power-sentinel-plan-2026-05-15.md` — original project plan.
+- `PRODUCT.md`
+- `DESIGN.md`
+- `docs/architecture/api-contract-v1.md`
+- `docs/architecture/core-s3-pages-v1.md`
+- `docs/operations/backend-ops.md`
+- `docs/operations/llm-module-dependencies.md`
+- `assets/lvgl-spike/README.md`

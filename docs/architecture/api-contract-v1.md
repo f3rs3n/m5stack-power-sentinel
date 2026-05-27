@@ -10,11 +10,9 @@ Primary responsibilities:
 - produce normalized local JSON state for dashboards and integrations;
 - expose a local API for the CoreS3 display;
 - publish MQTT retained state and Home Assistant Discovery for stack sensors/health;
-- serve as NUT source for Proxmox/Home Assistant/other clients;
 - provide read-only information dashboards for UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, network, and the M5Stack appliance itself;
 - remain extensible for future mini-dashboards;
-- later use local LLM Module inference to enrich dashboard content or add a companion tab;
-- remain an observer/readiness dashboard for shutdown policy; real shutdown is Standard NUT via `upsmon`, not custom shutdown orchestration.
+- later use local LLM Module inference to enrich dashboard content or add a companion tab.
 
 ## Data contract direction
 
@@ -47,6 +45,12 @@ Current schema:
     "stale": false,
     "age_seconds": 4
   },
+  "nut": {
+    "server_available": true,
+    "driver_available": true,
+    "connected_client_count": 1,
+    "connected_clients": ["pve"]
+  },
   "homeassistant": {
     "available": true,
     "severity": "ok"
@@ -63,69 +67,7 @@ Current schema:
     "storage_total_bytes": 7897066643456,
     "active_network_interfaces": ["eth25g"],
     "zfs": {"status": "ONLINE"},
-    "smart": {"status": "OK"},
-    "shutdown_state": "disarmed"
-  },
-  "shutdown": {
-    "real_shutdown_owner": "upsmon",
-    "primary_ready": true,
-    "primary_monitor_active": false,
-    "nut_upsmon": {"armed": false, "state": "disarmed", "label": "DISARMED"},
-    "secondary_ready": true,
-    "nut_client_summary": {"total": 4, "secondary_total": 3, "connected": 1, "armed": 1, "unknown": 1, "unavailable": 0},
-    "nut_clients": [
-      {
-        "name": "m5stack",
-        "host": "localhost",
-        "role": "primary",
-        "available": true,
-        "state": "reachable_via_upsc",
-        "configured": true,
-        "connected_as_upsmon": false,
-        "armed": false,
-        "last_seen_seconds": 0
-      },
-      {
-        "name": "nas",
-        "host": "192.168.2.50",
-        "role": "secondary",
-        "available": null,
-        "state": "armed",
-        "configured": true,
-        "connected_as_upsmon": true,
-        "armed": true
-      },
-      {
-        "name": "pve",
-        "host": "192.168.2.99",
-        "role": "secondary",
-        "available": null,
-        "state": "reachable_via_upsc",
-        "connected_as_upsmon": false,
-        "armed": false
-      },
-      {
-        "name": "backup-host",
-        "host": "192.168.2.60",
-        "role": "secondary",
-        "available": null,
-        "state": "unknown",
-        "configured": true,
-        "connected_as_upsmon": false,
-        "armed": false,
-        "discovery_error": null
-      }
-    ],
-    "proxmox_nut_client": {
-      "name": "pve",
-      "host": "192.168.2.99",
-      "role": "secondary",
-      "state": "reachable_via_upsc",
-      "connected_as_upsmon": false,
-      "armed": false
-    },
-    "would_shutdown": false,
-    "reason": "UPS online"
+    "smart": {"status": "OK"}
   },
   "m5stack": {
     "available": true,
@@ -141,13 +83,12 @@ Current schema:
 }
 ```
 
-Implementation status, verified 2026-05-24:
+Implementation status:
 
 - `ups` and `nut`: implemented from live NUT/upsc data for the APC Back-UPS ES 850G2.
-- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART, running VM/LXC summaries, active non-loopback network interfaces, aggregate Total Node Capacity from `/nodes/{node}/storage`, and optional per-running-workload CPU/RAM/disk mini-metrics. Running VM RAM is enriched from `/qemu/{vmid}/status/current`; VM disk usage is enriched through QEMU guest-agent `get-fsinfo` when `VM.GuestAgent.Audit` is available. Misleading VM `disk=0` values are rendered as unknown unless fsinfo supplies real filesystem usage; HAOS read-only `erofs` root is ignored in favor of its data filesystem.
-- `homeassistant`, `mqtt`, `zigbee2mqtt`: implemented as HA TCP reachability plus MQTT/Zigbee2MQTT bridge-topic health; HA update count is read from HA `/api/states` when a read-only token is configured, otherwise it defaults to `0` for display clarity.
+- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART, running VM/LXC summaries, active non-loopback network interfaces, and aggregate Total Node Capacity from `/nodes/{node}/storage`.
+- `homeassistant`, `mqtt`, `zigbee2mqtt`: implemented as HA TCP reachability plus MQTT/Zigbee2MQTT bridge-topic health; HA update count is read from HA `/api/states` when a read-only token is configured.
 - `network`: implemented on the LLM Module using Linux default-route state plus a TCP probe, currently `1.1.1.1:53`.
 - `m5stack`: implemented from local healthcheck/service state.
-- `shutdown`: implemented as Standard NUT readiness state only; no custom shutdown action exists. `shutdown.nut_upsmon` exposes the primary local upsmon state as `{armed,state,label}`. `shutdown.nut_clients[]` is a normalized multi-client inventory/readiness list whose first item is always the local primary (`role=primary`, `name=m5stack`) followed by configured secondary clients. Client state enum is `armed`, `disarmed`, `connected_as_upsmon`, `reachable_via_upsc`, `configured_not_connected`, `not_configured`, `unknown`, and `unavailable`. `shutdown.nut_client_summary` counts `total`, `secondary_total`, `connected`, `armed`, `unknown`, and `unavailable`; unknown/unavailable clients never contribute to connected/armed counts or to `secondary_ready`. `shutdown.proxmox_nut_client` is selected from the configured Proxmox node/host and is the only source for the PVE dashboard `NUT armed` / `NUT disarmed` pill; aggregate `nut_client_summary` is global NUT context only. Future maintenance-control endpoints remain separate from this V1 read-only summary contract; downstream client control, Proxmox orchestration, and FSD are explicitly out of scope.
-- NUT history/trend endpoints are not implemented. If tested later, history should be backend-owned and downsampled, not a raw `upsd`/CoreS3 concern. NUT's `upslog` can poll variables into a log file, but the preferred Power Sentinel contract is a compact endpoint such as `/history/nut/load?window=1h&points=60` or a versioned `/api/v1/history/...` equivalent that returns at most 60–120 display-ready points.
+- NUT history/trend endpoints are not implemented. If tested later, history should be backend-owned and downsampled, not a raw display concern.
 - Local LLM inference for dashboard enrichment / companion UI is not implemented yet; current LLM usage is baseline health and optional chat smoke.

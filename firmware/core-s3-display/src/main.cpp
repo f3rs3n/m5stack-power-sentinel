@@ -1,10 +1,12 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <string.h>
 #include <HTTPClient.h>
 #include <lvgl.h>
 #include <WiFi.h>
 
 #include "m5_hal.h"
+#include "ledcards-interface-page.h"
 
 #if __has_include("power_sentinel_config.h")
 #include "power_sentinel_config.h"
@@ -25,8 +27,9 @@ LV_FONT_DECLARE(ps_ui_tab_18);
 #define PS_ICON_SERVER "\xEF\x88\xB3"         // U+F233 fa-server
 
 #ifndef POWER_SENTINEL_FIRMWARE_BUILD
-#define POWER_SENTINEL_FIRMWARE_BUILD "stackflow-2026-05-23-pve-polish"
+#define POWER_SENTINEL_FIRMWARE_BUILD "ledcards-interface-nut-page-test-2026-05-27"
 #endif
+
 #ifndef POWER_SENTINEL_UART_RX_PIN
 #define POWER_SENTINEL_UART_RX_PIN 18
 #endif
@@ -64,6 +67,7 @@ struct UpsState {
   bool available = false;
   bool onBattery = false;
   bool lowBattery = false;
+  bool charging = false;
   bool stale = true;
   char status[24] = "UNKNOWN";
   char statusLabel[32] = "Waiting for UPS";
@@ -343,6 +347,9 @@ void parseSummary(const String &json, bool fromNetwork) {
   state.ups.stale = ups["stale"] | false;
   safeCopy(state.ups.status, sizeof(state.ups.status), ups["status"] | "UNKNOWN");
   safeCopy(state.ups.statusLabel, sizeof(state.ups.statusLabel), ups["status_label"] | "Unknown");
+  state.ups.charging = strstr(state.ups.status, "CHRG") != nullptr ||
+                       strstr(state.ups.statusLabel, "Charging") != nullptr ||
+                       strstr(state.ups.statusLabel, "charging") != nullptr;
   state.ups.batteryPercent = jsonInt(ups["battery_percent"], -1);
   state.ups.runtimeSeconds = jsonInt(ups["runtime_seconds"], -1);
   state.ups.loadPercent = jsonInt(ups["load_percent"], -1);
@@ -1023,6 +1030,25 @@ const char *nutStatusBadge() {
   if (state.ups.lowBattery) return "NUT CRIT";
   if (state.ups.onBattery) return "NUT WARN";
   return "NUT OK";
+}
+
+LedcardsInterfaceNutView makeLedcardsInterfaceNutView() {
+  LedcardsInterfaceNutView view{};
+  view.offline = state.offline;
+  view.upsAvailable = state.ups.available && state.nut.serverActive && state.nut.driverActive;
+  view.upsStale = state.ups.stale;
+  view.onBattery = state.ups.onBattery;
+  view.lowBattery = state.ups.lowBattery;
+  view.charging = state.ups.charging;
+  view.batteryPercent = state.ups.batteryPercent;
+  view.runtimeSeconds = state.ups.runtimeSeconds;
+  view.loadPercent = state.ups.loadPercent;
+  view.inputVoltage = state.ups.inputVoltage;
+  view.nutClientCount = state.nut.clientCount;
+  if (view.nutClientCount < 0 && state.shutdown.clientConnected >= 0) view.nutClientCount = state.shutdown.clientConnected;
+  view.ageSeconds = state.ups.ageSeconds;
+  view.nowMillis = millis();
+  return view;
 }
 
 void renderHome() {
@@ -1728,6 +1754,21 @@ void setup() {
   psDisplaySetBrightness(kDisplayAwakeBrightness);
 
   initLvgl();
+#if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
+#if POWER_SENTINEL_TRANSPORT_SERIAL
+  initSerialTransport();
+#endif
+#if POWER_SENTINEL_HTTP_FALLBACK
+  connectWiFi();
+#endif
+  bool ledcardsInterfaceFirstFetchOk = fetchLiveSummary();
+  applyFetchResult(ledcardsInterfaceFirstFetchOk);
+  createLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
+  lastFetchMs = millis();
+  lastLvTickMs = millis();
+  Serial.println("Power Sentinel Ledcards Interface fullscreen live UI rendered");
+  return;
+#endif
   initUi();
 #if POWER_SENTINEL_TRANSPORT_SERIAL
   initSerialTransport();
@@ -1748,6 +1789,15 @@ void loop() {
   lastLvTickMs = now;
   lv_timer_handler();
   delay(5);
+#if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
+  if (now - lastFetchMs > SUMMARY_POLL_MS) {
+    lastFetchMs = now;
+    bool ok = fetchLiveSummary();
+    applyFetchResult(ok);
+    updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
+  }
+  return;
+#endif
   if (now - lastFetchMs > SUMMARY_POLL_MS) {
     lastFetchMs = now;
     bool ok = fetchLiveSummary();

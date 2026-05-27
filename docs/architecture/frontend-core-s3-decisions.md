@@ -76,7 +76,7 @@ Flow:
 2. User pulls/clones repo on Windows.
 3. User opens `firmware/core-s3-display` in VS Code + PlatformIO.
 4. User connects CoreS3 by USB.
-5. User puts CoreS3 in download mode: hold reset about 2 seconds until internal green LED lights, then release.
+5. User puts CoreS3 in download mode: press reset about 2 seconds until internal green LED lights, then let go.
 6. User uploads via PlatformIO.
 7. Firmware reports status via display/serial.
 

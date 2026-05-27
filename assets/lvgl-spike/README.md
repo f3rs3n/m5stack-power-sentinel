@@ -71,6 +71,70 @@ The script is intentionally generic: pass `--source`, `--name`, `--width`, `--he
 
 Fidelity rule: every firmware UI change that affects visible layout must be mirrored in the MCP fixture before screenshots are used for review. This includes sidebar symbols/icons, tab/card topology, padding/gaps, bar heights, font choices, label widths/alignment, scroll behavior, and representative live values. If the fixture drifts, fix the fixture first; otherwise the render is not useful for iteration.
 
+## Render validation contract
+
+Power Sentinel UI review is evidence-based. A screenshot is useful only if it is rendered at the target 320x240 landscape resolution from a fixture that faithfully mirrors the firmware UI.
+
+Primary artifacts:
+
+```text
+firmware/core-s3-display/src/main.cpp
+assets/lvgl-spike/power-sentinel-dashboard-fixture.c
+assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c
+assets/lvgl-spike/render-nut-ledcards-interface-via-doomtrain.sh
+assets/lvgl-spike/results/home-current.png
+assets/lvgl-spike/results/nut-current.png
+assets/lvgl-spike/results/pve-current.png
+assets/lvgl-spike/results/ha-current.png
+assets/lvgl-spike/results/m5s-current.png
+assets/lvgl-spike/results/dashboard-current-contact-sheet.png
+assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-contact-sheet.png
+tools/check_core_s3_ui.py
+```
+
+Normal validation loop:
+
+1. Read `PRODUCT.md`, `DESIGN.md`, and `docs/architecture/core-s3-pages-v1.md` when page details matter.
+2. Change firmware UI source.
+3. Mirror every visible firmware UI change in `power-sentinel-dashboard-fixture.c`.
+4. Run source-level checks, at minimum:
+
+   ```bash
+   cd /home/martino/projects/m5stack-power-sentinel
+   python3 tools/check_core_s3_ui.py
+   ```
+
+5. Render all affected tabs/cards. Use `assets/lvgl-spike/render-via-doomtrain.sh` when native MCP tools are unavailable.
+6. Inspect clipping, overflow, long labels, stale/unavailable states, color semantics, contrast, hierarchy, sidebar state, and firmware/fixture topology match.
+7. Iterate until the evidence is acceptable.
+8. In final reports, state which checks ran, which tabs/cards were rendered, where outputs are, and any validation gaps.
+
+Required render coverage:
+
+- tab change: render that tab;
+- shared component/sidebar/global style/font/color change: render all tabs;
+- carousel/card topology change: render every changed card or active-tab state;
+- NUT changes: cover UPS, BATTERY, POWER, and CLIENTS, plus degraded/unavailable/stale cases when touched;
+- Ledcards Interface NUT overview changes: render the dedicated six-state fixture with `assets/lvgl-spike/render-nut-ledcards-interface-via-doomtrain.sh` and inspect `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-contact-sheet.png`;
+- HA changes: cover online and MQTT/Zigbee degraded if status mapping changed;
+- M5S changes: cover normal stack state and stale/transport/LLM warning if those labels/colors changed.
+
+Screenshot acceptance checklist:
+
+- target resolution is 320x240 landscape;
+- no important text is clipped;
+- primary state is readable at a glance;
+- stale/unknown/unavailable is explicit;
+- abnormal state is visually stronger than normal state;
+- green is not used for weak predicates;
+- no decorative pill/card wall has appeared;
+- sidebar selected/inactive states are clear;
+- fixture topology matches firmware expectations.
+
+If rendering is unavailable, do not claim visual validation is complete. Update firmware and fixture together, run available static checks, and explicitly report the validation gap.
+
+Public repo hygiene: do not commit secrets, tokens, sensitive LAN details, or noisy generated MCP transport files. Prefer curated fixture source and selected baseline PNG/contact sheets.
+
 ## Sidebar Nerd Font subset
 
 The live sidebar now uses an icon-only generated LVGL bitmap font, `firmware/core-s3-display/src/ps_ui_tab_18.c`, not a full runtime TTF. It contains only the selected Symbols Nerd Font / FontAwesome-compatible PUA glyphs needed by the five-tab rail:
@@ -133,7 +197,7 @@ cd C:\Users\marti\Progetti\lvgl-spike-work
 node .\render-power-sentinel-tabs.mjs
 ```
 
-This renders five active-tab PNG/widget-tree pairs from `power-sentinel-dashboard-fixture.c`. The fixture uses the same V1 tab topology as the firmware: 44px left sidebar with icon-only 18 px glyphs, no text suffixes, and a 276x240 content area. Keep PVE-specific fixture details current with the firmware: `PROXMOX` header plus `ONLINE`/`OFFLINE`, Total Node Capacity total at the right of storage, active interface pills, `ZFS online`/`SMART ok`, and `NUT armed`/`NUT disarmed` derived from the Proxmox NUT client only.
+This renders five active-tab PNG/widget-tree pairs from `power-sentinel-dashboard-fixture.c`. The fixture uses the same V1 tab topology as the firmware: 44px left sidebar with icon-only 18 px glyphs, no text suffixes, and a 276x240 content area. Keep PVE-specific fixture details current with the firmware: `PROXMOX` header plus `ONLINE`/`OFFLINE`, Total Node Capacity total at the right of storage, active interface pills, `ZFS online`/`SMART ok`, and current PVE health labels.
 
 ```text
 home-current.png
@@ -241,7 +305,7 @@ The spike is successful if:
 1. `lvgl_set_resolution` accepts 320x240.
 2. `lvgl_render_full` compiles `power-sentinel-spike-001.c`.
 3. The PNG shows a dark 320x240 Power Sentinel-style HOME screen, not a blank screen.
-4. For the legacy `power-sentinel-spike-001.c` smoke fixture, the widget tree includes historical labels such as `POWER SENTINEL`, `GRID ONLINE`, and subsystem pills. For current dashboard review, prefer `power-sentinel-dashboard-fixture.c` / `render-power-sentinel-tabs.mjs` and verify current strings such as `PROXMOX`, `ONLINE`, `ZFS online`, `SMART ok`, `NUT disarmed`, and icon-only sidebar output.
+4. For the legacy `power-sentinel-spike-001.c` smoke fixture, the widget tree includes historical labels such as `POWER SENTINEL`, `GRID ONLINE`, and subsystem pills. For current dashboard review, prefer `power-sentinel-dashboard-fixture.c` / `render-power-sentinel-tabs.mjs` and verify current strings such as `PROXMOX`, `ONLINE`, `ZFS online`, `SMART ok`, NUT client count labels, and icon-only sidebar output.
 5. Render time is sane, ideally under a few seconds after first build/warmup.
 
 ## What to send back to Hermes

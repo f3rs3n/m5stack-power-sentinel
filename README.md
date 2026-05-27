@@ -16,14 +16,12 @@ Current architecture target:
 UPS -> USB OTG -> M5Stack LLM Module -> NUT server
                               |-> local JSON/status API -> StackFlow custom unit -> CoreS3 display
                               |-> MQTT -> Home Assistant
-                              |-> NUT clients -> Proxmox / HA / other hosts
                               |-> local LLM inference -> dashboard enrichment / companion tab (future)
 ```
 
 Important principles:
 
 - The LLM Module is the autonomous Linux appliance; Home Assistant and Proxmox are monitored/consumer systems, not prerequisites for the CoreS3 dashboard.
-- Real shutdown belongs to Standard NUT (`upsmon` primary/secondary). Power Sentinel reports readiness and state; it does not run custom Proxmox shutdown orchestration.
 - Do not commit secrets or local credentials.
 - The CoreS3 uses the internal stacked UART through vendor StackFlow/`llm_sys`, not a parallel `/dev/ttyS1` reader. This preserves vendor services and avoids UART contention.
 - Dashboard data comes from the local `power-sentinel.summary.v1` contract. Missing data must render as unknown/unavailable/stale, never as plausible demo values.
@@ -68,30 +66,47 @@ Implemented and verified on the physical module:
 - local LLM healthcheck installed;
 - MQTT/Home Assistant discovery for LLM module health installed and verified;
 - UPS connected over USB OTG and served by NUT as `homelab_ups`;
-- NUT telemetry active: `nut-server` and `nut-driver` are active, while `nut-monitor` is currently disabled/inactive on both the M5Stack primary and Proxmox secondary;
-- Proxmox NUT secondary readiness proven, then deliberately disarmed;
-- backend API serving `power-sentinel.summary.v1` with live UPS/NUT, Proxmox, HA/MQTT/Zigbee2MQTT, network, M5Stack, and Standard NUT shutdown-readiness sections; Proxmox data now includes aggregate Total Node Capacity from `/nodes/{node}/storage`, active non-loopback interfaces, and selected Proxmox NUT-client readiness via `shutdown.proxmox_nut_client`;
+- NUT telemetry active: `nut-server` and `nut-driver` are active;
+- backend API serving `power-sentinel.summary.v1` with live UPS/NUT, Proxmox, HA/MQTT/Zigbee2MQTT, network, and M5Stack sections;
+- Proxmox data includes aggregate Total Node Capacity from `/nodes/{node}/storage`, active non-loopback interfaces, and selected workload mini-metrics;
 - StackFlow transport verified: CoreS3 sends `work_id: "sentinel"` summaries over the internal UART, `llm_sys` routes to `ipc:///tmp/rpc.sentinel`, and the display renders live data;
-- CoreS3 LVGL UI implemented with five tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`, an icon-only 18 px left sidebar, standardized uppercase card headers with right-aligned `ONLINE`/`OFFLINE` status pills for service tabs, Proxmox storage/interface/NUT-readiness pills, and a HOME `SLEEP DISPLAY` control;
-- Proxmox read-only token now includes `VM.GuestAgent.Audit` so VM disk usage can be derived from QEMU guest-agent `get-fsinfo`; HAOS currently reports RAM from `/status/current` and HDD usage from `/mnt/data`, while read-only root filesystems such as HAOS `erofs` are ignored;
+- CoreS3 LVGL UI implemented with five tabs: `HOME`, `NUT`, `PVE`, `HA`, `M5S`, an icon-only 18 px left sidebar, standardized uppercase card headers, and horizontal card carousels;
+- Proxmox read-only token includes `VM.GuestAgent.Audit` so VM disk usage can be derived from QEMU guest-agent `get-fsinfo`;
 - global SSH aliases in Martino's Hermes environment are `ssh pve`, `ssh m5stack`, and `ssh doomtrain` for Proxmox, the LLM Module, and the Windows workstation respectively;
 - LLM Module dependency inventory exists in `docs/operations/llm-module-dependencies.md` so the backend install can be reproduced on a fresh stack;
 - LVGL MCP visual baseline workflow exists under `assets/lvgl-spike/` for 320x240 layout review.
 
 Still missing / future work:
 
-- deliberate Standard NUT arming, if/when desired, following `docs/operations/standard-nut-arming-runbook.md`: keep the current tested-but-disarmed state until an operator explicitly enables the LLM Module primary `nut-monitor`, then each downstream client owner arms that client's own secondary `upsmon` as appropriate;
-- live discovery/maintenance workflow for broader NUT client inventories beyond the current configured/read-only records;
+- connected NUT client host list polish beyond the current connected-count display;
 - idempotent LLM Module installer script generated from `docs/operations/llm-module-dependencies.md`;
 - real use of local LLM inference for dashboard enrichment or a companion tab;
 - additional mini-dashboards beyond the current UPS/NUT, PVE, HA/Z2M, and M5Stack views;
 - optional OTA or more automated flash workflow after the Windows/VSCode path remains stable.
 
-See:
+## Documentation map
+
+Product contract:
+
+- `PRODUCT.md`
+
+CoreS3 HMI/design contract:
+
+- `DESIGN.md`
+- `docs/architecture/core-s3-pages-v1.md`
+
+API/backend contract:
+
+- `docs/architecture/api-contract-v1.md`
+
+Render/fixture workflow:
+
+- `assets/lvgl-spike/README.md`
+
+Operations/runbooks:
 
 - `docs/operations/current-state.md`
 - `docs/operations/backend-ops.md`
-- `docs/operations/standard-nut-arming-runbook.md`
 - `docs/operations/llm-module-dependencies.md`
-- `docs/architecture/api-contract-v1.md`
-- `docs/architecture/core-s3-pages-v1.md`
+
+Precedence rule: if documents disagree, `PRODUCT.md` wins for product boundaries, `DESIGN.md` wins for HMI/design rules, `docs/architecture/api-contract-v1.md` wins for backend schema, and `assets/lvgl-spike/README.md` wins for render workflow.
