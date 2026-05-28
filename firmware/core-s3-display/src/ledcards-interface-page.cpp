@@ -190,11 +190,11 @@ static void format_tte_full(int seconds, char *value, size_t valueLen, const cha
 static void format_tte_minutes(int seconds, char *value, size_t valueLen, const char **unit) {
   if (seconds < 0) {
     snprintf(value, valueLen, "--");
-    *unit = "mm";
+    *unit = "m";
     return;
   }
   snprintf(value, valueLen, "%d", (seconds + 30) / 60);
-  *unit = "mm";
+  *unit = "m";
 }
 
 static const char *battery_state_text(const LedcardsInterfaceNutView &view) {
@@ -232,7 +232,7 @@ static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &
   }
 
   if (kind == METRIC_TTE) {
-    const char *unit = compactTte ? "mm" : "mm:ss";
+    const char *unit = compactTte ? "m" : "mm:ss";
     int runtimeSeconds = (view.offline || !view.upsAvailable || view.upsStale) ? -1 : view.runtimeSeconds;
     if (compactTte) {
       format_tte_minutes(runtimeSeconds, m.value, sizeof(m.value), &unit);

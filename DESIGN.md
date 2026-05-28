@@ -276,7 +276,7 @@ Mini-card grid:
 
 Avoid informal abbreviations, but domain acronyms are acceptable when they preserve typographic consistency. Prefer a real acronym over shrinking one label and making it visually different from the rest. Current rule: runtime/time-to-empty is labeled `TTE` (`time to empty`) everywhere, including both hero and mini-cards. Hero side label, hero unit, mini-card label, and mini-card unit all use Montserrat 12; hierarchy comes from color and placement rather than size mismatch.
 
-TTE formatting is context-sensitive: the hero uses full clock form (`mm:ss`) because it has the visual budget; mini-cards use rounded whole minutes with unit `mm` because physical TFT testing showed clock-form values clip in the current 142x46 geometry.
+TTE formatting is context-sensitive: the hero uses full clock form (`mm:ss`) because it has the visual budget; mini-cards use rounded whole minutes with generic unit `m` because values can be single digit and the compact card should not imply clock-form precision.
 
 Use an invisible inner-frame rule for mini-cards: no element should hug the card edge. The lower unit margin must feel comparable to the upper label margin. Numeric mini-card values must be optically centered against the vertical LED/pill. Verify this with stale `--`, because short glyphs make misalignment obvious.
 
@@ -332,7 +332,7 @@ Priority:
    - state `ALMOST FULL` in the upper green battery range, or `GOOD` in the normal green range;
    - quiet green/neutral-green accent only if the battery/input condition is confirmed-good.
 
-Hero TTE must be clock-like. Prefer `06:24 TTE / mm:ss`. Mini-card TTE must be rounded whole minutes with unit `mm`, e.g. `6 TTE / mm` for `06:24`. Do not render `6m24s` or wrap explanatory text under the hero value.
+Hero TTE must be clock-like. Prefer `06:24 TTE / mm:ss`. Mini-card TTE must be rounded whole minutes with generic unit `m`, e.g. `6 TTE / m` for `06:24`. Do not render `6m24s` or wrap explanatory text under the hero value.
 
 #### Dynamic supporting mini-card selection
 
@@ -385,7 +385,7 @@ Nominal:
 
 ```text
 Hero: 100  Battery  %      FULL
-Tiles: 57 TTE mm | 18 Load % | 226 Input V | 1 NUT client
+Tiles: 57 TTE m | 18 Load % | 226 Input V | 1 NUT client
 ```
 
 On battery:
@@ -399,28 +399,28 @@ Low battery:
 
 ```text
 Hero: 18  Battery  %      LOW BATTERY
-Tiles: 6 TTE mm | 42 Load % | 0 Input V | 1 NUT client
+Tiles: 6 TTE m | 42 Load % | 0 Input V | 1 NUT client
 ```
 
 Stale:
 
 ```text
 Hero: --  NUT  stale      STALE 42s
-Tiles: -- Battery % | -- TTE mm | -- Load % | -- Input V
+Tiles: -- Battery % | -- TTE m | -- Load % | -- Input V
 ```
 
 High load:
 
 ```text
 Hero: 86  Load  %          HIGH
-Tiles: 92 Battery % | 42 TTE mm | 226 Input V | 1 NUT client
+Tiles: 92 Battery % | 42 TTE m | 226 Input V | 1 NUT client
 ```
 
 Input low:
 
 ```text
 Hero: 185  Input  V        MARGINAL INPUT
-Tiles: 88 Battery % | 51 TTE mm | 24 Load % | 1 NUT client
+Tiles: 88 Battery % | 51 TTE m | 24 Load % | 1 NUT client
 ```
 
 NUT overview semantics remain read-only: NUT means service/UPS telemetry plus connected client count/list only.
@@ -497,7 +497,7 @@ Inspect at minimum:
 - hero value is not vertically too high and aligns with the hero LED top intent;
 - side label block aligns to the hero value, with shorter values getting closer labels;
 - hero `06:24` does not collide with `TTE/mm:ss` or chart button;
-- mini-card TTE uses rounded minutes with unit `mm`, not clock-form `mm:ss`;
+- mini-card TTE uses rounded minutes with generic unit `m`, not clock-form `mm:ss`;
 - mini-card values are centered on the LED/pill, including stale `--`;
 - unit labels `%`, `V`, `client` do not hug the bottom edge;
 - labels are not fake-bold/chunky;

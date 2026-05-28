@@ -119,7 +119,7 @@ Example nominal:
 
 ```text
 100   Battery   %      FULL
-57    TTE       mm     18   Load   %
+57    TTE       m      18   Load   %
 226   Input     V      1    NUT    client
 ```
 
@@ -135,7 +135,7 @@ Example stale:
 
 ```text
 --     UPS      stale  STALE 42s
---     Battery  %      --   TTE     mm
+--     Battery  %      --   TTE     m
 --     Load     %      --   Input   V
 ```
 
@@ -190,7 +190,7 @@ Runtime behavior:
 3. Accepted hero swaps move that metric to the front of the five-slot metric stack. The four mini-cards are the remaining metrics in order, so the hero never appears twice.
 4. Tapping a mini-card temporarily promotes that metric to the hero for 60 seconds, overriding the default priority without permanently reordering the metric stack; after expiry the normal severity/priority hero selection resumes.
 5. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
-6. `TTE` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with unit `mm` to avoid physical TFT clipping in the 142x46 card geometry.
+6. `TTE` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with generic unit `m` to avoid physical TFT clipping in the 142x46 card geometry and to fit single-digit values cleanly.
 7. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.
 
 ## Render artifacts from exploration
