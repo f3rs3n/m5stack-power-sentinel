@@ -93,7 +93,7 @@ static void tile(lv_obj_t *screen, int x, int y, const char *value, const char *
     lv_obj_t *unit_l = label(t, unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c);
     lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
     // Keep the metric value visually on top of the right-side label/unit objects.
-    // Mini-card TTE is minutes-only because clock-form values such as "06:24"
+    // Mini-card Runtime is minutes-only because clock-form values such as "06:24"
     // are too tight for this physical TFT/card geometry.
     label(t, value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
 }
@@ -106,7 +106,7 @@ static void render_nut_home(lv_obj_t *screen) {
 #if PS_NUT_HOME_STATE == PS_NUT_STATE_ON_BATTERY
     top_status(screen, 0xfcca3d, 10);
     const char *hero_value = "06:24";
-    const char *hero_label = "TTE";
+    const char *hero_label = "Runtime";
     const char *hero_unit = "mm:ss";
     const char *hero_state = "ON BATTERY";
     uint32_t hero_accent = 0xfcca3d;
@@ -172,27 +172,27 @@ static void render_nut_home(lv_obj_t *screen) {
     tile(screen, 12, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
     tile(screen, 12, 124, "72", "Battery", "%", 0xfcca3d, 0x221c08);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_LOW_BATTERY
-    tile(screen, 166, 124, "6", "TTE", "m", 0xfcca3d, 0x221c08);
+    tile(screen, 166, 124, "6", "Runtime", "m", 0xfcca3d, 0x221c08);
     tile(screen, 166, 182, "42", "Load", "%", 0x14dc78, 0x071c12);
     tile(screen, 12, 182, "0", "Input", "V", 0xff4e3e, 0x200d0c);
     tile(screen, 12, 124, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_STALE
     tile(screen, 166, 124, "--", "Battery", "%", 0x6c7470, 0x101514);
-    tile(screen, 166, 182, "--", "TTE", "m", 0x6c7470, 0x101514);
+    tile(screen, 166, 182, "--", "Runtime", "m", 0x6c7470, 0x101514);
     tile(screen, 12, 182, "--", "Load", "%", 0x6c7470, 0x101514);
     tile(screen, 12, 124, "--", "Input", "V", 0x6c7470, 0x101514);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_HIGH_LOAD
     tile(screen, 166, 124, "226", "Input", "V", 0x14dc78, 0x071e14);
     tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
     tile(screen, 12, 182, "92", "Battery", "%", 0x14dc78, 0x071c12);
-    tile(screen, 12, 124, "42", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 124, "42", "Runtime", "m", 0x1cb5f0, 0x07161d);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_INPUT_LOW
     tile(screen, 166, 124, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
     tile(screen, 166, 182, "88", "Battery", "%", 0x14dc78, 0x071c12);
-    tile(screen, 12, 182, "51", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 182, "51", "Runtime", "m", 0x1cb5f0, 0x07161d);
     tile(screen, 12, 124, "24", "Load", "%", 0x14dc78, 0x071c12);
 #else
-    tile(screen, 166, 124, "57", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 166, 124, "57", "Runtime", "m", 0x1cb5f0, 0x07161d);
     tile(screen, 166, 182, "18", "Load", "%", 0x14dc78, 0x071c12);
     tile(screen, 12, 182, "226", "Input", "V", 0x14dc78, 0x071e14);
     tile(screen, 12, 124, "1", "NUT", "client", 0x1cb5f0, 0x07161d);

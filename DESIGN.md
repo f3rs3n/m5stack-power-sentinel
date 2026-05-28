@@ -274,9 +274,9 @@ Mini-card grid:
 - unit at local `x=78 y=23 w=53`, Montserrat 12, right-aligned;
 - create the label/unit objects before the D-DIN value so the numeric metric is the foreground LVGL sibling on the physical TFT.
 
-Avoid informal abbreviations, but domain acronyms are acceptable when they preserve typographic consistency. Prefer a real acronym over shrinking one label and making it visually different from the rest. Current rule: runtime/time-to-empty is labeled `TTE` (`time to empty`) everywhere, including both hero and mini-cards. Hero side label, hero unit, mini-card label, and mini-card unit all use Montserrat 12; hierarchy comes from color and placement rather than size mismatch.
+Current rule: runtime/time-to-empty is labeled `Runtime` everywhere, including both hero and mini-cards. Hero side label, hero unit, mini-card label, and mini-card unit all use Montserrat 12; hierarchy comes from color and placement rather than size mismatch.
 
-TTE formatting is context-sensitive: the hero uses full clock form (`mm:ss`) because it has the visual budget; mini-cards use rounded whole minutes with generic unit `m` because values can be single digit and the compact card should not imply clock-form precision.
+Runtime formatting is context-sensitive: the hero uses full clock form (`mm:ss`) because it has the visual budget; mini-cards use rounded whole minutes with generic unit `m` because values can be single digit and the compact card should not imply clock-form precision.
 
 Use an invisible inner-frame rule for mini-cards: no element should hug the card edge. The lower unit margin must feel comparable to the upper label margin. Numeric mini-card values must be optically centered against the vertical LED/pill. Verify this with stale `--`, because short glyphs make misalignment obvious.
 
@@ -309,8 +309,8 @@ The hero value is adaptive. It shows the most useful or critical current NUT/UPS
 
 Priority:
 
-1. On battery/TTE:
-   - hero `06:24`, label `TTE`, unit `mm:ss`, state `ON BATTERY`;
+1. On battery/runtime:
+   - hero `06:24`, label `Runtime`, unit `mm:ss`, state `ON BATTERY`;
    - amber accent;
    - side label block starts farther right because `06:24` is wide.
 2. Low battery:
@@ -332,7 +332,7 @@ Priority:
    - state `ALMOST FULL` in the upper green battery range, or `GOOD` in the normal green range;
    - quiet green/neutral-green accent only if the battery/input condition is confirmed-good.
 
-Hero TTE must be clock-like. Prefer `06:24 TTE / mm:ss`. Mini-card TTE must be rounded whole minutes with generic unit `m`, e.g. `6 TTE / m` for `06:24`. Do not render `6m24s` or wrap explanatory text under the hero value.
+Hero Runtime must be clock-like. Prefer `06:24 Runtime / mm:ss`. Mini-card Runtime must be rounded whole minutes with generic unit `m`, e.g. `6 Runtime / m` for `06:24`. Do not render `6m24s` or wrap explanatory text under the hero value.
 
 #### Dynamic supporting mini-card selection
 
@@ -341,14 +341,14 @@ The hero metric must not be duplicated in the 2x2 mini-card grid. The screen sho
 Use this ordered supporting pool for the NUT/UPS overview:
 
 ```text
-Battery, TTE, Load, Input, NUT client
+Battery, Runtime, Load, Input, NUT client
 ```
 
 Selection/ordering rule:
 
 1. Pick candidate hero metric by severity/usefulness.
 2. Apply a short hero-swap cooldown before accepting a different hero, so transient sensor flips do not cause rapid visual churn. Start with a few seconds; tune on hardware after observing real data jitter.
-3. When a hero swap is accepted, rotate the directional five-slot ring forward until the selected metric reaches `HERO`; do not move/promote it as a list item.
+3. When a hero swap is accepted, rotate the directional five-slot ring clockwise/forward until the selected metric reaches `HERO`; do not move/promote it as a list item and do not choose the shorter counter-clockwise path.
 4. Render slot `1` as top-right, slot `2` as bottom-right, slot `3` as bottom-left, and slot `4` as top-left.
 5. If no swap is accepted, preserve the current ring order.
 6. A mini-card tap may temporarily rotate that metric to hero for 60 seconds. When the override expires, normal severity/priority hero selection resumes and may rotate the ring again.
@@ -358,17 +358,17 @@ This means the mini-card order is a product of accepted ring rotations, not a st
 Examples:
 
 - Mini-card slot order is a directional ring, not a row-major list: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
-- Accepted hero changes rotate the whole ring forward until the selected/candidate metric reaches `HERO`; this preserves circular order for future chain-style animation.
-- Hero `Battery` (`FULL`, `LOW BATTERY`, `CHARGING`) from the default ring -> mini-cards should be `TTE` top-right, `Load` bottom-right, `Input` bottom-left, `NUT client` top-left.
-- Hero `TTE` (`ON BATTERY`) from the default ring -> mini-cards should be `Load` top-right, `Input` bottom-right, `NUT client` bottom-left, `Battery` top-left.
-- Hero `NUT` (`STALE 42s`) from the default ring -> mini-cards should be `Battery` top-right, `TTE` bottom-right, `Load` bottom-left, `Input` top-left.
-- Hero `Input` from the default ring -> mini-cards should be `NUT client` top-right, `Battery` bottom-right, `TTE` bottom-left, `Load` top-left.
+- Accepted hero changes rotate the whole ring clockwise/forward until the selected/candidate metric reaches `HERO`; this preserves circular order for future chain-style animation and avoids mixed clockwise/counter-clockwise motion.
+- Hero `Battery` (`FULL`, `LOW BATTERY`, `CHARGING`) from the default ring -> mini-cards should be `Runtime` top-right, `Load` bottom-right, `Input` bottom-left, `NUT client` top-left.
+- Hero `Runtime` (`ON BATTERY`) from the default ring -> mini-cards should be `Load` top-right, `Input` bottom-right, `NUT client` bottom-left, `Battery` top-left.
+- Hero `NUT` (`STALE 42s`) from the default ring -> mini-cards should be `Battery` top-right, `Runtime` bottom-right, `Load` bottom-left, `Input` top-left.
+- Hero `Input` from the default ring -> mini-cards should be `NUT client` top-right, `Battery` bottom-right, `Runtime` bottom-left, `Load` top-left.
 
 Do not keep a mini-card just because the old static grid had it. If the hero already shows that field, swap in the next useful fact.
 
 Animation contract:
 
-- Accepted automatic swaps and touch overrides should visually move the current metric cards as a short bounded chain along the same ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
+- Accepted automatic swaps and touch overrides should visually move the current metric cards as a short bounded clockwise chain along the same ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`. Never reverse direction to take the shorter path.
 - Use compact ghost cards for the transition, but keep the visible motion inside the mini-card grid lanes: right-column vertical moves, bottom-row horizontal moves, and left-column vertical moves. Do not let ghosts travel diagonally through the black gaps between the hero and mini-card regions.
 - The hero boundary is the exception: cards entering or leaving the hero area may fade at the adjacent mini-card slot instead of physically crossing the black space. The final committed frame must normalize back to the exact hero and mini-card templates above.
 - Target runtime is about 250 ms after the first physical test; the initial ~210 ms version was functional but read more like a quick rotation than a legible scroll.
@@ -397,13 +397,13 @@ Nominal:
 
 ```text
 Hero: 100  Battery  %      FULL
-Tiles ring: TR 57 TTE m | BR 18 Load % | BL 226 Input V | TL 1 NUT client
+Tiles ring: TR 57 Runtime m | BR 18 Load % | BL 226 Input V | TL 1 NUT client
 ```
 
 On battery:
 
 ```text
-Hero: 06:24  TTE  mm:ss  ON BATTERY
+Hero: 06:24  Runtime  mm:ss  ON BATTERY
 Tiles ring: TR 38 Load % | BR 0 Input V | BL 1 NUT client | TL 72 Battery %
 ```
 
@@ -411,28 +411,28 @@ Low battery:
 
 ```text
 Hero: 18  Battery  %      LOW BATTERY
-Tiles ring: TR 6 TTE m | BR 42 Load % | BL 0 Input V | TL 1 NUT client
+Tiles ring: TR 6 Runtime m | BR 42 Load % | BL 0 Input V | TL 1 NUT client
 ```
 
 Stale:
 
 ```text
 Hero: --  NUT  stale      STALE 42s
-Tiles ring: TR -- Battery % | BR -- TTE m | BL -- Load % | TL -- Input V
+Tiles ring: TR -- Battery % | BR -- Runtime m | BL -- Load % | TL -- Input V
 ```
 
 High load:
 
 ```text
 Hero: 86  Load  %          HIGH
-Tiles ring: TR 226 Input V | BR 1 NUT client | BL 92 Battery % | TL 42 TTE m
+Tiles ring: TR 226 Input V | BR 1 NUT client | BL 92 Battery % | TL 42 Runtime m
 ```
 
 Input low:
 
 ```text
 Hero: 185  Input  V        MARGINAL INPUT
-Tiles ring: TR 1 NUT client | BR 88 Battery % | BL 51 TTE m | TL 24 Load %
+Tiles ring: TR 1 NUT client | BR 88 Battery % | BL 51 Runtime m | TL 24 Load %
 ```
 
 NUT overview semantics remain read-only: NUT means service/UPS telemetry plus connected client count/list only.
@@ -469,10 +469,10 @@ NUT/UPS mini-card range rules:
 | `Battery` | `20-49%` | yellow `0xfcca3d` | Degraded reserve. |
 | `Battery` | `< 20%` or backend low-battery flag | red `0xff4e3e` | Critical reserve; should usually drive the hero. |
 | `Battery` | unknown/stale | gray `0x6c7470` | Render value as `--`; never fake nominal. |
-| `TTE` hero | `>= 10 min` while on battery | yellow `0xfcca3d` | On-battery is still abnormal even with acceptable runtime. |
-| `TTE` hero | `5-9 min 59 s` | orange `0xff8a2a` | Short reserve. |
-| `TTE` hero | `< 5 min` | red `0xff4e3e` | Critical runtime. |
-| `TTE` hero | unknown while on battery | red `0xff4e3e` | Unknown runtime during outage is unsafe to present as mild. |
+| `Runtime` hero | `>= 10 min` while on battery | yellow `0xfcca3d` | On-battery is still abnormal even with acceptable runtime. |
+| `Runtime` hero | `5-9 min 59 s` | orange `0xff8a2a` | Short reserve. |
+| `Runtime` hero | `< 5 min` | red `0xff4e3e` | Critical runtime. |
+| `Runtime` hero | unknown while on battery | red `0xff4e3e` | Unknown runtime during outage is unsafe to present as mild. |
 | `Load` | `< 10%` | blue `0x1cb5f0` | `LOW`: useful neutral/low-utilization fact, not a success state. |
 | `Load` | `10-69%` | green `0x14dc78` | `NORMAL`: normal operating load. |
 | `Load` | `70-89%` | orange `0xff8a2a` | `HIGH`: high load, attention soon. |
@@ -508,8 +508,8 @@ Inspect at minimum:
 
 - hero value is not vertically too high and aligns with the hero LED top intent;
 - side label block aligns to the hero value, with shorter values getting closer labels;
-- hero `06:24` does not collide with `TTE/mm:ss` or chart button;
-- mini-card TTE uses rounded minutes with generic unit `m`, not clock-form `mm:ss`;
+- hero `06:24` does not collide with `Runtime/mm:ss` or chart button;
+- mini-card Runtime uses rounded minutes with generic unit `m`, not clock-form `mm:ss`;
 - mini-card values are centered on the LED/pill, including stale `--`;
 - unit labels `%`, `V`, `client` do not hug the bottom edge;
 - labels are not fake-bold/chunky;

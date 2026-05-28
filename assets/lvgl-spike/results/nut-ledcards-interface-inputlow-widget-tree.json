@@ -816,7 +816,7 @@
           "y": 6,
           "w": 55,
           "h": 15,
-          "text": "TTE",
+          "text": "Runtime",
           "styles": {
             "bg_color": "#ffffff",
             "bg_opa": 0,

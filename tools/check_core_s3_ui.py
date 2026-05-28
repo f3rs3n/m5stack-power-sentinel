@@ -155,7 +155,7 @@ def main() -> int:
         "struct LedcardsInterfaceNutView", "createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)", "updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
         "LV_FONT_DECLARE(ps_icon_chart_32)", "LV_FONT_DECLARE(ps_font_ddin_condensed_bold_40)", "&ps_font_ddin_condensed_bold_40", "box(screen, x, y, 142, 46", "box(t, 7, 8, 5, 28", "label(t, m.value, 20, 8", "label(t, m.label, 76, 6", "label(t, m.unit, 78, 23", "box(screen, 19, 33, 7, 76", "label(screen, hero.label, label_x, 33, 72, &lv_font_montserrat_12", "label(screen, hero.unit, label_x, 63, 72, &lv_font_montserrat_12", "label(screen, hero.stateText, 45, 96, 142, &lv_font_montserrat_14", "const int xs[4] = {166, 166, 12, 12}", "const int ys[4] = {124, 182, 182, 124}", "\\xF3\\xB1\\x95\\x8D", "lv_obj_set_pos(hit, 263, 56)", "lv_obj_set_size(hit, 34, 34)",
         "choose_hero_metric", "rotate_metric_to_hero", "slot 0 HERO -> slot 1 top-right", "kHeroCooldownMs", "kTouchHeroOverrideMs = 60000", "on_tile_clicked", "touchHeroOverrideMetric", "format_tte_full", "format_tte_minutes", "compactTte", "metric_for(metricOrder[i], view, true)", "STATE_ON_BATTERY", "STATE_LOW_BATTERY",
-        "STATE_STALE", "STATE_HIGH_LOAD", "STATE_INPUT_LOW", "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT",
+        "STATE_STALE", "STATE_HIGH_LOAD", "STATE_INPUT_LOW", "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT", "m.label = \"Runtime\"",
     ]:
         if needle not in ledcards_interface_text + "\n" + ledcards_interface_header:
             return fail(f"Ledcards Interface live-data adapter missing {needle}")
@@ -176,7 +176,7 @@ def main() -> int:
         "ringAnimationActive", "ringAnimationOverlay", "pendingAnimationView", "RingGhostAnim", "ringGhostAnimations[5]",
         "rotate_order_to_hero", "find_metric_slot_in_order", "slot_position",
         "kRingAnimationMs = 252", "lv_anim_set_exec_cb(&a, anim_set_chain_progress)", "lv_anim_set_completed_cb(&a, finish_ring_animation)",
-        "place_ghost_between_slots", "fromSlot == 0", "toSlot == 0", "baseOpa", "chainSteps",
+        "place_ghost_between_slots", "fromSlot == 0", "toSlot == 0", "baseOpa", "chainSteps", "clockwiseSteps", "(oldSlot + step) % 5",
         "tile(ringAnimationOverlay, start.x, start.y, metric_for(kind, overlayView, true), false)",
         "lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE)",
     ]
@@ -259,6 +259,8 @@ def main() -> int:
         return fail("LVGL MCP NUT Ledcards fixture missing mini-card value/unit foreground markers")
     if fixture_value_idx < fixture_unit_idx:
         return fail("LVGL MCP NUT Ledcards fixture mini-card value must be created after label/unit objects so it stays in foreground")
+    if '"Runtime"' not in nut_ledcards_fixture or '"TTE"' in nut_ledcards_fixture:
+        return fail("LVGL MCP NUT Ledcards fixture should label runtime as Runtime, not TTE")
     font_file = ROOT / "firmware" / "core-s3-display" / "src" / "ps_ui_tab_12.c"
     font_file_18 = ROOT / "firmware" / "core-s3-display" / "src" / "ps_ui_tab_18.c"
     if not font_file.exists() or not font_file_18.exists():

@@ -30,10 +30,10 @@ For NUT/UPS, candidate priority order:
 
 1. `on_battery` / grid lost
    - hero value: runtime remaining in compact clock form, e.g. `06:24`
-   - metric label/unit block at the right of the value, Ledcards Interface: `TTE` above `mm:ss`
+   - metric label/unit block at the right of the value, Ledcards Interface: `Runtime` above `mm:ss`
    - state: `ON BATTERY`
    - accent: amber/red depending on severity
-   - avoid wrapping explanatory text below the hero value; keep hero TTE as `mm:ss`, but use rounded whole minutes in supporting mini-cards
+   - avoid wrapping explanatory text below the hero value; keep hero Runtime as `mm:ss`, but use rounded whole minutes in supporting mini-cards
 2. low battery
    - hero value: battery percent, e.g. `18%`
    - label: `Battery`
@@ -62,11 +62,11 @@ For NUT/UPS, candidate priority order:
 
 Hero state label rule: the large label below the hero value should be the literal state associated with the color/severity, not a generic summary. `NOMINAL` is too generic for the Ledcards Interface hero. Charging overrides battery charge wording: show `CHARGING` if the UPS reports charging, even when the current percentage is low.
 
-Dynamic mini-card rule: do not duplicate the hero metric in the 2x2 supporting grid. The overview exposes five distinct facts as a directional ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`. The default ring starts as `Battery`, `TTE`, `Load`, `Input`, `NUT client`. Accepted hero changes rotate the whole ring forward until the selected/candidate metric reaches `HERO`; mini-cards are then the next four ring slots. Example: when low battery keeps `Battery` in the hero, `TTE` is top-right, `Load` bottom-right, `Input` bottom-left, and `NUT client` top-left.
+Dynamic mini-card rule: do not duplicate the hero metric in the 2x2 supporting grid. The overview exposes five distinct facts as a directional ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`. The default ring starts as `Battery`, `Runtime`, `Load`, `Input`, `NUT client`. Accepted hero changes rotate the whole ring clockwise/forward until the selected/candidate metric reaches `HERO`; do not reverse direction to take a shorter counter-clockwise path. Mini-cards are then the next four ring slots. Example: when low battery keeps `Battery` in the hero, `Runtime` is top-right, `Load` bottom-right, `Input` bottom-left, and `NUT client` top-left.
 
-Label wording rule: avoid informal abbreviations, but real/domain acronyms are acceptable. Use `TTE` for time-to-empty everywhere, including hero and mini-cards, rather than shrinking the full `Runtime` label or mixing two labels for the same metric.
+Label wording rule: use `Runtime` for time-to-empty everywhere now that mini-cards hide seconds and show rounded minutes; keep hero and mini-card labels consistent.
 
-Hero swap rule: severity still picks the candidate hero, but accepted hero changes must pass a short cooldown of a few seconds to avoid flicker. When a swap is accepted, rotate the five-slot ring forward, preserving circular order, until that metric reaches `HERO`. If the candidate changes during cooldown, keep the current hero/order stable until a swap is accepted.
+Hero swap rule: severity still picks the candidate hero, but accepted hero changes must pass a short cooldown of a few seconds to avoid flicker. When a swap is accepted, rotate the five-slot ring clockwise/forward, preserving circular order, until that metric reaches `HERO`. If the candidate changes during cooldown, keep the current hero/order stable until a swap is accepted.
 
 The hero should always use a compact numeric/token value. Long explanations belong in the state line or detail page, not in the hero value.
 
@@ -76,7 +76,7 @@ The round button on the right of the hero region means: open the temporal chart 
 
 Examples:
 
-- hero `TTE` -> opens runtime/battery/load trend;
+- hero `Runtime` -> opens runtime/battery/load trend;
 - hero `Battery` -> opens battery history;
 - hero `Input` -> opens input-voltage history;
 - hero `Load` -> opens load history;
@@ -119,14 +119,14 @@ Example nominal:
 
 ```text
 100   Battery   %      FULL
-1     NUT       client 57   TTE    m
+1     NUT       client 57   Runtime    m
 226   Input     V      18   Load   %
 ```
 
 Example power event:
 
 ```text
-06:24  TTE      mm:ss  ON BATTERY
+06:24  Runtime      mm:ss  ON BATTERY
 72     Battery  %      38   Load   %
 1      NUT      client 0    Input  V
 ```
@@ -136,7 +136,7 @@ Example stale:
 ```text
 --     UPS      stale  STALE 42s
 --     Input    V      --   Battery %
---     Load     %      --   TTE     m
+--     Load     %      --   Runtime     m
 ```
 
 ## Typography
@@ -185,13 +185,13 @@ The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_H
 
 Runtime behavior:
 
-1. Hero candidate priority is stale/unavailable -> `NUT`, low battery -> `Battery`, on battery -> `TTE`, high load -> `Load`, marginal input -> `Input`, otherwise `Battery`.
+1. Hero candidate priority is stale/unavailable -> `NUT`, low battery -> `Battery`, on battery -> `Runtime`, high load -> `Load`, marginal input -> `Input`, otherwise `Battery`.
 2. The active hero is held behind `kHeroCooldownMs` so noisy telemetry does not flicker the whole page.
-3. Accepted hero swaps rotate the directional five-slot ring (`HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`) until that metric reaches `HERO`. The four mini-cards are the next four ring slots, so the hero never appears twice and circular order is preserved.
-4. The live page now animates accepted automatic swaps and touch overrides with a bounded ~250 ms chain: compact ghost cards scroll only inside the mini-card grid lanes, touch is blocked during the transition, small ghost-card fades handle the hero boundary, and the final frame redraws with the exact hero/mini templates.
+3. Accepted hero swaps rotate the directional five-slot ring clockwise (`HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`) until that metric reaches `HERO`. The four mini-cards are the next four ring slots, so the hero never appears twice and circular order is preserved.
+4. The live page now animates accepted automatic swaps and touch overrides with a bounded ~250 ms clockwise-only chain: compact ghost cards scroll only inside the mini-card grid lanes, touch is blocked during the transition, small ghost-card fades handle the hero boundary, and the final frame redraws with the exact hero/mini templates.
 5. Tapping a mini-card temporarily rotates that metric to the hero for 60 seconds, overriding the default priority. After expiry the normal severity/priority hero selection resumes and may rotate the ring again after cooldown.
 6. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
-7. `TTE` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with generic unit `m` to avoid physical TFT clipping in the 142x46 card geometry and to fit single-digit values cleanly.
+7. `Runtime` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with generic unit `m` to avoid physical TFT clipping in the 142x46 card geometry and to fit single-digit values cleanly.
 8. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.
 
 ## Render artifacts from exploration
@@ -202,7 +202,7 @@ The current firmware-test candidate is a real LVGL MCP fixture render, not a PIL
 - `firmware/core-s3-display/src/ledcards-interface-page.h` — small view adapter boundary between `main.cpp`/`SummaryState` and the Ledcards Interface renderer.
 - `assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c` — focused exploratory LVGL fixture for the fullscreen NUT/UPS adaptive overview.
 - `assets/lvgl-spike/ps_font_ddin_condensed_bold_60.c` — D-DIN metric font subset for the hero value.
-- `assets/lvgl-spike/ps_font_ddin_condensed_bold_40.c` — D-DIN metric font subset for mini-card numeric values, reduced from the earlier 42 px subset to prevent TTE clipping while staying close to the reference sample. The current mini-card LED is 28 px high at local `x=7, y=8`; with the 12 px outer margin the left mini-card LED sits at absolute `x=19`, aligned with the hero LED. The numeric value uses D-DIN 40 px at local `y=8`. Main mini-card labels use Montserrat 12 at local `y=6`; sub/unit labels also use Montserrat 12 at local `y=23` so the size matches the reference while weight/color provide hierarchy. Hero side label and hero unit also use Montserrat 12, matching the mini-card label/sub-label size.
+- `assets/lvgl-spike/ps_font_ddin_condensed_bold_40.c` — D-DIN metric font subset for mini-card numeric values, reduced from the earlier 42 px subset to prevent Runtime clipping while staying close to the reference sample. The current mini-card LED is 28 px high at local `x=7, y=8`; with the 12 px outer margin the left mini-card LED sits at absolute `x=19`, aligned with the hero LED. The numeric value uses D-DIN 40 px at local `y=8`. Main mini-card labels use Montserrat 12 at local `y=6`; sub/unit labels also use Montserrat 12 at local `y=23` so the size matches the reference while weight/color provide hierarchy. Hero side label and hero unit also use Montserrat 12, matching the mini-card label/sub-label size.
 - `assets/lvgl-spike/render-nut-ledcards-interface-via-doomtrain.sh` — fallback renderer that builds the MCP-compatible combined source, renders six states on DOOMTRAIN, and copies the PNGs back.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-contact-sheet.png` — current six-state render sheet: nominal, on-battery, low-battery, stale, high-load, and input-low.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-vs-reference.png` — current six-state render sheet compared against the Ledcards Interface sample.

@@ -259,7 +259,7 @@ static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &
     } else {
       format_tte_full(runtimeSeconds, m.value, sizeof(m.value), &unit);
     }
-    m.label = "TTE";
+    m.label = "Runtime";
     m.unit = unit;
     if (view.offline || !view.upsAvailable || view.upsStale) {
       m.stateText = "UNKNOWN";
@@ -382,8 +382,8 @@ static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
 // Ring order is directional, not a list-style promote-to-front stack:
 //   slot 0 HERO -> slot 1 top-right -> slot 2 bottom-right ->
 //   slot 3 bottom-left -> slot 4 top-left -> HERO.
-// Promoting any metric rotates the whole ring forward until that metric reaches HERO,
-// preserving the circular order seen on the reference device.
+// Promoting any metric rotates the whole ring clockwise/forward until that metric reaches HERO,
+// preserving a single visual direction instead of choosing the shorter reverse path.
 static int find_metric_slot_in_order(const MetricKind order[5], MetricKind kind) {
   for (int i = 0; i < 5; ++i) {
     if (order[i] == kind) return i;
@@ -395,9 +395,9 @@ static void rotate_order_to_hero(const MetricKind source[5], MetricKind kind, Me
   for (int i = 0; i < 5; ++i) dest[i] = source[i];
   int pos = find_metric_slot_in_order(source, kind);
   if (pos <= 0) return;
-  int steps = (5 - pos) % 5;
+  int clockwiseSteps = (5 - pos) % 5;
   for (int i = 0; i < 5; ++i) {
-    dest[(i + steps) % 5] = source[i];
+    dest[(i + clockwiseSteps) % 5] = source[i];
   }
 }
 
@@ -479,7 +479,7 @@ static lv_obj_t *tile(lv_obj_t *screen, int x, int y, const MetricRender &m, boo
   lv_obj_t *unit_l = label(t, m.unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c);
   lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
   // Keep the metric value visually on top of the right-side label/unit objects.
-  // Mini-card TTE is minutes-only because clock-form values such as "06:24"
+  // Mini-card Runtime is minutes-only because clock-form values such as "06:24"
   // are too tight for this physical TFT/card geometry.
   label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
   if (clickable) {
@@ -617,14 +617,14 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
   lv_obj_set_scrollbar_mode(ringAnimationOverlay, LV_SCROLLBAR_MODE_OFF);
 
   int targetOldSlot = find_metric_slot_in_order(oldOrder, target);
-  uint8_t chainSteps = targetOldSlot <= 0 ? 1 : static_cast<uint8_t>(targetOldSlot);
+  uint8_t chainSteps = targetOldSlot <= 0 ? 1 : static_cast<uint8_t>((5 - targetOldSlot) % 5);
   for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
     MetricKind kind = oldOrder[oldSlot];
     RingGhostAnim &anim = ringGhostAnimations[oldSlot];
     anim.steps = chainSteps;
     anim.baseOpa = LV_OPA_80;
     for (uint8_t step = 0; step <= chainSteps; ++step) {
-      anim.path[step] = static_cast<uint8_t>((oldSlot - step + 5) % 5);
+      anim.path[step] = static_cast<uint8_t>((oldSlot + step) % 5);
     }
     uint8_t firstVisibleSlot = anim.path[0] == 0 ? anim.path[1] : anim.path[0];
     SlotPosition start = slot_position(firstVisibleSlot);
