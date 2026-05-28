@@ -538,121 +538,6 @@
     },
     {
       "type": "obj",
-      "x": 12,
-      "y": 124,
-      "w": 142,
-      "h": 46,
-      "styles": {
-        "bg_color": "#221c08",
-        "bg_opa": 255,
-        "text_color": "#212121",
-        "text_font_size": 16,
-        "border_width": 1,
-        "border_color": "#141e1b",
-        "radius": 7,
-        "pad_top": 0,
-        "pad_bottom": 0,
-        "pad_left": 0,
-        "pad_right": 0,
-        "pad_gap": 8,
-        "opa": 255
-      },
-      "children": [
-        {
-          "type": "obj",
-          "x": 7,
-          "y": 8,
-          "w": 5,
-          "h": 28,
-          "styles": {
-            "bg_color": "#fcca3d",
-            "bg_opa": 255,
-            "text_color": "#212121",
-            "text_font_size": 16,
-            "border_width": 0,
-            "border_color": "#e0e0e0",
-            "radius": 3,
-            "pad_top": 0,
-            "pad_bottom": 0,
-            "pad_left": 0,
-            "pad_right": 0,
-            "pad_gap": 8,
-            "opa": 255
-          }
-        },
-        {
-          "type": "label",
-          "x": 76,
-          "y": 6,
-          "w": 55,
-          "h": 15,
-          "text": "Battery",
-          "styles": {
-            "bg_color": "#ffffff",
-            "bg_opa": 0,
-            "text_color": "#c9d0c9",
-            "text_font_size": 15,
-            "border_width": 0,
-            "border_color": "#000000",
-            "radius": 0,
-            "pad_top": 0,
-            "pad_bottom": 0,
-            "pad_left": 0,
-            "pad_right": 0,
-            "pad_gap": 0,
-            "opa": 255
-          }
-        },
-        {
-          "type": "label",
-          "x": 78,
-          "y": 23,
-          "w": 53,
-          "h": 15,
-          "text": "%",
-          "styles": {
-            "bg_color": "#ffffff",
-            "bg_opa": 0,
-            "text_color": "#87918c",
-            "text_font_size": 15,
-            "border_width": 0,
-            "border_color": "#000000",
-            "radius": 0,
-            "pad_top": 0,
-            "pad_bottom": 0,
-            "pad_left": 0,
-            "pad_right": 0,
-            "pad_gap": 0,
-            "opa": 255
-          }
-        },
-        {
-          "type": "label",
-          "x": 20,
-          "y": 8,
-          "w": 58,
-          "h": 28,
-          "text": "72",
-          "styles": {
-            "bg_color": "#ffffff",
-            "bg_opa": 0,
-            "text_color": "#f5f6f2",
-            "text_font_size": 28,
-            "border_width": 0,
-            "border_color": "#000000",
-            "radius": 0,
-            "pad_top": 0,
-            "pad_bottom": 0,
-            "pad_left": 0,
-            "pad_right": 0,
-            "pad_gap": 0,
-            "opa": 255
-          }
-        }
-      ]
-    },
-    {
-      "type": "obj",
       "x": 166,
       "y": 124,
       "w": 142,
@@ -768,7 +653,7 @@
     },
     {
       "type": "obj",
-      "x": 12,
+      "x": 166,
       "y": 182,
       "w": 142,
       "h": 46,
@@ -883,7 +768,7 @@
     },
     {
       "type": "obj",
-      "x": 166,
+      "x": 12,
       "y": 182,
       "w": 142,
       "h": 46,
@@ -978,6 +863,121 @@
           "w": 58,
           "h": 28,
           "text": "1",
+          "styles": {
+            "bg_color": "#ffffff",
+            "bg_opa": 0,
+            "text_color": "#f5f6f2",
+            "text_font_size": 28,
+            "border_width": 0,
+            "border_color": "#000000",
+            "radius": 0,
+            "pad_top": 0,
+            "pad_bottom": 0,
+            "pad_left": 0,
+            "pad_right": 0,
+            "pad_gap": 0,
+            "opa": 255
+          }
+        }
+      ]
+    },
+    {
+      "type": "obj",
+      "x": 12,
+      "y": 124,
+      "w": 142,
+      "h": 46,
+      "styles": {
+        "bg_color": "#221c08",
+        "bg_opa": 255,
+        "text_color": "#212121",
+        "text_font_size": 16,
+        "border_width": 1,
+        "border_color": "#141e1b",
+        "radius": 7,
+        "pad_top": 0,
+        "pad_bottom": 0,
+        "pad_left": 0,
+        "pad_right": 0,
+        "pad_gap": 8,
+        "opa": 255
+      },
+      "children": [
+        {
+          "type": "obj",
+          "x": 7,
+          "y": 8,
+          "w": 5,
+          "h": 28,
+          "styles": {
+            "bg_color": "#fcca3d",
+            "bg_opa": 255,
+            "text_color": "#212121",
+            "text_font_size": 16,
+            "border_width": 0,
+            "border_color": "#e0e0e0",
+            "radius": 3,
+            "pad_top": 0,
+            "pad_bottom": 0,
+            "pad_left": 0,
+            "pad_right": 0,
+            "pad_gap": 8,
+            "opa": 255
+          }
+        },
+        {
+          "type": "label",
+          "x": 76,
+          "y": 6,
+          "w": 55,
+          "h": 15,
+          "text": "Battery",
+          "styles": {
+            "bg_color": "#ffffff",
+            "bg_opa": 0,
+            "text_color": "#c9d0c9",
+            "text_font_size": 15,
+            "border_width": 0,
+            "border_color": "#000000",
+            "radius": 0,
+            "pad_top": 0,
+            "pad_bottom": 0,
+            "pad_left": 0,
+            "pad_right": 0,
+            "pad_gap": 0,
+            "opa": 255
+          }
+        },
+        {
+          "type": "label",
+          "x": 78,
+          "y": 23,
+          "w": 53,
+          "h": 15,
+          "text": "%",
+          "styles": {
+            "bg_color": "#ffffff",
+            "bg_opa": 0,
+            "text_color": "#87918c",
+            "text_font_size": 15,
+            "border_width": 0,
+            "border_color": "#000000",
+            "radius": 0,
+            "pad_top": 0,
+            "pad_bottom": 0,
+            "pad_left": 0,
+            "pad_right": 0,
+            "pad_gap": 0,
+            "opa": 255
+          }
+        },
+        {
+          "type": "label",
+          "x": 20,
+          "y": 8,
+          "w": 58,
+          "h": 28,
+          "text": "72",
           "styles": {
             "bg_color": "#ffffff",
             "bg_opa": 0,

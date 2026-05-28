@@ -357,10 +357,12 @@ This means the mini-card order is a product of accepted hero swaps, not a static
 
 Examples:
 
-- Hero `Battery` (`FULL`, `LOW BATTERY`, `CHARGING`) -> mini-cards should be `TTE`, `Load`, `Input`, `NUT client`.
-- Hero `TTE` (`ON BATTERY`) -> mini-cards should be `Battery`, `Load`, `Input`, `NUT client`.
-- Hero `NUT` (`STALE 42s`) -> mini-cards should be `Battery`, `TTE`, `Load`, `Input`.
-- Hero `Input` -> mini-cards should be `Battery`, `TTE`, `Load`, `NUT client`.
+- Mini-card slot order is a directional ring, not a row-major list: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
+- Accepted hero changes rotate the whole ring forward until the selected/candidate metric reaches `HERO`; this preserves circular order for future chain-style animation.
+- Hero `Battery` (`FULL`, `LOW BATTERY`, `CHARGING`) from the default ring -> mini-cards should be `TTE` top-right, `Load` bottom-right, `Input` bottom-left, `NUT client` top-left.
+- Hero `TTE` (`ON BATTERY`) from the default ring -> mini-cards should be `Load` top-right, `Input` bottom-right, `NUT client` bottom-left, `Battery` top-left.
+- Hero `NUT` (`STALE 42s`) from the default ring -> mini-cards should be `Battery` top-right, `TTE` bottom-right, `Load` bottom-left, `Input` top-left.
+- Hero `Input` from the default ring -> mini-cards should be `NUT client` top-right, `Battery` bottom-right, `TTE` bottom-left, `Load` top-left.
 
 Do not keep a mini-card just because the old static grid had it. If the hero already shows that field, swap in the next useful fact.
 
@@ -385,42 +387,42 @@ Nominal:
 
 ```text
 Hero: 100  Battery  %      FULL
-Tiles: 57 TTE m | 18 Load % | 226 Input V | 1 NUT client
+Tiles ring: TR 57 TTE m | BR 18 Load % | BL 226 Input V | TL 1 NUT client
 ```
 
 On battery:
 
 ```text
 Hero: 06:24  TTE  mm:ss  ON BATTERY
-Tiles: 72 Battery % | 38 Load % | 0 Input V | 1 NUT client
+Tiles ring: TR 38 Load % | BR 0 Input V | BL 1 NUT client | TL 72 Battery %
 ```
 
 Low battery:
 
 ```text
 Hero: 18  Battery  %      LOW BATTERY
-Tiles: 6 TTE m | 42 Load % | 0 Input V | 1 NUT client
+Tiles ring: TR 6 TTE m | BR 42 Load % | BL 0 Input V | TL 1 NUT client
 ```
 
 Stale:
 
 ```text
 Hero: --  NUT  stale      STALE 42s
-Tiles: -- Battery % | -- TTE m | -- Load % | -- Input V
+Tiles ring: TR -- Battery % | BR -- TTE m | BL -- Load % | TL -- Input V
 ```
 
 High load:
 
 ```text
 Hero: 86  Load  %          HIGH
-Tiles: 92 Battery % | 42 TTE m | 226 Input V | 1 NUT client
+Tiles ring: TR 226 Input V | BR 1 NUT client | BL 92 Battery % | TL 42 TTE m
 ```
 
 Input low:
 
 ```text
 Hero: 185  Input  V        MARGINAL INPUT
-Tiles: 88 Battery % | 51 TTE m | 24 Load % | 1 NUT client
+Tiles ring: TR 1 NUT client | BR 88 Battery % | BL 51 TTE m | TL 24 Load %
 ```
 
 NUT overview semantics remain read-only: NUT means service/UPS telemetry plus connected client count/list only.

@@ -62,11 +62,11 @@ For NUT/UPS, candidate priority order:
 
 Hero state label rule: the large label below the hero value should be the literal state associated with the color/severity, not a generic summary. `NOMINAL` is too generic for the Ledcards Interface hero. Charging overrides battery charge wording: show `CHARGING` if the UPS reports charging, even when the current percentage is low.
 
-Dynamic mini-card rule: do not duplicate the hero metric in the 2x2 supporting grid. The overview should expose five distinct facts: hero plus four mini-cards. Ordered NUT/UPS pool: `Battery`, `TTE`, `Load`, `Input`, `NUT client`. Remove the hero metric from the pool, then render the first four remaining facts. Example: when low battery uses `Battery` in the hero, replace the old battery mini-card with `TTE`.
+Dynamic mini-card rule: do not duplicate the hero metric in the 2x2 supporting grid. The overview exposes five distinct facts as a directional ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`. The default ring starts as `Battery`, `TTE`, `Load`, `Input`, `NUT client`. Accepted hero changes rotate the whole ring forward until the selected/candidate metric reaches `HERO`; mini-cards are then the next four ring slots. Example: when low battery keeps `Battery` in the hero, `TTE` is top-right, `Load` bottom-right, `Input` bottom-left, and `NUT client` top-left.
 
 Label wording rule: avoid informal abbreviations, but real/domain acronyms are acceptable. Use `TTE` for time-to-empty everywhere, including hero and mini-cards, rather than shrinking the full `Runtime` label or mixing two labels for the same metric.
 
-Hero swap rule: severity still picks the candidate hero, but accepted hero changes must pass a short cooldown of a few seconds to avoid flicker. When a swap is accepted, move that metric to slot `n1`; mini-cards are then slots `n2`/`n3` on the first row and `n4`/`n5` on the second row, ordered by recency of accepted hero appearances. If the candidate changes during cooldown, keep the current hero/order stable until a swap is accepted.
+Hero swap rule: severity still picks the candidate hero, but accepted hero changes must pass a short cooldown of a few seconds to avoid flicker. When a swap is accepted, rotate the five-slot ring forward, preserving circular order, until that metric reaches `HERO`. If the candidate changes during cooldown, keep the current hero/order stable until a swap is accepted.
 
 The hero should always use a compact numeric/token value. Long explanations belong in the state line or detail page, not in the hero value.
 
@@ -119,8 +119,8 @@ Example nominal:
 
 ```text
 100   Battery   %      FULL
-57    TTE       m      18   Load   %
-226   Input     V      1    NUT    client
+1     NUT       client 57   TTE    m
+226   Input     V      18   Load   %
 ```
 
 Example power event:
@@ -128,15 +128,15 @@ Example power event:
 ```text
 06:24  TTE      mm:ss  ON BATTERY
 72     Battery  %      38   Load   %
-0      Input    V      1    NUT    client
+1      NUT      client 0    Input  V
 ```
 
 Example stale:
 
 ```text
 --     UPS      stale  STALE 42s
---     Battery  %      --   TTE     m
---     Load     %      --   Input   V
+--     Input    V      --   Battery %
+--     Load     %      --   TTE     m
 ```
 
 ## Typography
@@ -187,8 +187,8 @@ Runtime behavior:
 
 1. Hero candidate priority is stale/unavailable -> `NUT`, low battery -> `Battery`, on battery -> `TTE`, high load -> `Load`, marginal input -> `Input`, otherwise `Battery`.
 2. The active hero is held behind `kHeroCooldownMs` so noisy telemetry does not flicker the whole page.
-3. Accepted hero swaps move that metric to the front of the five-slot metric stack. The four mini-cards are the remaining metrics in order, so the hero never appears twice.
-4. Tapping a mini-card temporarily promotes that metric to the hero for 60 seconds, overriding the default priority without permanently reordering the metric stack; after expiry the normal severity/priority hero selection resumes.
+3. Accepted hero swaps rotate the directional five-slot ring (`HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`) until that metric reaches `HERO`. The four mini-cards are the next four ring slots, so the hero never appears twice and circular order is preserved.
+4. Tapping a mini-card temporarily rotates that metric to the hero for 60 seconds, overriding the default priority. After expiry the normal severity/priority hero selection resumes and may rotate the ring again after cooldown.
 5. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
 6. `TTE` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with generic unit `m` to avoid physical TFT clipping in the 142x46 card geometry and to fit single-digit values cleanly.
 7. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.

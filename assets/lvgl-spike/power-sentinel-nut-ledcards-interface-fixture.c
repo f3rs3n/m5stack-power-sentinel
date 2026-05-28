@@ -167,35 +167,35 @@ static void render_nut_home(lv_obj_t *screen) {
     chart_button(screen);
 
 #if PS_NUT_HOME_STATE == PS_NUT_STATE_ON_BATTERY
-    tile(screen, 12, 124, "72", "Battery", "%", 0xfcca3d, 0x221c08);
     tile(screen, 166, 124, "38", "Load", "%", 0x14dc78, 0x071c12);
-    tile(screen, 12, 182, "0", "Input", "V", 0xff4e3e, 0x200d0c);
-    tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
+    tile(screen, 166, 182, "0", "Input", "V", 0xff4e3e, 0x200d0c);
+    tile(screen, 12, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 124, "72", "Battery", "%", 0xfcca3d, 0x221c08);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_LOW_BATTERY
-    tile(screen, 12, 124, "6", "TTE", "m", 0xfcca3d, 0x221c08);
-    tile(screen, 166, 124, "42", "Load", "%", 0x14dc78, 0x071c12);
+    tile(screen, 166, 124, "6", "TTE", "m", 0xfcca3d, 0x221c08);
+    tile(screen, 166, 182, "42", "Load", "%", 0x14dc78, 0x071c12);
     tile(screen, 12, 182, "0", "Input", "V", 0xff4e3e, 0x200d0c);
-    tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 124, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_STALE
-    tile(screen, 12, 124, "--", "Battery", "%", 0x6c7470, 0x101514);
-    tile(screen, 166, 124, "--", "TTE", "m", 0x6c7470, 0x101514);
+    tile(screen, 166, 124, "--", "Battery", "%", 0x6c7470, 0x101514);
+    tile(screen, 166, 182, "--", "TTE", "m", 0x6c7470, 0x101514);
     tile(screen, 12, 182, "--", "Load", "%", 0x6c7470, 0x101514);
-    tile(screen, 166, 182, "--", "Input", "V", 0x6c7470, 0x101514);
+    tile(screen, 12, 124, "--", "Input", "V", 0x6c7470, 0x101514);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_HIGH_LOAD
-    tile(screen, 12, 124, "92", "Battery", "%", 0x14dc78, 0x071c12);
-    tile(screen, 166, 124, "42", "TTE", "m", 0x1cb5f0, 0x07161d);
-    tile(screen, 12, 182, "226", "Input", "V", 0x14dc78, 0x071e14);
+    tile(screen, 166, 124, "226", "Input", "V", 0x14dc78, 0x071e14);
     tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 182, "92", "Battery", "%", 0x14dc78, 0x071c12);
+    tile(screen, 12, 124, "42", "TTE", "m", 0x1cb5f0, 0x07161d);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_INPUT_LOW
-    tile(screen, 12, 124, "88", "Battery", "%", 0x14dc78, 0x071c12);
-    tile(screen, 166, 124, "51", "TTE", "m", 0x1cb5f0, 0x07161d);
-    tile(screen, 12, 182, "24", "Load", "%", 0x14dc78, 0x071c12);
-    tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
+    tile(screen, 166, 124, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
+    tile(screen, 166, 182, "88", "Battery", "%", 0x14dc78, 0x071c12);
+    tile(screen, 12, 182, "51", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 124, "24", "Load", "%", 0x14dc78, 0x071c12);
 #else
-    tile(screen, 12, 124, "57", "TTE", "m", 0x1cb5f0, 0x07161d);
-    tile(screen, 166, 124, "18", "Load", "%", 0x14dc78, 0x071c12);
+    tile(screen, 166, 124, "57", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 166, 182, "18", "Load", "%", 0x14dc78, 0x071c12);
     tile(screen, 12, 182, "226", "Input", "V", 0x14dc78, 0x071e14);
-    tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 124, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
 #endif
 }
 

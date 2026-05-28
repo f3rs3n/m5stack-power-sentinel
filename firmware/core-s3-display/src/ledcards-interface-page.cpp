@@ -359,15 +359,23 @@ static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
   return METRIC_BATTERY;
 }
 
-static void move_metric_to_front(MetricKind kind) {
+// Ring order is directional, not a list-style promote-to-front stack:
+//   slot 0 HERO -> slot 1 top-right -> slot 2 bottom-right ->
+//   slot 3 bottom-left -> slot 4 top-left -> HERO.
+// Promoting any metric rotates the whole ring forward until that metric reaches HERO,
+// preserving the circular order seen on the reference device.
+static void rotate_metric_to_hero(MetricKind kind) {
   int pos = -1;
   for (int i = 0; i < 5; ++i) {
     if (metricOrder[i] == kind) pos = i;
   }
   if (pos <= 0) return;
-  MetricKind selected = metricOrder[pos];
-  for (int i = pos; i > 0; --i) metricOrder[i] = metricOrder[i - 1];
-  metricOrder[0] = selected;
+  MetricKind old[5];
+  for (int i = 0; i < 5; ++i) old[i] = metricOrder[i];
+  int steps = (5 - pos) % 5;
+  for (int i = 0; i < 5; ++i) {
+    metricOrder[(i + steps) % 5] = old[i];
+  }
 }
 
 static MetricKind accepted_hero_metric(const LedcardsInterfaceNutView &view) {
@@ -380,7 +388,7 @@ static MetricKind accepted_hero_metric(const LedcardsInterfaceNutView &view) {
   MetricKind candidate = choose_hero_metric(view);
   if (candidate == metricOrder[0]) return candidate;
   if (lastHeroSwapMs == 0 || view.nowMillis - lastHeroSwapMs >= kHeroCooldownMs) {
-    move_metric_to_front(candidate);
+    rotate_metric_to_hero(candidate);
     lastHeroSwapMs = view.nowMillis;
   }
   return metricOrder[0];
@@ -435,6 +443,7 @@ static void on_tile_clicked(lv_event_t *event) {
   uint32_t now = millis();
   touchHeroOverrideUntilMs = now + kTouchHeroOverrideMs;
   touchHeroOverrideActive = true;
+  rotate_metric_to_hero(touchHeroOverrideMetric);
   if (hasLastRenderedView) lv_async_call(refresh_after_touch_override, nullptr);
 }
 
@@ -485,13 +494,10 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   label(screen, hero.stateText, 45, 96, 142, &lv_font_montserrat_14, hero.stateColor);
   chart_button(screen);
 
-  int rendered = 0;
-  const int xs[4] = {12, 166, 12, 166};
-  const int ys[4] = {124, 124, 182, 182};
-  for (int i = 0; i < 5 && rendered < 4; ++i) {
-    if (metricOrder[i] == heroKind) continue;
-    tile(screen, xs[rendered], ys[rendered], metric_for(metricOrder[i], view, true));
-    ++rendered;
+  const int xs[4] = {166, 166, 12, 12};
+  const int ys[4] = {124, 182, 182, 124};
+  for (int i = 1; i < 5; ++i) {
+    tile(screen, xs[i - 1], ys[i - 1], metric_for(metricOrder[i], view, true));
   }
 }
 
