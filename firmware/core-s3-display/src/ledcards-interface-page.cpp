@@ -569,14 +569,16 @@ static void finish_ring_animation(lv_anim_t *) {
 }
 
 static void animate_ghost_chain(RingGhostAnim *anim, bool finish) {
-  // User-tested phase-2 timing was responsive but slightly too brisk; +20% keeps
-  // the same lightweight position-only chain while making the scroll legible.
-  constexpr uint32_t kRingAnimationMs = 252;
+  if (!anim || anim->steps == 0) return;
+  // Keep perceived speed constant: a touch on the adjacent mini-card moves one
+  // ring segment in 252 ms, while farther cards get proportionally more time.
+  // A fixed whole-transition duration made 2/3/4-segment moves accelerate too much.
+  constexpr uint32_t kRingAnimationStepMs = 252;
   lv_anim_t a;
   lv_anim_init(&a);
   lv_anim_set_var(&a, anim);
   lv_anim_set_values(&a, 0, 1000);
-  lv_anim_set_duration(&a, kRingAnimationMs);
+  lv_anim_set_duration(&a, kRingAnimationStepMs * anim->steps);
   lv_anim_set_exec_cb(&a, anim_set_chain_progress);
   if (finish) lv_anim_set_completed_cb(&a, finish_ring_animation);
   lv_anim_start(&a);

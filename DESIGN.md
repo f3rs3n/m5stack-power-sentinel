@@ -371,7 +371,7 @@ Animation contract:
 - Accepted automatic swaps and touch overrides should visually move the current metric cards as a short bounded clockwise chain along the same ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`. Never reverse direction to take the shorter path.
 - Use compact ghost cards for the transition, but keep the visible motion inside the mini-card grid lanes: right-column vertical moves, bottom-row horizontal moves, and left-column vertical moves. Do not let ghosts travel diagonally through the black gaps between the hero and mini-card regions.
 - The hero boundary is the exception: cards entering or leaving the hero area may fade at the adjacent mini-card slot instead of physically crossing the black space. The final committed frame must normalize back to the exact hero and mini-card templates above.
-- Target runtime is about 250 ms after the first physical test; the initial ~210 ms version was functional but read more like a quick rotation than a legible scroll.
+- Target speed is about 250 ms per ring segment after the first physical test. Do not keep the whole transition at a fixed duration: selecting farther mini-cards must get proportionally more time so the scroll speed stays homogeneous across one-, two-, three-, and four-segment moves.
 - Animation should stay lightweight: position-only inside mini-card lanes, with only small ghost-card opacity fades at the hero boundary. Avoid blur, glass, shadows, full-screen transforms, or expensive opacity over large regions.
 - While a ring animation is active, ignore/debounce further mini-card touches and queue the latest telemetry view for the final redraw.
 - Static fallback/final render must preserve the phase-1 ring semantics even if animation is unavailable.

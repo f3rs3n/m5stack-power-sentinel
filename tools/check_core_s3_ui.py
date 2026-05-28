@@ -175,7 +175,7 @@ def main() -> int:
     required_ring_animation = [
         "ringAnimationActive", "ringAnimationOverlay", "pendingAnimationView", "RingGhostAnim", "ringGhostAnimations[5]",
         "rotate_order_to_hero", "find_metric_slot_in_order", "slot_position",
-        "kRingAnimationMs = 252", "lv_anim_set_exec_cb(&a, anim_set_chain_progress)", "lv_anim_set_completed_cb(&a, finish_ring_animation)",
+        "kRingAnimationStepMs = 252", "kRingAnimationStepMs * anim->steps", "lv_anim_set_exec_cb(&a, anim_set_chain_progress)", "lv_anim_set_completed_cb(&a, finish_ring_animation)",
         "place_ghost_between_slots", "fromSlot == 0", "toSlot == 0", "baseOpa", "chainSteps", "clockwiseSteps", "(oldSlot + step) % 5",
         "tile(ringAnimationOverlay, start.x, start.y, metric_for(kind, overlayView, true), false)",
         "lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE)",
