@@ -10,6 +10,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CACHE_DIR="$ROOT/.cache/lvgl-fonts"
 OUT="$ROOT/firmware/core-s3-display/src/ps_ui_tab_12.c"
 TMP_OUT="$CACHE_DIR/ps_ui_tab_12.c"
+CHART_OUT="$ROOT/firmware/core-s3-display/src/ps_icon_chart_32.c"
+CHART_TMP_OUT="$CACHE_DIR/ps_icon_chart_32.c"
 
 MONTSERRAT_URL="https://github.com/googlefonts/montserrat/raw/master/fonts/ttf/Montserrat-Regular.ttf"
 NERD_SYMBOLS_URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip"
@@ -73,3 +75,38 @@ PY
 
 printf 'Generated %s\n' "$OUT"
 wc -c "$OUT"
+
+# Standalone historical-data button icon for the ledcards-interface hero card:
+# U+F154D nf-md-chart_box. Keep synchronized with chart_button() in
+# firmware/core-s3-display/src/ledcards-interface-page.cpp and
+# assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c.
+"${NPX:-npx}" --yes lv_font_conv \
+  --font "$NERD_TTF" -r 0xF154D \
+  --size 32 --bpp 4 --format lvgl --no-compress --no-kerning \
+  --lv-include lvgl.h \
+  --lv-font-name ps_icon_chart_32 \
+  -o "$CHART_TMP_OUT"
+
+python3 - "$CHART_TMP_OUT" "$CHART_OUT" <<'PY'
+import pathlib
+import sys
+src = pathlib.Path(sys.argv[1])
+dst = pathlib.Path(sys.argv[2])
+text = src.read_text(encoding="utf-8")
+start = text.find("/*******************************************************************************")
+end = text.find(" ******************************************************************************/", start)
+if start == -1 or end == -1:
+    raise SystemExit("unexpected lv_font_conv header format")
+end += len(" ******************************************************************************/")
+header = "/*******************************************************************************\n"
+header += " * Size: 32 px\n"
+header += " * Bpp: 4\n"
+header += " * Source: generated with scripts/generate-lvgl-icon-font.sh from Symbols Nerd Font Mono.\n"
+header += " * Ranges: Nerd Font PUA icon 0xF154D nf-md-chart_box.\n"
+header += " ******************************************************************************/"
+dst.write_text(header + text[end:].rstrip() + "\n", encoding="utf-8")
+PY
+
+cp "$CHART_OUT" "$ROOT/assets/lvgl-spike/ps_icon_chart_32.c"
+printf 'Generated %s and copied fixture font\n' "$CHART_OUT"
+wc -c "$CHART_OUT" "$ROOT/assets/lvgl-spike/ps_icon_chart_32.c"

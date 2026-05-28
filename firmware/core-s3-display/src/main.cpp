@@ -238,8 +238,15 @@ uint32_t fetchFailCount = 0;
 uint32_t lastFetchDurationMs = 0;
 uint32_t stackflowRequestId = 0;
 bool displayAsleep = false;
+bool displaySleepWakeArmed = false;
+bool ledcardsSleepTouchActive = false;
+bool ledcardsSleepLongPressFired = false;
+uint32_t displaySleepEnteredMs = 0;
+uint32_t ledcardsSleepPressStartMs = 0;
 
 constexpr uint8_t kDisplayAwakeBrightness = 160;
+constexpr uint32_t kDisplayWakeCooldownMs = 1000;
+constexpr uint32_t kLedcardsSleepLongPressMs = 3000;
 
 lv_color_t buf1[kScreenW * 24];
 lv_color_t buf2[kScreenW * 24];
@@ -581,8 +588,10 @@ void myDispFlush(lv_display_t *disp, const lv_area_t *area, uint8_t *pxMap) {
 
 void enterDisplaySleep() {
   displayAsleep = true;
+  displaySleepWakeArmed = false;
+  displaySleepEnteredMs = millis();
   psDisplaySetBrightness(0);
-  Serial.println("Display sleep: brightness off; touch anywhere to wake");
+  Serial.println("Display sleep: brightness off; release touch, then tap anywhere to wake");
 }
 
 void wakeDisplay() {
@@ -602,14 +611,43 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
   int32_t y = 0;
   if (psTouchPressed(&x, &y)) {
     if (displayAsleep) {
-      wakeDisplay();
+      uint32_t now = millis();
+      if (displaySleepWakeArmed && now - displaySleepEnteredMs >= kDisplayWakeCooldownMs) {
+        wakeDisplay();
+        ledcardsSleepTouchActive = false;
+        ledcardsSleepLongPressFired = false;
+      }
       data->state = LV_INDEV_STATE_REL;
       return;
     }
+#if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
+    uint32_t now = millis();
+    if (!ledcardsSleepTouchActive) {
+      ledcardsSleepTouchActive = true;
+      ledcardsSleepLongPressFired = false;
+      ledcardsSleepPressStartMs = now;
+    } else if (!ledcardsSleepLongPressFired && now - ledcardsSleepPressStartMs >= kLedcardsSleepLongPressMs) {
+      ledcardsSleepLongPressFired = true;
+      enterDisplaySleep();
+      data->state = LV_INDEV_STATE_REL;
+      return;
+    }
+    if (ledcardsSleepLongPressFired) {
+      data->state = LV_INDEV_STATE_REL;
+      return;
+    }
+#endif
     data->state = LV_INDEV_STATE_PR;
     data->point.x = x;
     data->point.y = y;
   } else {
+    if (displayAsleep && millis() - displaySleepEnteredMs >= kDisplayWakeCooldownMs) {
+      displaySleepWakeArmed = true;
+    }
+#if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
+    ledcardsSleepTouchActive = false;
+    ledcardsSleepLongPressFired = false;
+#endif
     data->state = LV_INDEV_STATE_REL;
   }
 }

@@ -1,6 +1,7 @@
 #include "lvgl.h"
 #include "ps_font_ddin_condensed_bold_60.c"
-#include "ps_font_ddin_condensed_bold_32.c"
+#include "ps_font_ddin_condensed_bold_40.c"
+#include "ps_icon_chart_32.c"
 
 #ifndef PS_NUT_HOME_STATE
 #define PS_NUT_HOME_STATE 0
@@ -71,19 +72,26 @@ static void top_status(lv_obj_t *screen, uint32_t batt_color, int batt_w) {
 }
 
 static void chart_button(lv_obj_t *screen) {
-    lv_obj_t *btn = box(screen, 263, 48, 34, 34, 17, 0x252927, 0x313733);
-    box(btn, 10, 18, 3, 8, 2, 0xd6dad6, 0);
-    box(btn, 16, 12, 3, 14, 2, 0xd6dad6, 0);
-    box(btn, 22, 21, 3, 5, 2, 0xd6dad6, 0);
+    lv_obj_t *hit = lv_obj_create(screen);
+    lv_obj_remove_style_all(hit);
+    lv_obj_set_pos(hit, 263, 61);
+    lv_obj_set_size(hit, 34, 34);
+    lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_t *icon = lv_label_create(hit);
+    lv_label_set_text(icon, "\xF3\xB1\x95\x8D");
+    lv_obj_set_style_text_font(icon, &ps_icon_chart_32, 0);
+    lv_obj_set_style_text_color(icon, C(0xd6dad6), 0);
+    lv_obj_set_style_bg_opa(icon, LV_OPA_TRANSP, 0);
+    lv_obj_center(icon);
 }
 
 static void tile(lv_obj_t *screen, int x, int y, const char *value, const char *name, const char *unit, uint32_t accent, uint32_t fill) {
     lv_obj_t *t = box(screen, x, y, 139, 46, 7, fill, 0x141e1b);
-    box(t, 7, 8, 5, 30, 3, accent, 0);
-    label(t, value, 20, 11, 58, &ps_font_ddin_condensed_bold_32, 0xf5f6f2);
+    box(t, 7, 8, 5, 28, 3, accent, 0);
+    label(t, value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
     lv_obj_t *name_l = label(t, name, 76, 6, 55, &lv_font_montserrat_14, 0xc9d0c9);
     lv_obj_set_style_text_align(name_l, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_t *unit_l = label(t, unit, 78, 27, 53, &lv_font_montserrat_10, 0x87918c);
+    lv_obj_t *unit_l = label(t, unit, 78, 23, 53, &lv_font_montserrat_10, 0x87918c);
     lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
 }
 

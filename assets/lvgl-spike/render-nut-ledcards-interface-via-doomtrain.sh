@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 root = Path('/home/martino/projects/m5stack-power-sentinel/assets/lvgl-spike')
 fixture = (root / 'power-sentinel-nut-ledcards-interface-fixture.c').read_text()
-fixture = fixture.replace('#include "ps_font_ddin_condensed_bold_60.c"\n#include "ps_font_ddin_condensed_bold_32.c"\n', '')
+fixture = fixture.replace('#include "ps_font_ddin_condensed_bold_60.c"\n#include "ps_font_ddin_condensed_bold_40.c"\n#include "ps_icon_chart_32.c"\n', '')
 # The LVGL MCP simulator currently exposes Montserrat 12+, while firmware also
 # has Montserrat 10. Use 12 only in the combined scratch source sent to MCP.
 fixture = fixture.replace('&lv_font_montserrat_10', '&lv_font_montserrat_12')
@@ -29,7 +29,9 @@ combined = (
     '/* Auto-generated combined LVGL MCP render fixture. Do not port this file to firmware. */\n'
     + prefix_font(root / 'ps_font_ddin_condensed_bold_60.c', 'ddin60')
     + '\n'
-    + prefix_font(root / 'ps_font_ddin_condensed_bold_32.c', 'ddin32')
+    + prefix_font(root / 'ps_font_ddin_condensed_bold_40.c', 'ddin40')
+    + '\n'
+    + prefix_font(root / 'ps_icon_chart_32.c', 'chart32')
     + '\n'
     + fixture
 )

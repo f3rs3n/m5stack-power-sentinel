@@ -200,10 +200,14 @@ The current firmware-test candidate is a real LVGL MCP fixture render, not a PIL
 - `firmware/core-s3-display/src/ledcards-interface-page.h` — small view adapter boundary between `main.cpp`/`SummaryState` and the Ledcards Interface renderer.
 - `assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c` — focused exploratory LVGL fixture for the fullscreen NUT/UPS adaptive overview.
 - `assets/lvgl-spike/ps_font_ddin_condensed_bold_60.c` — D-DIN metric font subset for the hero value.
-- `assets/lvgl-spike/ps_font_ddin_condensed_bold_32.c` — D-DIN metric font subset for mini-card numeric values.
+- `assets/lvgl-spike/ps_font_ddin_condensed_bold_40.c` — D-DIN metric font subset for mini-card numeric values, reduced from the earlier 42 px subset to prevent TTE clipping while staying close to the reference sample. The current mini-card LED is 28 px high at local `y=8`; the numeric value uses D-DIN 40 px at local `y=8`. Main mini-card labels sit at local `y=6`; sub/unit labels at local `y=23`.
 - `assets/lvgl-spike/render-nut-ledcards-interface-via-doomtrain.sh` — fallback renderer that builds the MCP-compatible combined source, renders six states on DOOMTRAIN, and copies the PNGs back.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-contact-sheet.png` — current six-state render sheet: nominal, on-battery, low-battery, stale, high-load, and input-low.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-vs-reference.png` — current six-state render sheet compared against the Ledcards Interface sample.
+
+Interaction note: the fullscreen Ledcards Interface page intentionally has no visible sleep button. In the `m5stack-cores3-ledcards-interface` firmware environment, a hidden 3 second long press anywhere on the screen calls the same display sleep path as the old HOME control (`psDisplaySetBrightness(0)`). Sleep wake is intentionally gated: after entering sleep, firmware requires at least a 1 second cooldown and a touch release before the next tap can wake the display, so the same held finger cannot immediately turn it back on.
+
+The live-test threshold used: no clipping in the rendered states, runtime label fits, mini-card values remain readable, abnormal states are visually stronger than nominal, and remaining defects are physical-panel polish only (Wi-Fi micro-icon, battery glyph, gamma/color tuning). The original static physical-panel test firmware belonged in a dedicated PlatformIO environment (`m5stack-cores3-ledcards-interface`) rather than a global default build flag; keep the default `m5stack-cores3` environment for normal five-tab firmware.
 
 Regenerate with:
 

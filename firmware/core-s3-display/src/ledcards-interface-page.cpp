@@ -8,7 +8,8 @@
 #include "lvgl.h"
 
 LV_FONT_DECLARE(ps_font_ddin_condensed_bold_60);
-LV_FONT_DECLARE(ps_font_ddin_condensed_bold_32);
+LV_FONT_DECLARE(ps_font_ddin_condensed_bold_40);
+LV_FONT_DECLARE(ps_icon_chart_32);
 
 namespace {
 
@@ -384,19 +385,26 @@ static void top_status(lv_obj_t *screen, const LedcardsInterfaceNutView &view, u
 }
 
 static void chart_button(lv_obj_t *screen) {
-  lv_obj_t *btn = box(screen, 263, 48, 34, 34, 17, 0x252927, 0x313733);
-  box(btn, 10, 18, 3, 8, 2, 0xd6dad6, 0);
-  box(btn, 16, 12, 3, 14, 2, 0xd6dad6, 0);
-  box(btn, 22, 21, 3, 5, 2, 0xd6dad6, 0);
+  lv_obj_t *hit = lv_obj_create(screen);
+  lv_obj_remove_style_all(hit);
+  lv_obj_set_pos(hit, 263, 61);
+  lv_obj_set_size(hit, 34, 34);
+  lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_t *icon = lv_label_create(hit);
+  lv_label_set_text(icon, "\xF3\xB1\x95\x8D");
+  lv_obj_set_style_text_font(icon, &ps_icon_chart_32, 0);
+  lv_obj_set_style_text_color(icon, C(0xd6dad6), 0);
+  lv_obj_set_style_bg_opa(icon, LV_OPA_TRANSP, 0);
+  lv_obj_center(icon);
 }
 
 static void tile(lv_obj_t *screen, int x, int y, const MetricRender &m) {
   lv_obj_t *t = box(screen, x, y, 139, 46, 7, m.fill, 0x141e1b);
-  box(t, 7, 8, 5, 30, 3, m.accent, 0);
-  label(t, m.value, 20, 11, 58, &ps_font_ddin_condensed_bold_32, 0xf5f6f2);
+  box(t, 7, 8, 5, 28, 3, m.accent, 0);
+  label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
   lv_obj_t *name_l = label(t, m.label, 76, 6, 55, &lv_font_montserrat_14, 0xc9d0c9);
   lv_obj_set_style_text_align(name_l, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_t *unit_l = label(t, m.unit, 78, 27, 53, &lv_font_montserrat_10, 0x87918c);
+  lv_obj_t *unit_l = label(t, m.unit, 78, 23, 53, &lv_font_montserrat_10, 0x87918c);
   lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
 }
 

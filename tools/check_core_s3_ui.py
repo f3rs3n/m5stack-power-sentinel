@@ -152,6 +152,7 @@ def main() -> int:
     ledcards_interface_header = ledcards_interface_h.read_text(encoding="utf-8")
     for needle in [
         "struct LedcardsInterfaceNutView", "createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)", "updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
+        "LV_FONT_DECLARE(ps_icon_chart_32)", "LV_FONT_DECLARE(ps_font_ddin_condensed_bold_40)", "&ps_font_ddin_condensed_bold_40", "box(t, 7, 8, 5, 28", "label(t, m.value, 20, 8", "label(t, m.label, 76, 6", "label(t, m.unit, 78, 23", "\\xF3\\xB1\\x95\\x8D", "lv_obj_set_pos(hit, 263, 61)", "lv_obj_set_size(hit, 34, 34)",
         "choose_hero_metric", "move_metric_to_front", "kHeroCooldownMs", "format_tte", "STATE_ON_BATTERY", "STATE_LOW_BATTERY",
         "STATE_STALE", "STATE_HIGH_LOAD", "STATE_INPUT_LOW", "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT",
     ]:
@@ -162,6 +163,9 @@ def main() -> int:
     for needle in ["LedcardsInterfaceNutView makeLedcardsInterfaceNutView()", "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())", "updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView())"]:
         if needle not in text:
             return fail(f"main firmware missing Ledcards Interface live-data hook {needle}")
+    for needle in ["kLedcardsSleepLongPressMs = 3000", "kDisplayWakeCooldownMs = 1000", "displaySleepWakeArmed", "ledcardsSleepPressStartMs", "enterDisplaySleep()", "wakeDisplay()", "POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY"]:
+        if needle not in text:
+            return fail(f"main firmware missing Ledcards Interface long-press sleep hook {needle}")
 
     if not SPIKE_BATCH_RENDER_SCRIPT.exists():
         return fail("LVGL MCP dashboard batch renderer is missing")
@@ -222,6 +226,13 @@ def main() -> int:
         return fail("generated sidebar Nerd Font subsets ps_ui_tab_12.c/ps_ui_tab_18.c are missing")
     font_text = font_file.read_text(encoding="utf-8")
     font_text_18 = font_file_18.read_text(encoding="utf-8")
+    chart_icon_file = ROOT / "firmware" / "core-s3-display" / "src" / "ps_icon_chart_32.c"
+    if not chart_icon_file.exists():
+        return fail("generated chart button Nerd Font subset ps_icon_chart_32.c is missing")
+    chart_icon_text = chart_icon_file.read_text(encoding="utf-8")
+    for needle in ["const lv_font_t ps_icon_chart_32", "0xF154D"]:
+        if needle not in chart_icon_text:
+            return fail(f"chart button Nerd Font subset missing {needle}")
     for needle in ["const lv_font_t ps_ui_tab_12", "0xF013", "0xF015", "0xF233", "0xF06F8", "0xF07D0"]:
         if needle not in font_text:
             return fail(f"sidebar Nerd Font subset missing {needle}")
