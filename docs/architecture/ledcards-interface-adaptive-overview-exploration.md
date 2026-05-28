@@ -33,7 +33,7 @@ For NUT/UPS, candidate priority order:
    - metric label/unit block at the right of the value, Ledcards Interface: `TTE` above `mm:ss`
    - state: `ON BATTERY`
    - accent: amber/red depending on severity
-   - avoid wrapping explanatory text below the hero value; if the value is too long, prefer `mm:ss` or minutes-only rather than a broken hero layout
+   - avoid wrapping explanatory text below the hero value; keep hero TTE as `mm:ss`, but use rounded whole minutes in supporting mini-cards
 2. low battery
    - hero value: battery percent, e.g. `18%`
    - label: `Battery`
@@ -119,7 +119,7 @@ Example nominal:
 
 ```text
 100   Battery   %      FULL
-57    TTE       m      18   Load   %
+57    TTE       mm     18   Load   %
 226   Input     V      1    NUT    client
 ```
 
@@ -135,7 +135,7 @@ Example stale:
 
 ```text
 --     UPS      stale  STALE 42s
---     Battery  %      --   TTE     mm:ss
+--     Battery  %      --   TTE     mm
 --     Load     %      --   Input   V
 ```
 
@@ -181,7 +181,7 @@ LVGL font implementation:
 
 ## Live firmware mapping
 
-The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_HOME_STATE` fixture constants. `main.cpp` normalizes the existing `SummaryState` into a narrow `LedcardsInterfaceNutView`; `ledcards-interface-page.cpp` owns only display logic. The accepted physical geometry is unchanged: hero top `33`, hero accent `19,33,7,79`, chart button hitbox `263,56,34,34`, mini rows `124` and `182`, mini-card size `142x46`, left/right margins `12`, inter-card gaps `12`, bottom margin `12`, accent height `28`.
+The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_HOME_STATE` fixture constants. `main.cpp` normalizes the existing `SummaryState` into a narrow `LedcardsInterfaceNutView`; `ledcards-interface-page.cpp` owns only display logic. The accepted physical geometry is unchanged except for the hero state line lowered to `y=99`: hero top `33`, hero accent `19,33,7,79`, hero state `45,99,142`, chart button hitbox `263,56,34,34`, mini rows `124` and `182`, mini-card size `142x46`, left/right margins `12`, inter-card gaps `12`, bottom margin `12`, accent height `28`.
 
 Runtime behavior:
 
@@ -190,7 +190,7 @@ Runtime behavior:
 3. Accepted hero swaps move that metric to the front of the five-slot metric stack. The four mini-cards are the remaining metrics in order, so the hero never appears twice.
 4. Tapping a mini-card temporarily promotes that metric to the hero for 60 seconds, overriding the default priority without permanently reordering the metric stack; after expiry the normal severity/priority hero selection resumes.
 5. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
-6. `TTE` uses `MM:SS` under one hour and minutes (`m`) for longer reserve values; this keeps the Ledcards Interface composition stable.
+6. `TTE` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with unit `mm` to avoid physical TFT clipping in the 142x46 card geometry.
 7. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.
 
 ## Render artifacts from exploration

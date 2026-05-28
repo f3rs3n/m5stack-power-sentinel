@@ -469,7 +469,7 @@
     {
       "type": "label",
       "x": 45,
-      "y": 94,
+      "y": 99,
       "w": 142,
       "h": 16,
       "text": "LOW BATTERY",
@@ -609,7 +609,7 @@
           "y": 23,
           "w": 53,
           "h": 15,
-          "text": "mm:ss",
+          "text": "mm",
           "styles": {
             "bg_color": "#ffffff",
             "bg_opa": 0,
@@ -632,7 +632,7 @@
           "y": 8,
           "w": 58,
           "h": 28,
-          "text": "06:24",
+          "text": "6",
           "styles": {
             "bg_color": "#ffffff",
             "bg_opa": 0,

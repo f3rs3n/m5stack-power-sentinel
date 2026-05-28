@@ -93,8 +93,8 @@ static void tile(lv_obj_t *screen, int x, int y, const char *value, const char *
     lv_obj_t *unit_l = label(t, unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c);
     lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
     // Keep the metric value visually on top of the right-side label/unit objects.
-    // On the physical CoreS3, the transparent label objects can still obscure the
-    // right edge of tight values such as TTE "06:24" more than the MCP render shows.
+    // Mini-card TTE is minutes-only because clock-form values such as "06:24"
+    // are too tight for this physical TFT/card geometry.
     label(t, value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
 }
 
@@ -163,7 +163,7 @@ static void render_nut_home(lv_obj_t *screen) {
     label(screen, hero_value, 43, 33, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
     label(screen, hero_label, label_x, 33, 72, &lv_font_montserrat_12, 0xbeb8a0);
     label(screen, hero_unit, label_x, 63, 72, &lv_font_montserrat_12, 0x968f78);
-    label(screen, hero_state, 45, 94, 142, &lv_font_montserrat_14, state_color);
+    label(screen, hero_state, 45, 99, 142, &lv_font_montserrat_14, state_color);
     chart_button(screen);
 
 #if PS_NUT_HOME_STATE == PS_NUT_STATE_ON_BATTERY
@@ -172,27 +172,27 @@ static void render_nut_home(lv_obj_t *screen) {
     tile(screen, 12, 182, "0", "Input", "V", 0xff4e3e, 0x200d0c);
     tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_LOW_BATTERY
-    tile(screen, 12, 124, "06:24", "TTE", "mm:ss", 0xfcca3d, 0x221c08);
+    tile(screen, 12, 124, "6", "TTE", "mm", 0xfcca3d, 0x221c08);
     tile(screen, 166, 124, "42", "Load", "%", 0x14dc78, 0x071c12);
     tile(screen, 12, 182, "0", "Input", "V", 0xff4e3e, 0x200d0c);
     tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_STALE
     tile(screen, 12, 124, "--", "Battery", "%", 0x6c7470, 0x101514);
-    tile(screen, 166, 124, "--", "TTE", "mm:ss", 0x6c7470, 0x101514);
+    tile(screen, 166, 124, "--", "TTE", "mm", 0x6c7470, 0x101514);
     tile(screen, 12, 182, "--", "Load", "%", 0x6c7470, 0x101514);
     tile(screen, 166, 182, "--", "Input", "V", 0x6c7470, 0x101514);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_HIGH_LOAD
     tile(screen, 12, 124, "92", "Battery", "%", 0x14dc78, 0x071c12);
-    tile(screen, 166, 124, "42", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 166, 124, "42", "TTE", "mm", 0x1cb5f0, 0x07161d);
     tile(screen, 12, 182, "226", "Input", "V", 0x14dc78, 0x071e14);
     tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_INPUT_LOW
     tile(screen, 12, 124, "88", "Battery", "%", 0x14dc78, 0x071c12);
-    tile(screen, 166, 124, "51", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 166, 124, "51", "TTE", "mm", 0x1cb5f0, 0x07161d);
     tile(screen, 12, 182, "24", "Load", "%", 0x14dc78, 0x071c12);
     tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);
 #else
-    tile(screen, 12, 124, "57", "TTE", "m", 0x1cb5f0, 0x07161d);
+    tile(screen, 12, 124, "57", "TTE", "mm", 0x1cb5f0, 0x07161d);
     tile(screen, 166, 124, "18", "Load", "%", 0x14dc78, 0x071c12);
     tile(screen, 12, 182, "226", "Input", "V", 0x14dc78, 0x071e14);
     tile(screen, 166, 182, "1", "NUT", "client", 0x1cb5f0, 0x07161d);

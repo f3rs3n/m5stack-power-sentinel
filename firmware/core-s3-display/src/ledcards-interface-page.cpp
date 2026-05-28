@@ -177,19 +177,24 @@ static void format_input_voltage(float value, char *buf, size_t len) {
   }
 }
 
-static void format_tte(int seconds, char *value, size_t valueLen, const char **unit) {
+static void format_tte_full(int seconds, char *value, size_t valueLen, const char **unit) {
   if (seconds < 0) {
     snprintf(value, valueLen, "--");
     *unit = "mm:ss";
     return;
   }
-  if (seconds < 3600) {
-    snprintf(value, valueLen, "%02d:%02d", seconds / 60, seconds % 60);
-    *unit = "mm:ss";
+  snprintf(value, valueLen, "%02d:%02d", seconds / 60, seconds % 60);
+  *unit = "mm:ss";
+}
+
+static void format_tte_minutes(int seconds, char *value, size_t valueLen, const char **unit) {
+  if (seconds < 0) {
+    snprintf(value, valueLen, "--");
+    *unit = "mm";
     return;
   }
-  snprintf(value, valueLen, "%d", seconds / 60);
-  *unit = "m";
+  snprintf(value, valueLen, "%d", (seconds + 30) / 60);
+  *unit = "mm";
 }
 
 static const char *battery_state_text(const LedcardsInterfaceNutView &view) {
@@ -201,7 +206,7 @@ static const char *battery_state_text(const LedcardsInterfaceNutView &view) {
   return "GOOD";
 }
 
-static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &view) {
+static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &view, bool compactTte = false) {
   MetricRender m{};
   m.kind = kind;
   m.state = STATE_NOMINAL;
@@ -227,8 +232,13 @@ static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &
   }
 
   if (kind == METRIC_TTE) {
-    const char *unit = "mm:ss";
-    format_tte((view.offline || !view.upsAvailable || view.upsStale) ? -1 : view.runtimeSeconds, m.value, sizeof(m.value), &unit);
+    const char *unit = compactTte ? "mm" : "mm:ss";
+    int runtimeSeconds = (view.offline || !view.upsAvailable || view.upsStale) ? -1 : view.runtimeSeconds;
+    if (compactTte) {
+      format_tte_minutes(runtimeSeconds, m.value, sizeof(m.value), &unit);
+    } else {
+      format_tte_full(runtimeSeconds, m.value, sizeof(m.value), &unit);
+    }
     m.label = "TTE";
     m.unit = unit;
     if (view.offline || !view.upsAvailable || view.upsStale) {
@@ -436,8 +446,8 @@ static void tile(lv_obj_t *screen, int x, int y, const MetricRender &m) {
   lv_obj_t *unit_l = label(t, m.unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c);
   lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
   // Keep the metric value visually on top of the right-side label/unit objects.
-  // On the physical CoreS3, the transparent label objects can still obscure the
-  // right edge of tight values such as TTE "06:24" more than the MCP render shows.
+  // Mini-card TTE is minutes-only because clock-form values such as "06:24"
+  // are too tight for this physical TFT/card geometry.
   label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
   lv_obj_t *hit = lv_obj_create(t);
   lv_obj_remove_style_all(hit);
@@ -472,7 +482,7 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   label(screen, hero.value, 43, 33, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
   label(screen, hero.label, label_x, 33, 72, &lv_font_montserrat_12, 0xbeb8a0);
   label(screen, hero.unit, label_x, 63, 72, &lv_font_montserrat_12, 0x968f78);
-  label(screen, hero.stateText, 45, 94, 142, &lv_font_montserrat_14, hero.stateColor);
+  label(screen, hero.stateText, 45, 99, 142, &lv_font_montserrat_14, hero.stateColor);
   chart_button(screen);
 
   int rendered = 0;
@@ -480,7 +490,7 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   const int ys[4] = {124, 124, 182, 182};
   for (int i = 0; i < 5 && rendered < 4; ++i) {
     if (metricOrder[i] == heroKind) continue;
-    tile(screen, xs[rendered], ys[rendered], metric_for(metricOrder[i], view));
+    tile(screen, xs[rendered], ys[rendered], metric_for(metricOrder[i], view, true));
     ++rendered;
   }
 }

@@ -469,7 +469,7 @@
     {
       "type": "label",
       "x": 45,
-      "y": 94,
+      "y": 99,
       "w": 142,
       "h": 16,
       "text": "STALE 42s",
@@ -724,7 +724,7 @@
           "y": 23,
           "w": 53,
           "h": 15,
-          "text": "mm:ss",
+          "text": "mm",
           "styles": {
             "bg_color": "#ffffff",
             "bg_opa": 0,
