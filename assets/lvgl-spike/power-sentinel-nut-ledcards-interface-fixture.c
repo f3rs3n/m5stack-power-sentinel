@@ -159,11 +159,11 @@ static void render_nut_home(lv_obj_t *screen) {
     int label_x = 124;
 #endif
 
-    box(screen, 19, 33, 7, 79, 4, hero_accent, 0);
+    box(screen, 19, 33, 7, 76, 4, hero_accent, 0);
     label(screen, hero_value, 43, 33, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
     label(screen, hero_label, label_x, 33, 72, &lv_font_montserrat_12, 0xbeb8a0);
     label(screen, hero_unit, label_x, 63, 72, &lv_font_montserrat_12, 0x968f78);
-    label(screen, hero_state, 45, 99, 142, &lv_font_montserrat_14, state_color);
+    label(screen, hero_state, 45, 96, 142, &lv_font_montserrat_14, state_color);
     chart_button(screen);
 
 #if PS_NUT_HOME_STATE == PS_NUT_STATE_ON_BATTERY

@@ -478,11 +478,11 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   top_status(screen, view, hero.accent);
 
   int label_x = hero_label_x(hero);
-  box(screen, 19, 33, 7, 79, 4, hero.accent, 0);
+  box(screen, 19, 33, 7, 76, 4, hero.accent, 0);
   label(screen, hero.value, 43, 33, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
   label(screen, hero.label, label_x, 33, 72, &lv_font_montserrat_12, 0xbeb8a0);
   label(screen, hero.unit, label_x, 63, 72, &lv_font_montserrat_12, 0x968f78);
-  label(screen, hero.stateText, 45, 99, 142, &lv_font_montserrat_14, hero.stateColor);
+  label(screen, hero.stateText, 45, 96, 142, &lv_font_montserrat_14, hero.stateColor);
   chart_button(screen);
 
   int rendered = 0;

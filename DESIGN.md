@@ -255,11 +255,11 @@ Top micro-status row:
 
 Hero region:
 
-- vertical semantic LED/accent pill at `x=19 y=33 w=7 h=79 r=4`;
+- vertical semantic LED/accent pill at `x=19 y=33 w=7 h=76 r=4`;
 - hero metric at `x=43 y=33 w=120`, D-DIN Condensed Bold 60;
 - hero side label at `y=33`, Montserrat 12;
 - hero side unit at `y=63`, Montserrat 12;
-- hero state line at `x=45 y=99 w=142`, Montserrat 14;
+- hero state line at `x=45 y=96 w=142`, Montserrat 14;
 - contextual chart/detail hitbox at `x=263 y=56 w=34 h=34`, containing the bare chart icon.
 
 Mini-card grid:

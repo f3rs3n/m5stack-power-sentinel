@@ -181,7 +181,7 @@ LVGL font implementation:
 
 ## Live firmware mapping
 
-The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_HOME_STATE` fixture constants. `main.cpp` normalizes the existing `SummaryState` into a narrow `LedcardsInterfaceNutView`; `ledcards-interface-page.cpp` owns only display logic. The accepted physical geometry is unchanged except for the hero state line lowered to `y=99`: hero top `33`, hero accent `19,33,7,79`, hero state `45,99,142`, chart button hitbox `263,56,34,34`, mini rows `124` and `182`, mini-card size `142x46`, left/right margins `12`, inter-card gaps `12`, bottom margin `12`, accent height `28`.
+The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_HOME_STATE` fixture constants. `main.cpp` normalizes the existing `SummaryState` into a narrow `LedcardsInterfaceNutView`; `ledcards-interface-page.cpp` owns only display logic. Current physical geometry: hero top `33`, hero accent `19,33,7,76`, hero state `45,96,142`, chart button hitbox `263,56,34,34`, mini rows `124` and `182`, mini-card size `142x46`, left/right margins `12`, inter-card gaps `12`, bottom margin `12`, accent height `28`.
 
 Runtime behavior:
 
