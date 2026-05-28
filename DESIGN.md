@@ -348,12 +348,12 @@ Selection/ordering rule:
 
 1. Pick candidate hero metric by severity/usefulness.
 2. Apply a short hero-swap cooldown before accepting a different hero, so transient sensor flips do not cause rapid visual churn. Start with a few seconds; tune on hardware after observing real data jitter.
-3. When a hero swap is accepted, move that metric to position `n1` in the ordered five-slot stack and keep the previous hero/order behind it by recency of hero appearance.
-4. Render positions `n2` and `n3` as the first mini-card row, and positions `n4` and `n5` as the second mini-card row.
-5. If no swap is accepted, preserve the current ordering.
-6. A mini-card tap may temporarily promote that metric to hero for 60 seconds. This touch override does not permanently reorder the five-slot stack; when it expires, normal severity/priority hero selection resumes.
+3. When a hero swap is accepted, rotate the directional five-slot ring forward until the selected metric reaches `HERO`; do not move/promote it as a list item.
+4. Render slot `1` as top-right, slot `2` as bottom-right, slot `3` as bottom-left, and slot `4` as top-left.
+5. If no swap is accepted, preserve the current ring order.
+6. A mini-card tap may temporarily rotate that metric to hero for 60 seconds. When the override expires, normal severity/priority hero selection resumes and may rotate the ring again.
 
-This means the mini-card order is a product of accepted hero swaps, not a static table. The current hero is never duplicated in the mini-cards.
+This means the mini-card order is a product of accepted ring rotations, not a static table or row-major list. The current hero is never duplicated in the mini-cards.
 
 Examples:
 
@@ -365,6 +365,14 @@ Examples:
 - Hero `Input` from the default ring -> mini-cards should be `NUT client` top-right, `Battery` bottom-right, `TTE` bottom-left, `Load` top-left.
 
 Do not keep a mini-card just because the old static grid had it. If the hero already shows that field, swap in the next useful fact.
+
+Animation contract:
+
+- Accepted automatic swaps and touch overrides should visually move the current metric cards as a short chain along the same ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
+- The implementation may use compact ghost cards for the hero/mini handoff; the final committed frame must normalize back to the exact hero and mini-card templates above.
+- Animation should be short (~200 ms), position-only, and clip-safe. Avoid blur, glass, shadows, full-screen transforms, or expensive opacity over large regions.
+- While a ring animation is active, ignore/debounce further mini-card touches and queue the latest telemetry view for the final redraw.
+- Static fallback/final render must preserve the phase-1 ring semantics even if animation is unavailable.
 
 #### Hero state label contract
 

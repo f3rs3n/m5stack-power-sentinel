@@ -63,8 +63,19 @@ MetricKind touchHeroOverrideMetric = METRIC_BATTERY;
 uint32_t touchHeroOverrideUntilMs = 0;
 LedcardsInterfaceNutView lastRenderedView{};
 bool hasLastRenderedView = false;
+bool ringAnimationActive = false;
+lv_obj_t *ringAnimationOverlay = nullptr;
+LedcardsInterfaceNutView pendingAnimationView{};
+bool hasPendingAnimationView = false;
+
+struct SlotPosition {
+  int x;
+  int y;
+};
 
 static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
+static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
+static void start_ring_transition(lv_obj_t *screen, MetricKind target, const LedcardsInterfaceNutView &view);
 
 static lv_color_t C(uint32_t hex) { return lv_color_hex(hex); }
 
@@ -364,18 +375,27 @@ static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
 //   slot 3 bottom-left -> slot 4 top-left -> HERO.
 // Promoting any metric rotates the whole ring forward until that metric reaches HERO,
 // preserving the circular order seen on the reference device.
-static void rotate_metric_to_hero(MetricKind kind) {
-  int pos = -1;
+static int find_metric_slot_in_order(const MetricKind order[5], MetricKind kind) {
   for (int i = 0; i < 5; ++i) {
-    if (metricOrder[i] == kind) pos = i;
+    if (order[i] == kind) return i;
   }
+  return -1;
+}
+
+static void rotate_order_to_hero(const MetricKind source[5], MetricKind kind, MetricKind dest[5]) {
+  for (int i = 0; i < 5; ++i) dest[i] = source[i];
+  int pos = find_metric_slot_in_order(source, kind);
   if (pos <= 0) return;
-  MetricKind old[5];
-  for (int i = 0; i < 5; ++i) old[i] = metricOrder[i];
   int steps = (5 - pos) % 5;
   for (int i = 0; i < 5; ++i) {
-    metricOrder[(i + steps) % 5] = old[i];
+    dest[(i + steps) % 5] = source[i];
   }
+}
+
+static void rotate_metric_to_hero(MetricKind kind) {
+  MetricKind rotated[5];
+  rotate_order_to_hero(metricOrder, kind, rotated);
+  for (int i = 0; i < 5; ++i) metricOrder[i] = rotated[i];
 }
 
 static MetricKind accepted_hero_metric(const LedcardsInterfaceNutView &view) {
@@ -388,8 +408,8 @@ static MetricKind accepted_hero_metric(const LedcardsInterfaceNutView &view) {
   MetricKind candidate = choose_hero_metric(view);
   if (candidate == metricOrder[0]) return candidate;
   if (lastHeroSwapMs == 0 || view.nowMillis - lastHeroSwapMs >= kHeroCooldownMs) {
-    rotate_metric_to_hero(candidate);
     lastHeroSwapMs = view.nowMillis;
+    return candidate;
   }
   return metricOrder[0];
 }
@@ -431,23 +451,18 @@ static void chart_button(lv_obj_t *screen) {
   lv_obj_center(icon);
 }
 
-static void refresh_after_touch_override(void *) {
-  if (hasLastRenderedView) render_nut_home(lv_screen_active(), lastRenderedView);
-}
-
 static void on_tile_clicked(lv_event_t *event) {
-  if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
+  if (lv_event_get_code(event) != LV_EVENT_CLICKED || ringAnimationActive) return;
   uintptr_t raw = reinterpret_cast<uintptr_t>(lv_event_get_user_data(event));
   if (raw >= 5) return;
   touchHeroOverrideMetric = static_cast<MetricKind>(raw);
   uint32_t now = millis();
   touchHeroOverrideUntilMs = now + kTouchHeroOverrideMs;
   touchHeroOverrideActive = true;
-  rotate_metric_to_hero(touchHeroOverrideMetric);
-  if (hasLastRenderedView) lv_async_call(refresh_after_touch_override, nullptr);
+  if (hasLastRenderedView) start_ring_transition(lv_screen_active(), touchHeroOverrideMetric, lastRenderedView);
 }
 
-static void tile(lv_obj_t *screen, int x, int y, const MetricRender &m) {
+static lv_obj_t *tile(lv_obj_t *screen, int x, int y, const MetricRender &m, bool clickable = true) {
   lv_obj_t *t = box(screen, x, y, 142, 46, 7, m.fill, 0x141e1b);
   box(t, 7, 8, 5, 28, 3, m.accent, 0);
   lv_obj_t *name_l = label(t, m.label, 76, 6, 55, &lv_font_montserrat_12, 0xc9d0c9);
@@ -458,13 +473,110 @@ static void tile(lv_obj_t *screen, int x, int y, const MetricRender &m) {
   // Mini-card TTE is minutes-only because clock-form values such as "06:24"
   // are too tight for this physical TFT/card geometry.
   label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
-  lv_obj_t *hit = lv_obj_create(t);
-  lv_obj_remove_style_all(hit);
-  lv_obj_set_size(hit, 142, 46);
-  lv_obj_set_pos(hit, 0, 0);
-  lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
-  lv_obj_add_event_cb(hit, on_tile_clicked, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<uintptr_t>(m.kind)));
+  if (clickable) {
+    lv_obj_t *hit = lv_obj_create(t);
+    lv_obj_remove_style_all(hit);
+    lv_obj_set_size(hit, 142, 46);
+    lv_obj_set_pos(hit, 0, 0);
+    lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_event_cb(hit, on_tile_clicked, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<uintptr_t>(m.kind)));
+  }
+  return t;
+}
+
+static SlotPosition slot_position(int slot) {
+  switch (slot) {
+    case 0: return {43, 57};
+    case 1: return {166, 124};
+    case 2: return {166, 182};
+    case 3: return {12, 182};
+    default: return {12, 124};
+  }
+}
+
+static void anim_set_x(void *obj, int32_t v) { lv_obj_set_x(static_cast<lv_obj_t *>(obj), v); }
+static void anim_set_y(void *obj, int32_t v) { lv_obj_set_y(static_cast<lv_obj_t *>(obj), v); }
+
+static void finish_ring_animation_async(void *) {
+  lv_obj_t *screen = lv_screen_active();
+  if (ringAnimationOverlay) {
+    lv_obj_delete(ringAnimationOverlay);
+    ringAnimationOverlay = nullptr;
+  }
+  ringAnimationActive = false;
+  LedcardsInterfaceNutView view = hasPendingAnimationView ? pendingAnimationView : lastRenderedView;
+  hasPendingAnimationView = false;
+  draw_nut_home_static(screen, view);
+}
+
+static void finish_ring_animation(lv_anim_t *) {
+  lv_async_call(finish_ring_animation_async, nullptr);
+}
+
+static void animate_obj_pos(lv_obj_t *obj, SlotPosition from, SlotPosition to, bool finish) {
+  constexpr uint32_t kRingAnimationMs = 210;
+  lv_anim_t ax;
+  lv_anim_init(&ax);
+  lv_anim_set_var(&ax, obj);
+  lv_anim_set_values(&ax, from.x, to.x);
+  lv_anim_set_duration(&ax, kRingAnimationMs);
+  lv_anim_set_exec_cb(&ax, anim_set_x);
+  lv_anim_start(&ax);
+
+  lv_anim_t ay;
+  lv_anim_init(&ay);
+  lv_anim_set_var(&ay, obj);
+  lv_anim_set_values(&ay, from.y, to.y);
+  lv_anim_set_duration(&ay, kRingAnimationMs);
+  lv_anim_set_exec_cb(&ay, anim_set_y);
+  if (finish) lv_anim_set_completed_cb(&ay, finish_ring_animation);
+  lv_anim_start(&ay);
+}
+
+static void start_ring_transition(lv_obj_t *screen, MetricKind target, const LedcardsInterfaceNutView &view) {
+  if (ringAnimationActive) {
+    pendingAnimationView = view;
+    hasPendingAnimationView = true;
+    return;
+  }
+  if (target == metricOrder[0]) {
+    draw_nut_home_static(screen, view);
+    return;
+  }
+
+  MetricKind oldOrder[5];
+  MetricKind newOrder[5];
+  for (int i = 0; i < 5; ++i) oldOrder[i] = metricOrder[i];
+  rotate_order_to_hero(oldOrder, target, newOrder);
+  if (newOrder[0] == oldOrder[0]) {
+    draw_nut_home_static(screen, view);
+    return;
+  }
+
+  const LedcardsInterfaceNutView overlayView = hasLastRenderedView ? lastRenderedView : view;
+  for (int i = 0; i < 5; ++i) metricOrder[i] = newOrder[i];
+  pendingAnimationView = view;
+  hasPendingAnimationView = true;
+  ringAnimationActive = true;
+
+  if (ringAnimationOverlay) lv_obj_delete(ringAnimationOverlay);
+  ringAnimationOverlay = lv_obj_create(screen);
+  lv_obj_remove_style_all(ringAnimationOverlay);
+  lv_obj_set_pos(ringAnimationOverlay, 0, 0);
+  lv_obj_set_size(ringAnimationOverlay, 320, 240);
+  lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_scrollbar_mode(ringAnimationOverlay, LV_SCROLLBAR_MODE_OFF);
+
+  for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
+    MetricKind kind = oldOrder[oldSlot];
+    int newSlot = find_metric_slot_in_order(newOrder, kind);
+    SlotPosition from = slot_position(oldSlot);
+    SlotPosition to = slot_position(newSlot < 0 ? oldSlot : newSlot);
+    lv_obj_t *ghost = tile(ringAnimationOverlay, from.x, from.y, metric_for(kind, overlayView, true), false);
+    lv_obj_set_style_opa(ghost, LV_OPA_80, 0);
+    animate_obj_pos(ghost, from, to, oldSlot == 4);
+  }
 }
 
 static int hero_label_x(const MetricRender &hero) {
@@ -474,7 +586,7 @@ static int hero_label_x(const MetricRender &hero) {
   return 96;
 }
 
-static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view) {
+static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutView &view) {
   lastRenderedView = view;
   hasLastRenderedView = true;
   lv_obj_clean(screen);
@@ -482,7 +594,7 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
   set_no_border(screen);
 
-  MetricKind heroKind = accepted_hero_metric(view);
+  MetricKind heroKind = metricOrder[0];
   MetricRender hero = metric_for(heroKind, view);
   top_status(screen, view, hero.accent);
 
@@ -499,6 +611,20 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   for (int i = 1; i < 5; ++i) {
     tile(screen, xs[i - 1], ys[i - 1], metric_for(metricOrder[i], view, true));
   }
+}
+
+static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view) {
+  if (ringAnimationActive) {
+    pendingAnimationView = view;
+    hasPendingAnimationView = true;
+    return;
+  }
+  MetricKind target = accepted_hero_metric(view);
+  if (target != metricOrder[0]) {
+    start_ring_transition(screen, target, view);
+    return;
+  }
+  draw_nut_home_static(screen, view);
 }
 
 }  // namespace

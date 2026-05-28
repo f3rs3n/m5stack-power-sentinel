@@ -188,10 +188,11 @@ Runtime behavior:
 1. Hero candidate priority is stale/unavailable -> `NUT`, low battery -> `Battery`, on battery -> `TTE`, high load -> `Load`, marginal input -> `Input`, otherwise `Battery`.
 2. The active hero is held behind `kHeroCooldownMs` so noisy telemetry does not flicker the whole page.
 3. Accepted hero swaps rotate the directional five-slot ring (`HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`) until that metric reaches `HERO`. The four mini-cards are the next four ring slots, so the hero never appears twice and circular order is preserved.
-4. Tapping a mini-card temporarily rotates that metric to the hero for 60 seconds, overriding the default priority. After expiry the normal severity/priority hero selection resumes and may rotate the ring again after cooldown.
-5. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
-6. `TTE` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with generic unit `m` to avoid physical TFT clipping in the 142x46 card geometry and to fit single-digit values cleanly.
-7. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.
+4. The live page now animates accepted automatic swaps and touch overrides with a short (~210 ms) position-only chain: compact ghost cards move from their old slots to their new slots, touch is blocked during the transition, and the final frame redraws with the exact hero/mini templates.
+5. Tapping a mini-card temporarily rotates that metric to the hero for 60 seconds, overriding the default priority. After expiry the normal severity/priority hero selection resumes and may rotate the ring again after cooldown.
+6. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
+7. `TTE` is context-sensitive: hero uses full `mm:ss`; mini-cards use rounded whole minutes with generic unit `m` to avoid physical TFT clipping in the 142x46 card geometry and to fit single-digit values cleanly.
+8. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.
 
 ## Render artifacts from exploration
 
