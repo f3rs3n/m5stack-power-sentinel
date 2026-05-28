@@ -16,6 +16,7 @@ MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 SPIKE_DIR = ROOT / "assets" / "lvgl-spike"
 SPIKE_HOME_FIXTURE = SPIKE_DIR / "power-sentinel-home-online.c"
 SPIKE_DASHBOARD_FIXTURE = SPIKE_DIR / "power-sentinel-dashboard-fixture.c"
+SPIKE_NUT_LEDCARDS_FIXTURE = SPIKE_DIR / "power-sentinel-nut-ledcards-interface-fixture.c"
 SPIKE_RENDER_SCRIPT = SPIKE_DIR / "run-lvgl-mcp-render.mjs"
 SPIKE_BATCH_RENDER_SCRIPT = SPIKE_DIR / "render-power-sentinel-tabs.mjs"
 EXPECTED_TAB_LABEL_MARKERS = ["PS_ICON_HOME", "PS_ICON_NUT", "PS_ICON_SERVER", "PS_ICON_HOME_ASSISTANT", "PS_ICON_SETTINGS"]
@@ -152,12 +153,25 @@ def main() -> int:
     ledcards_interface_header = ledcards_interface_h.read_text(encoding="utf-8")
     for needle in [
         "struct LedcardsInterfaceNutView", "createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)", "updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
-        "LV_FONT_DECLARE(ps_icon_chart_32)", "LV_FONT_DECLARE(ps_font_ddin_condensed_bold_40)", "&ps_font_ddin_condensed_bold_40", "box(t, 7, 8, 5, 28", "label(t, m.value, 20, 8", "label(t, m.label, 76, 6", "label(t, m.unit, 78, 23", "\\xF3\\xB1\\x95\\x8D", "lv_obj_set_pos(hit, 263, 61)", "lv_obj_set_size(hit, 34, 34)",
-        "choose_hero_metric", "move_metric_to_front", "kHeroCooldownMs", "format_tte", "STATE_ON_BATTERY", "STATE_LOW_BATTERY",
+        "LV_FONT_DECLARE(ps_icon_chart_32)", "LV_FONT_DECLARE(ps_font_ddin_condensed_bold_40)", "&ps_font_ddin_condensed_bold_40", "box(screen, x, y, 142, 46", "box(t, 7, 8, 5, 28", "label(t, m.value, 20, 8", "label(t, m.label, 76, 6", "label(t, m.unit, 78, 23", "box(screen, 19, 33, 7, 79", "label(screen, hero.label, label_x, 33, 72, &lv_font_montserrat_12", "label(screen, hero.unit, label_x, 63, 72, &lv_font_montserrat_12", "const int xs[4] = {12, 166, 12, 166}", "const int ys[4] = {124, 124, 182, 182}", "\\xF3\\xB1\\x95\\x8D", "lv_obj_set_pos(hit, 263, 56)", "lv_obj_set_size(hit, 34, 34)",
+        "choose_hero_metric", "move_metric_to_front", "kHeroCooldownMs", "kTouchHeroOverrideMs = 60000", "on_tile_clicked", "touchHeroOverrideMetric", "format_tte", "STATE_ON_BATTERY", "STATE_LOW_BATTERY",
         "STATE_STALE", "STATE_HIGH_LOAD", "STATE_INPUT_LOW", "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT",
     ]:
         if needle not in ledcards_interface_text + "\n" + ledcards_interface_header:
             return fail(f"Ledcards Interface live-data adapter missing {needle}")
+    mini_value_marker = "label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2)"
+    mini_name_marker = "label(t, m.label, 76, 6, 55, &lv_font_montserrat_12, 0xc9d0c9)"
+    mini_unit_marker = "label(t, m.unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c)"
+    mini_value_idx = ledcards_interface_text.find(mini_value_marker)
+    mini_name_idx = ledcards_interface_text.find(mini_name_marker)
+    mini_unit_idx = ledcards_interface_text.find(mini_unit_marker)
+    if mini_value_idx == -1 or mini_name_idx == -1 or mini_unit_idx == -1:
+        return fail("Ledcards Interface mini-card missing value/unit foreground markers")
+    if mini_value_idx < mini_unit_idx:
+        return fail("Ledcards Interface mini-card value must be created after label/unit objects so it stays in foreground")
+    for needle in ["lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE)", "lv_obj_add_event_cb(hit, on_tile_clicked, LV_EVENT_CLICKED", "lv_async_call(refresh_after_touch_override, nullptr)"]:
+        if needle not in ledcards_interface_text:
+            return fail(f"Ledcards Interface mini-card touch-to-hero override missing {needle}")
     if "PS_NUT_HOME_STATE ==" in ledcards_interface_text:
         return fail("Ledcards Interface firmware page must no longer be selected by compile-time PS_NUT_HOME_STATE")
     for needle in ["LedcardsInterfaceNutView makeLedcardsInterfaceNutView()", "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())", "updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView())"]:
@@ -220,6 +234,20 @@ def main() -> int:
             return fail(f"LVGL MCP dashboard fixture missing {needle!r}")
     if "lv_obj_t *box = lv_obj_create(parent);" in dashboard_fixture:
         return fail("LVGL MCP dashboard fixture PVE metrics drifted from firmware: wrapper box reintroduced")
+
+    if not SPIKE_NUT_LEDCARDS_FIXTURE.exists():
+        return fail("LVGL MCP NUT Ledcards visual fixture is missing")
+    nut_ledcards_fixture = SPIKE_NUT_LEDCARDS_FIXTURE.read_text(encoding="utf-8")
+    fixture_value_marker = "label(t, value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2)"
+    fixture_name_marker = "label(t, name, 76, 6, 55, &lv_font_montserrat_12, 0xc9d0c9)"
+    fixture_unit_marker = "label(t, unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c)"
+    fixture_value_idx = nut_ledcards_fixture.find(fixture_value_marker)
+    fixture_name_idx = nut_ledcards_fixture.find(fixture_name_marker)
+    fixture_unit_idx = nut_ledcards_fixture.find(fixture_unit_marker)
+    if fixture_value_idx == -1 or fixture_name_idx == -1 or fixture_unit_idx == -1:
+        return fail("LVGL MCP NUT Ledcards fixture missing mini-card value/unit foreground markers")
+    if fixture_value_idx < fixture_unit_idx:
+        return fail("LVGL MCP NUT Ledcards fixture mini-card value must be created after label/unit objects so it stays in foreground")
     font_file = ROOT / "firmware" / "core-s3-display" / "src" / "ps_ui_tab_12.c"
     font_file_18 = ROOT / "firmware" / "core-s3-display" / "src" / "ps_ui_tab_18.c"
     if not font_file.exists() or not font_file_18.exists():

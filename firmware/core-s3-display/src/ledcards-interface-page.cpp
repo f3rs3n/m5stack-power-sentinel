@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "Arduino.h"
 #include "lvgl.h"
 
 LV_FONT_DECLARE(ps_font_ddin_condensed_bold_60);
@@ -52,10 +53,18 @@ constexpr uint32_t kRedText = 0xff6a57;
 constexpr uint32_t kGray = 0x6c7470;
 constexpr uint32_t kGrayText = 0xc1c5c1;
 constexpr uint32_t kHeroCooldownMs = 5000;
+constexpr uint32_t kTouchHeroOverrideMs = 60000;
 
 MetricKind metricOrder[5] = {METRIC_BATTERY, METRIC_TTE, METRIC_LOAD, METRIC_INPUT, METRIC_NUT};
 uint32_t lastHeroSwapMs = 0;
 bool ledcardsInterfaceCreated = false;
+bool touchHeroOverrideActive = false;
+MetricKind touchHeroOverrideMetric = METRIC_BATTERY;
+uint32_t touchHeroOverrideUntilMs = 0;
+LedcardsInterfaceNutView lastRenderedView{};
+bool hasLastRenderedView = false;
+
+static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
 
 static lv_color_t C(uint32_t hex) { return lv_color_hex(hex); }
 
@@ -352,6 +361,12 @@ static void move_metric_to_front(MetricKind kind) {
 }
 
 static MetricKind accepted_hero_metric(const LedcardsInterfaceNutView &view) {
+  if (touchHeroOverrideActive) {
+    if ((int32_t)(touchHeroOverrideUntilMs - view.nowMillis) > 0) {
+      return touchHeroOverrideMetric;
+    }
+    touchHeroOverrideActive = false;
+  }
   MetricKind candidate = choose_hero_metric(view);
   if (candidate == metricOrder[0]) return candidate;
   if (lastHeroSwapMs == 0 || view.nowMillis - lastHeroSwapMs >= kHeroCooldownMs) {
@@ -387,7 +402,7 @@ static void top_status(lv_obj_t *screen, const LedcardsInterfaceNutView &view, u
 static void chart_button(lv_obj_t *screen) {
   lv_obj_t *hit = lv_obj_create(screen);
   lv_obj_remove_style_all(hit);
-  lv_obj_set_pos(hit, 263, 61);
+  lv_obj_set_pos(hit, 263, 56);
   lv_obj_set_size(hit, 34, 34);
   lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
   lv_obj_t *icon = lv_label_create(hit);
@@ -398,14 +413,39 @@ static void chart_button(lv_obj_t *screen) {
   lv_obj_center(icon);
 }
 
+static void refresh_after_touch_override(void *) {
+  if (hasLastRenderedView) render_nut_home(lv_screen_active(), lastRenderedView);
+}
+
+static void on_tile_clicked(lv_event_t *event) {
+  if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
+  uintptr_t raw = reinterpret_cast<uintptr_t>(lv_event_get_user_data(event));
+  if (raw >= 5) return;
+  touchHeroOverrideMetric = static_cast<MetricKind>(raw);
+  uint32_t now = millis();
+  touchHeroOverrideUntilMs = now + kTouchHeroOverrideMs;
+  touchHeroOverrideActive = true;
+  if (hasLastRenderedView) lv_async_call(refresh_after_touch_override, nullptr);
+}
+
 static void tile(lv_obj_t *screen, int x, int y, const MetricRender &m) {
-  lv_obj_t *t = box(screen, x, y, 139, 46, 7, m.fill, 0x141e1b);
+  lv_obj_t *t = box(screen, x, y, 142, 46, 7, m.fill, 0x141e1b);
   box(t, 7, 8, 5, 28, 3, m.accent, 0);
-  label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
-  lv_obj_t *name_l = label(t, m.label, 76, 6, 55, &lv_font_montserrat_14, 0xc9d0c9);
+  lv_obj_t *name_l = label(t, m.label, 76, 6, 55, &lv_font_montserrat_12, 0xc9d0c9);
   lv_obj_set_style_text_align(name_l, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_t *unit_l = label(t, m.unit, 78, 23, 53, &lv_font_montserrat_10, 0x87918c);
+  lv_obj_t *unit_l = label(t, m.unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c);
   lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
+  // Keep the metric value visually on top of the right-side label/unit objects.
+  // On the physical CoreS3, the transparent label objects can still obscure the
+  // right edge of tight values such as TTE "06:24" more than the MCP render shows.
+  label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
+  lv_obj_t *hit = lv_obj_create(t);
+  lv_obj_remove_style_all(hit);
+  lv_obj_set_size(hit, 142, 46);
+  lv_obj_set_pos(hit, 0, 0);
+  lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_event_cb(hit, on_tile_clicked, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<uintptr_t>(m.kind)));
 }
 
 static int hero_label_x(const MetricRender &hero) {
@@ -416,6 +456,8 @@ static int hero_label_x(const MetricRender &hero) {
 }
 
 static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view) {
+  lastRenderedView = view;
+  hasLastRenderedView = true;
   lv_obj_clean(screen);
   lv_obj_set_style_bg_color(screen, C(0x040607), 0);
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
@@ -426,16 +468,16 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   top_status(screen, view, hero.accent);
 
   int label_x = hero_label_x(hero);
-  box(screen, 20, 38, 7, 79, 4, hero.accent, 0);
-  label(screen, hero.value, 43, 38, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
-  label(screen, hero.label, label_x, 38, 72, &lv_font_montserrat_14, 0xbeb8a0);
-  label(screen, hero.unit, label_x, 68, 72, &lv_font_montserrat_10, 0x968f78);
-  label(screen, hero.stateText, 45, 99, 142, &lv_font_montserrat_14, hero.stateColor);
+  box(screen, 19, 33, 7, 79, 4, hero.accent, 0);
+  label(screen, hero.value, 43, 33, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
+  label(screen, hero.label, label_x, 33, 72, &lv_font_montserrat_12, 0xbeb8a0);
+  label(screen, hero.unit, label_x, 63, 72, &lv_font_montserrat_12, 0x968f78);
+  label(screen, hero.stateText, 45, 94, 142, &lv_font_montserrat_14, hero.stateColor);
   chart_button(screen);
 
   int rendered = 0;
-  const int xs[4] = {15, 166, 15, 166};
-  const int ys[4] = {132, 132, 186, 186};
+  const int xs[4] = {12, 166, 12, 166};
+  const int ys[4] = {124, 124, 182, 182};
   for (int i = 0; i < 5 && rendered < 4; ++i) {
     if (metricOrder[i] == heroKind) continue;
     tile(screen, xs[rendered], ys[rendered], metric_for(metricOrder[i], view));

@@ -181,16 +181,17 @@ LVGL font implementation:
 
 ## Live firmware mapping
 
-The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_HOME_STATE` fixture constants. `main.cpp` normalizes the existing `SummaryState` into a narrow `LedcardsInterfaceNutView`; `ledcards-interface-page.cpp` owns only display logic. The accepted physical geometry is unchanged: hero top `38`, hero accent `20,38,7,79`, chart button `263,48,34,34`, mini rows `132` and `186`, mini-card height `46`, accent height `30`.
+The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_HOME_STATE` fixture constants. `main.cpp` normalizes the existing `SummaryState` into a narrow `LedcardsInterfaceNutView`; `ledcards-interface-page.cpp` owns only display logic. The accepted physical geometry is unchanged: hero top `33`, hero accent `19,33,7,79`, chart button hitbox `263,56,34,34`, mini rows `124` and `182`, mini-card size `142x46`, left/right margins `12`, inter-card gaps `12`, bottom margin `12`, accent height `28`.
 
 Runtime behavior:
 
 1. Hero candidate priority is stale/unavailable -> `NUT`, low battery -> `Battery`, on battery -> `TTE`, high load -> `Load`, marginal input -> `Input`, otherwise `Battery`.
 2. The active hero is held behind `kHeroCooldownMs` so noisy telemetry does not flicker the whole page.
 3. Accepted hero swaps move that metric to the front of the five-slot metric stack. The four mini-cards are the remaining metrics in order, so the hero never appears twice.
-4. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
-5. `TTE` uses `MM:SS` under one hour and minutes (`m`) for longer reserve values; this keeps the Ledcards Interface composition stable.
-6. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.
+4. Tapping a mini-card temporarily promotes that metric to the hero for 60 seconds, overriding the default priority without permanently reordering the metric stack; after expiry the normal severity/priority hero selection resumes.
+5. Unknown/stale values render as `--` with gray accent/fill. No live firmware path uses the previous compile-time demo constants.
+6. `TTE` uses `MM:SS` under one hour and minutes (`m`) for longer reserve values; this keeps the Ledcards Interface composition stable.
+7. `NUT` client count is cyan for one or more clients, orange for zero expected clients, and gray for unknown/stale. It remains read-only telemetry only.
 
 ## Render artifacts from exploration
 
@@ -200,7 +201,7 @@ The current firmware-test candidate is a real LVGL MCP fixture render, not a PIL
 - `firmware/core-s3-display/src/ledcards-interface-page.h` — small view adapter boundary between `main.cpp`/`SummaryState` and the Ledcards Interface renderer.
 - `assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c` — focused exploratory LVGL fixture for the fullscreen NUT/UPS adaptive overview.
 - `assets/lvgl-spike/ps_font_ddin_condensed_bold_60.c` — D-DIN metric font subset for the hero value.
-- `assets/lvgl-spike/ps_font_ddin_condensed_bold_40.c` — D-DIN metric font subset for mini-card numeric values, reduced from the earlier 42 px subset to prevent TTE clipping while staying close to the reference sample. The current mini-card LED is 28 px high at local `y=8`; the numeric value uses D-DIN 40 px at local `y=8`. Main mini-card labels sit at local `y=6`; sub/unit labels at local `y=23`.
+- `assets/lvgl-spike/ps_font_ddin_condensed_bold_40.c` — D-DIN metric font subset for mini-card numeric values, reduced from the earlier 42 px subset to prevent TTE clipping while staying close to the reference sample. The current mini-card LED is 28 px high at local `x=7, y=8`; with the 12 px outer margin the left mini-card LED sits at absolute `x=19`, aligned with the hero LED. The numeric value uses D-DIN 40 px at local `y=8`. Main mini-card labels use Montserrat 12 at local `y=6`; sub/unit labels also use Montserrat 12 at local `y=23` so the size matches the reference while weight/color provide hierarchy. Hero side label and hero unit also use Montserrat 12, matching the mini-card label/sub-label size.
 - `assets/lvgl-spike/render-nut-ledcards-interface-via-doomtrain.sh` — fallback renderer that builds the MCP-compatible combined source, renders six states on DOOMTRAIN, and copies the PNGs back.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-contact-sheet.png` — current six-state render sheet: nominal, on-battery, low-battery, stale, high-load, and input-low.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-vs-reference.png` — current six-state render sheet compared against the Ledcards Interface sample.

@@ -255,25 +255,26 @@ Top micro-status row:
 
 Hero region:
 
-- vertical semantic LED/accent pill at `x=20 y=47 w=7 h=79 r=4`;
-- hero metric at `x=43 y=47 w=120`, D-DIN Condensed Bold 60;
-- hero side label at `y=47`, Montserrat 14;
-- hero side unit at `y=77`, Montserrat 10;
-- hero state line at `x=45 y=108`, Montserrat 14;
-- contextual chart/detail button at `x=263 y=57 w=34 h=34 r=17`.
+- vertical semantic LED/accent pill at `x=19 y=33 w=7 h=79 r=4`;
+- hero metric at `x=43 y=33 w=120`, D-DIN Condensed Bold 60;
+- hero side label at `y=33`, Montserrat 12;
+- hero side unit at `y=63`, Montserrat 12;
+- hero state line at `x=45 y=94 w=142`, Montserrat 14;
+- contextual chart/detail hitbox at `x=263 y=56 w=34 h=34`, containing the bare chart icon.
 
 Mini-card grid:
 
-- card size: `139x42`, radius 7;
-- left column `x=15`, right column `x=166`;
-- first row `y=136`, second row `y=188`;
-- vertical gap is intentionally visible; do not collapse the two rows into a table block;
-- card accent LED/pill at local `x=7 y=8 w=5 h=26 r=3`;
-- value at local `x=20 y=10 w=58`, D-DIN Condensed Bold 32;
-- label at local `x=76 y=5 w=55`, Montserrat 14, right-aligned;
-- unit at local `x=78 y=23 w=53`, Montserrat 10, right-aligned.
+- card size: `142x46`, radius 7;
+- left column `x=12`, right column `x=166`;
+- first row `y=124`, second row `y=182`;
+- outer margins, center gap, row gap, and bottom margin are all 12 px;
+- card accent LED/pill at local `x=7 y=8 w=5 h=28 r=3`, so the left mini-card LED aligns at absolute `x=19` with the hero LED;
+- value at local `x=20 y=8 w=58`, D-DIN Condensed Bold 40;
+- label at local `x=76 y=6 w=55`, Montserrat 12, right-aligned;
+- unit at local `x=78 y=23 w=53`, Montserrat 12, right-aligned;
+- create the label/unit objects before the D-DIN value so the numeric metric is the foreground LVGL sibling on the physical TFT.
 
-Avoid informal abbreviations, but domain acronyms are acceptable when they preserve typographic consistency. Prefer a real acronym over shrinking one label and making it visually different from the rest. Current rule: runtime/time-to-empty is labeled `TTE` (`time to empty`) everywhere, including both hero and mini-cards. Keep the same Montserrat 14 label treatment as other mini-cards.
+Avoid informal abbreviations, but domain acronyms are acceptable when they preserve typographic consistency. Prefer a real acronym over shrinking one label and making it visually different from the rest. Current rule: runtime/time-to-empty is labeled `TTE` (`time to empty`) everywhere, including both hero and mini-cards. Hero side label, hero unit, mini-card label, and mini-card unit all use Montserrat 12; hierarchy comes from color and placement rather than size mismatch.
 
 Use an invisible inner-frame rule for mini-cards: no element should hug the card edge. The lower unit margin must feel comparable to the upper label margin. Numeric mini-card values must be optically centered against the vertical LED/pill. Verify this with stale `--`, because short glyphs make misalignment obvious.
 
@@ -285,12 +286,12 @@ Use two separate type layers:
 
 - Metric layer: D-DIN Condensed Bold.
   - Hero value: generated LVGL subset around 60 px.
-  - Mini-card numeric values: generated LVGL subset around 32 px.
+  - Mini-card numeric values: generated LVGL subset around 40 px.
   - Use for numeric/metric values only.
 - Text layer: Montserrat normal/medium feel.
   - Use for labels, units, state text, top micro-status.
   - Do not fake bold by duplicate-label offsets; it looks too chunky on 320x240.
-  - Keep mini-card labels visually similar to the hero side label.
+  - Keep mini-card labels and units the same Montserrat 12 size as the hero side label/unit.
 
 D-DIN LVGL font generation for the MCP/fixture path must use `lv_font_conv --format lvgl --no-compress --no-kerning`. The compressed/kerning-enabled output can compile but render as empty/box glyphs in the MCP simulator.
 
@@ -348,6 +349,7 @@ Selection/ordering rule:
 3. When a hero swap is accepted, move that metric to position `n1` in the ordered five-slot stack and keep the previous hero/order behind it by recency of hero appearance.
 4. Render positions `n2` and `n3` as the first mini-card row, and positions `n4` and `n5` as the second mini-card row.
 5. If no swap is accepted, preserve the current ordering.
+6. A mini-card tap may temporarily promote that metric to hero for 60 seconds. This touch override does not permanently reorder the five-slot stack; when it expires, normal severity/priority hero selection resumes.
 
 This means the mini-card order is a product of accepted hero swaps, not a static table. The current hero is never duplicated in the mini-cards.
 
