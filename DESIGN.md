@@ -307,30 +307,36 @@ Subset metric glyphs aggressively. Current useful glyph set:
 
 The hero value is adaptive. It shows the most useful or critical current NUT/UPS fact, not a fixed page title.
 
-Priority:
+Priority list — GRID ONLINE:
 
-1. On battery/runtime:
-   - hero `06:24`, label `Runtime`, unit `mm:ss`, state `ON BATTERY`;
-   - amber accent;
-   - side label block starts farther right because `06:24` is wide.
-2. Low battery:
-   - hero `18`, label `Battery`, unit `%`, state `LOW BATTERY`;
-   - red accent;
-   - side label block must be pulled close to the short value so it reads as attached to `18`.
-3. Stale/unavailable telemetry:
-   - hero `--`, label `NUT`, unit `stale`, state `STALE 42s` or equivalent;
-   - gray accent;
-   - side label block must be pulled close to the compact `--` value.
-4. High/limit load:
-   - hero load percent, label `Load`, state `HIGH` or `LIMIT`;
-   - orange/red accent depending on the load range.
-5. Abnormal input:
-   - hero input voltage or `0`, label `Input`, state `INPUT LOW` or `ON BATTERY`;
-   - amber/red accent.
-6. Full/normal battery:
-   - hero `100`, label `Battery`, unit `%`, state `FULL` at 100%;
-   - state `ALMOST FULL` in the upper green battery range, or `GOOD` in the normal green range;
-   - quiet green/neutral-green accent only if the battery/input condition is confirmed-good.
+| Priority | Condition/range | Hero metric | Hero label/unit | State label | Accent/color |
+| --- | --- | --- | --- | --- | --- |
+| 1 | UPS/source unavailable (`upsAvailable=false`) | NUT | `NUT` / `client`, value `--` | `UNAVAILABLE` | purple `0x9b5cff` |
+| 1 | Telemetry existed but is stale/offline (`offline` or `upsStale`) | NUT | `NUT` / `client`, value `--` | `STALE` | gray `0x6c7470` |
+| 2 | Battery `<20%` or backend low-battery flag while grid is online | Battery | `Battery` / `%` | `LOW BATTERY` | red `0xff4e3e` |
+| 3 | Load `>=90%` | Load | `Load` / `%` | `OVERLOAD` | red `0xff4e3e` |
+| 3 | Load `70-89%` | Load | `Load` / `%` | `HIGH LOAD` | orange `0xff8a2a` |
+| 4 | Input `190-209 V` | Input | `Input` / `V` | `MARGINAL INPUT` | yellow `0xfcca3d` |
+| 4 | Input `>0` and `<190 V` | Input | `Input` / `V` | `INPUT LOW` | orange `0xff8a2a` |
+| 5 | Battery `20-49%` | Battery | `Battery` / `%` | `CHARGING` | orange `0xff8a2a` |
+| 5 | Battery `50-89%` | Battery | `Battery` / `%` | `ALMOST FULL` | yellow `0xfcca3d` |
+| 5 | Battery `90-100%` | Battery | `Battery` / `%` | `FULL` | green `0x14dc78` |
+
+Priority list — GRID OFFLINE:
+
+| Priority | Condition/range | Hero metric | Hero label/unit | State label | Accent/color |
+| --- | --- | --- | --- | --- | --- |
+| 1 | UPS/source unavailable (`upsAvailable=false`) | NUT | `NUT` / `client`, value `--` | `UNAVAILABLE` | purple `0x9b5cff` |
+| 1 | Telemetry existed but is stale/offline (`offline` or `upsStale`) | NUT | `NUT` / `client`, value `--` | `STALE` | gray `0x6c7470` |
+| 2 | Runtime `<2:00` | Runtime | `Runtime` / `mm:ss` | `CRITICAL RUNTIME` | red `0xff4e3e` |
+| 3 | Battery `<10%` | Battery | `Battery` / `%` | `CRITICAL BATTERY` | red `0xff4e3e` |
+| 3 | Battery `10-19%` or backend low-battery flag | Battery | `Battery` / `%` | `LOW BATTERY` | orange `0xff8a2a` |
+| 4 | Runtime `2:00-4:59` | Runtime | `Runtime` / `mm:ss` | `SHORT RUNTIME` | orange `0xff8a2a` |
+| 5 | Runtime `>=5:00` | Runtime | `Runtime` / `mm:ss` | `ON BATTERY` | yellow `0xfcca3d` |
+| 6 | Runtime unavailable, battery not low, load `>=90%` | Load | `Load` / `%` | `OVERLOAD` | red `0xff4e3e` |
+| 6 | Runtime unavailable, battery not low, load `70-89%` | Load | `Load` / `%` | `HIGH LOAD` | orange `0xff8a2a` |
+
+Full label/range/color contract for the five metrics is below in the color/range table; this priority table only decides which metric reaches the hero first.
 
 Hero Runtime must be clock-like. Prefer `06:24 Runtime / mm:ss`. Mini-card Runtime must be rounded whole minutes with generic unit `m`, e.g. `6 Runtime / m` for `06:24`. Do not render `6m24s` or wrap explanatory text under the hero value.
 
@@ -378,18 +384,31 @@ Animation contract:
 
 #### Hero state label contract
 
-The large state label under the hero value must be the literal state name implied by the hero accent color/state, not a generic global summary.
+The large state label under the hero value must be the literal state implied by the hero metric, grid state, and severity. Keep GRID ONLINE and GRID OFFLINE semantics separate.
 
-Rules:
+Battery:
+- GRID ONLINE: `LOW BATTERY`, `CHARGING`, `FULL`, `ALMOST FULL`, `STALE`, `UNAVAILABLE`.
+- GRID OFFLINE: `ON BATTERY`, `LOW BATTERY`, `CRITICAL BATTERY`, `STALE`, `UNAVAILABLE`.
 
-- Red state examples: `LOW BATTERY`, `INPUT LOST`, `UNAVAILABLE`.
-- Orange state examples: `SHORT RUNTIME`, `HIGH`, `NO CLIENTS` when clients are expected.
-- Yellow state examples: `ON BATTERY`, `ELEVATED LOAD`, `MARGINAL INPUT`.
-- Green battery state examples: `FULL` at 100%, `ALMOST FULL` in the upper green battery range, `GOOD` in the normal green range.
-- Blue/neutral state examples should be informational labels only, not success claims. For load specifically, blue means `LOW`, not good/bad.
-- Gray state examples: `STALE 42s`, `UNKNOWN`, `DISABLED`.
+For GRID ONLINE battery, use `FULL` at 90-100%, `ALMOST FULL` at 50-89%, and `CHARGING` at 20-49% instead of reintroducing `GOOD`.
 
-`NOMINAL` is too generic for the hero state label in this Ledcards Interface view. For a 100% battery hero, render `FULL`; for a green-but-not-full battery hero, render `ALMOST FULL` or `GOOD` depending on the battery range. Charging overrides battery severity wording in the hero state label: if the UPS reports charging, show `CHARGING` even when the charge percentage is low; the red/yellow severity can still be carried by accent color or supporting details if needed.
+Runtime:
+- GRID ONLINE: `RESERVE`, `LOW RESERVE`, `CRITICAL RESERVE`, `STALE`, `UNAVAILABLE`.
+- GRID OFFLINE: `ON BATTERY`, `SHORT RUNTIME`, `CRITICAL RUNTIME`, `STALE`, `UNAVAILABLE`.
+
+Load:
+- GRID ONLINE: `LOW`, `NORMAL`, `HIGH LOAD`, `OVERLOAD`, `STALE`, `UNAVAILABLE`.
+- GRID OFFLINE: `LOW`, `NORMAL`, `HIGH LOAD`, `OVERLOAD`, `STALE`, `UNAVAILABLE`.
+
+Input:
+- GRID ONLINE: `GRID ONLINE`, `MARGINAL INPUT`, `INPUT LOW`, `STALE`, `UNAVAILABLE`.
+- GRID OFFLINE: `GRID OFFLINE`, `STALE`, `UNAVAILABLE`.
+
+NUT:
+- GRID ONLINE: `CLIENTS`, `NO CLIENTS`, `STALE`, `UNAVAILABLE`.
+- GRID OFFLINE: `CLIENTS`, `NO CLIENTS`, `STALE`, `UNAVAILABLE`.
+
+`NOMINAL`, `GOOD`, and generic `UNKNOWN` are not Ledcards Interface hero labels for this view. Distinguish `STALE` from `UNAVAILABLE`: stale means a source existed but is old/offline and stays gray; unavailable means the UPS/source is not available and uses purple.
 
 #### Current six-state fixture examples
 
@@ -456,8 +475,9 @@ Semantic accent palette:
 | neutral telemetry/info | cyan/blue | `0x1cb5f0` | Values with no inherent good/bad polarity, e.g. connected-client count when non-zero, model/capacity facts, inventory counts. |
 | caution | yellow | `0xfcca3d` | Early warning, degraded but not urgent, elevated load, on-battery when runtime is still acceptable. |
 | warning | orange | `0xff8a2a` | Needs attention soon, e.g. zero clients when at least one is expected, high-but-not-critical load, short runtime. |
-| critical/fault | red | `0xff4e3e` / `0xff6a57` | Low battery, input lost, unavailable primary telemetry, critical load/runtime. |
-| stale/unknown/inactive | gray | `0x6c7470` / `0xc1c5c1` | Unknown, stale, disabled, intentionally inactive, unavailable values rendered as `--`. |
+| critical/fault | red | `0xff4e3e` / `0xff6a57` | Low battery, input lost/grid offline, critical load/runtime. UPS/source unavailable is purple, not red. |
+| stale/inactive | gray | `0x6c7470` / `0xc1c5c1` | Stale, disabled, intentionally inactive, old values rendered as `--`. |
+| unavailable | purple | `0x9b5cff` / `0xc4b5fd` | UPS/source unavailable; distinguish from stale data. |
 
 Do not use green for mere reachability, presence, configuration, or a connected count. Cyan/blue is the default for neutral facts that are useful but not inherently healthy. Orange/yellow/red require a field-specific threshold below.
 
@@ -465,27 +485,37 @@ NUT/UPS mini-card range rules:
 
 | Field | Value/range | Accent | Notes |
 | --- | --- | --- | --- |
-| `Battery` | `>= 50%` and not on battery/low battery | green `0x14dc78` | Confirmed adequate battery. |
-| `Battery` | `20-49%` | yellow `0xfcca3d` | Degraded reserve. |
-| `Battery` | `< 20%` or backend low-battery flag | red `0xff4e3e` | Critical reserve; should usually drive the hero. |
-| `Battery` | unknown/stale | gray `0x6c7470` | Render value as `--`; never fake nominal. |
-| `Runtime` hero | `>= 10 min` while on battery | yellow `0xfcca3d` | On-battery is still abnormal even with acceptable runtime. |
-| `Runtime` hero | `5-9 min 59 s` | orange `0xff8a2a` | Short reserve. |
-| `Runtime` hero | `< 5 min` | red `0xff4e3e` | Critical runtime. |
-| `Runtime` hero | unknown while on battery | red `0xff4e3e` | Unknown runtime during outage is unsafe to present as mild. |
+| `Battery` online | `< 20%` or backend low-battery flag | red `0xff4e3e` | `LOW BATTERY`; should usually drive the hero. |
+| `Battery` online | `20-49%` | orange `0xff8a2a` | `CHARGING`: lower normal/charging band. |
+| `Battery` online | `50-89%` | yellow `0xfcca3d` | `ALMOST FULL`. |
+| `Battery` online | `90-100%` | green `0x14dc78` | `FULL`. |
+| `Battery` offline | `< 10%` | red `0xff4e3e` | `CRITICAL BATTERY`. |
+| `Battery` offline | `10-19%` or backend low-battery flag | orange `0xff8a2a` | `LOW BATTERY`. |
+| `Battery` offline | `>= 20%` | yellow `0xfcca3d` | `ON BATTERY`. |
+| `Battery` | stale | gray `0x6c7470` | Render value as `--`; never fake nominal. |
+| `Battery` | unavailable | purple `0x9b5cff` | Render value as `--`; source unavailable. |
+| `Runtime` online | `>= 5 min` | blue `0x1cb5f0` | `RESERVE`. |
+| `Runtime` online | `2-4 min 59 s` | yellow `0xfcca3d` | `LOW RESERVE`. |
+| `Runtime` online | `< 2 min` | red `0xff4e3e` | `CRITICAL RESERVE`. |
+| `Runtime` offline | `>= 5 min` | yellow `0xfcca3d` | `ON BATTERY`. |
+| `Runtime` offline | `2-4 min 59 s` | orange `0xff8a2a` | `SHORT RUNTIME`. |
+| `Runtime` offline | `< 2 min` | red `0xff4e3e` | `CRITICAL RUNTIME`. |
 | `Load` | `< 10%` | blue `0x1cb5f0` | `LOW`: useful neutral/low-utilization fact, not a success state. |
 | `Load` | `10-69%` | green `0x14dc78` | `NORMAL`: normal operating load. |
-| `Load` | `70-89%` | orange `0xff8a2a` | `HIGH`: high load, attention soon. |
-| `Load` | `>= 90%` | red `0xff4e3e` | `LIMIT`: near/at limit or overload risk. |
-| `Load` | unknown/stale | gray `0x6c7470` | Render `--`. |
-| `Input` | nominal mains voltage present inside configured good band | green `0x14dc78` | Input voltage is not neutral telemetry; it has good/warn/fault ranges. For 230 V systems, a provisional good band is roughly 207-253 V until backend thresholds are configured. |
-| `Input` | marginal voltage outside good band but still usable | yellow `0xfcca3d` | Use backend/configured thresholds where available. |
-| `Input` | poor voltage outside warning band but still present | orange `0xff8a2a` | Needs attention; exact thresholds should come from UPS/backend policy. |
-| `Input` | `0 V`, grid lost, or input unavailable while UPS is live | red `0xff4e3e` | Should align with `ON BATTERY`/fault semantics. |
-| `Input` | unknown/stale | gray `0x6c7470` | Render `--`; do not show old voltage as live. |
+| `Load` | `70-89%` | orange `0xff8a2a` | `HIGH LOAD`: high load, attention soon. |
+| `Load` | `>= 90%` | red `0xff4e3e` | `OVERLOAD`: near/at limit or overload risk. |
+| `Load` | stale | gray `0x6c7470` | Render `--`. |
+| `Load` | unavailable | purple `0x9b5cff` | Render `--`. |
+| `Input` online | `>= 210 V` | green `0x14dc78` | `GRID ONLINE`. Input voltage is not neutral telemetry; it has good/warn/fault ranges. |
+| `Input` online | `190-209 V` | yellow `0xfcca3d` | `MARGINAL INPUT`. |
+| `Input` online | `>0` and `<190 V` | orange `0xff8a2a` | `INPUT LOW`. |
+| `Input` offline | `0 V` / on-battery grid lost | red `0xff4e3e` | `GRID OFFLINE`; do not label this `INPUT LOST` in the hero contract. |
+| `Input` | stale | gray `0x6c7470` | Render `--`; do not show old voltage as live. |
+| `Input` | unavailable | purple `0x9b5cff` | Render `--`. |
 | `NUT client` | `>= 1` connected client | blue `0x1cb5f0` | Neutral informational count, not “healthy green”. |
-| `NUT client` | `0` connected clients when at least one is expected | orange `0xff8a2a` | Warning/attention, not critical by itself. |
-| `NUT client` | unknown/stale | gray `0x6c7470` | Render `--` or stale. |
+| `NUT client` | `0` connected clients | orange `0xff8a2a` | `NO CLIENTS`; warning/attention, not critical by itself. |
+| `NUT client` | stale | gray `0x6c7470` | Render `--` or stale. |
+| `NUT client` | unavailable | purple `0x9b5cff` | Render `--`. |
 | `NUT service/driver` | telemetry fresh and service reachable | green only if the service contract explicitly defines all required checks | Avoid generic green for `reachable_via_upsc` alone. |
 | `NUT service/driver` | telemetry stale/unreachable | gray or red depending on whether primary telemetry is broken | Stale data should be visually distinct from normal. |
 

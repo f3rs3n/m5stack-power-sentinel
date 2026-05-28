@@ -26,41 +26,38 @@ This is preferred over the earlier `1 + 6` interpretation for CoreS3 because the
 
 The hero metric is not fixed. It should show the most critical or most useful current value for the selected dashboard/card.
 
-For NUT/UPS, candidate priority order:
+For NUT/UPS, candidate priority is split by grid state and must carry the complete label/range/color contract into the hero.
 
-1. `on_battery` / grid lost
-   - hero value: runtime remaining in compact clock form, e.g. `06:24`
-   - metric label/unit block at the right of the value, Ledcards Interface: `Runtime` above `mm:ss`
-   - state: `ON BATTERY`
-   - accent: amber/red depending on severity
-   - avoid wrapping explanatory text below the hero value; keep hero Runtime as `mm:ss`, but use rounded whole minutes in supporting mini-cards
-2. low battery
-   - hero value: battery percent, e.g. `18%`
-   - label: `Battery`
-   - state: `LOW BATTERY`
-   - accent: red/amber
-3. stale or unavailable UPS/NUT data
-   - hero value: `--`
-   - label: `UPS` or `NUT`
-   - state: `STALE 42s` / `UNREACHABLE`
-   - accent: gray/red depending on condition
-4. high/limit UPS load
-   - hero value: load percent, e.g. `86%`
-   - label: `Load`
-   - state: `HIGH` or `LIMIT`
-   - accent: orange/red depending on range
-5. abnormal input voltage
-   - hero value: input voltage, e.g. `185V` or `0V`
-   - label: `Input`
-   - state: `INPUT LOW` / `ON BATTERY`
-   - accent: amber/red
-6. nominal/full battery state
-   - hero value: battery percent or runtime, e.g. `100%`
-   - label: `Battery`
-   - state: `FULL` at 100%, `ALMOST FULL` in the upper green battery range, or `GOOD` in the normal green range
-   - accent: green only if the product semantics define the battery/input condition as confirmed-good.
+GRID ONLINE:
 
-Hero state label rule: the large label below the hero value should be the literal state associated with the color/severity, not a generic summary. `NOMINAL` is too generic for the Ledcards Interface hero. Charging overrides battery charge wording: show `CHARGING` if the UPS reports charging, even when the current percentage is low.
+| Priority | Condition/range | Hero metric | State label | Color |
+| --- | --- | --- | --- | --- |
+| 1 | UPS/source unavailable | NUT | `UNAVAILABLE` | purple `0x9b5cff` |
+| 1 | Telemetry stale/offline | NUT | `STALE` | gray `0x6c7470` |
+| 2 | Battery `<20%` or low-battery flag | Battery | `LOW BATTERY` | red `0xff4e3e` |
+| 3 | Load `>=90%` | Load | `OVERLOAD` | red `0xff4e3e` |
+| 3 | Load `70-89%` | Load | `HIGH LOAD` | orange `0xff8a2a` |
+| 4 | Input `190-209 V` | Input | `MARGINAL INPUT` | yellow `0xfcca3d` |
+| 4 | Input `>0` and `<190 V` | Input | `INPUT LOW` | orange `0xff8a2a` |
+| 5 | Battery `20-49%` | Battery | `CHARGING` | orange `0xff8a2a` |
+| 5 | Battery `50-89%` | Battery | `ALMOST FULL` | yellow `0xfcca3d` |
+| 5 | Battery `90-100%` | Battery | `FULL` | green `0x14dc78` |
+
+GRID OFFLINE:
+
+| Priority | Condition/range | Hero metric | State label | Color |
+| --- | --- | --- | --- | --- |
+| 1 | UPS/source unavailable | NUT | `UNAVAILABLE` | purple `0x9b5cff` |
+| 1 | Telemetry stale/offline | NUT | `STALE` | gray `0x6c7470` |
+| 2 | Runtime `<2:00` | Runtime | `CRITICAL RUNTIME` | red `0xff4e3e` |
+| 3 | Battery `<10%` | Battery | `CRITICAL BATTERY` | red `0xff4e3e` |
+| 3 | Battery `10-19%` or low-battery flag | Battery | `LOW BATTERY` | orange `0xff8a2a` |
+| 4 | Runtime `2:00-4:59` | Runtime | `SHORT RUNTIME` | orange `0xff8a2a` |
+| 5 | Runtime `>=5:00` | Runtime | `ON BATTERY` | yellow `0xfcca3d` |
+| 6 | Runtime unavailable, battery not low, load `>=90%` | Load | `OVERLOAD` | red `0xff4e3e` |
+| 6 | Runtime unavailable, battery not low, load `70-89%` | Load | `HIGH LOAD` | orange `0xff8a2a` |
+
+Hero state label rule: the large label below the hero value should be the literal state associated with the color/severity and grid state, not a generic summary. `NOMINAL`, `GOOD`, and generic `UNKNOWN` are not Ledcards Interface hero labels. Use gray `STALE` when a source existed but is old/offline; use purple `UNAVAILABLE` when the UPS/source is not available. Runtime thresholds are 5 min / 2 min: online `RESERVE` >=5m, `LOW RESERVE` 2-4:59, `CRITICAL RESERVE` <2m; offline `ON BATTERY` >=5m, `SHORT RUNTIME` 2-4:59, `CRITICAL RUNTIME` <2m. Battery thresholds are split by grid state: online `<20%` is red `LOW BATTERY`, `20-49%` orange `CHARGING`, `50-89%` yellow `ALMOST FULL`, `90-100%` green `FULL`; offline `<10%` red `CRITICAL BATTERY`, `10-19%` orange `LOW BATTERY`, `>=20%` yellow `ON BATTERY`.
 
 Dynamic mini-card rule: do not duplicate the hero metric in the 2x2 supporting grid. The overview exposes five distinct facts as a directional ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`. The default ring starts as `Battery`, `Runtime`, `Load`, `Input`, `NUT client`. Accepted hero changes rotate the whole ring clockwise/forward until the selected/candidate metric reaches `HERO`; do not reverse direction to take a shorter counter-clockwise path. Mini-cards are then the next four ring slots. Example: when low battery keeps `Battery` in the hero, `Runtime` is top-right, `Load` bottom-right, `Input` bottom-left, and `NUT client` top-left.
 
@@ -185,7 +182,7 @@ The fullscreen Ledcards Interface build now uses live data rather than `PS_NUT_H
 
 Runtime behavior:
 
-1. Hero candidate priority is stale/unavailable -> `NUT`, low battery -> `Battery`, on battery -> `Runtime`, high load -> `Load`, marginal input -> `Input`, otherwise `Battery`.
+1. Hero candidate priority follows the approved GRID ONLINE / GRID OFFLINE lists: stale/unavailable first; online then low battery -> high load -> marginal input -> normal Battery; offline then critical runtime -> low battery -> short runtime -> on battery -> high load.
 2. The active hero is held behind `kHeroCooldownMs` so noisy telemetry does not flicker the whole page.
 3. Accepted hero swaps rotate the directional five-slot ring clockwise (`HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`) until that metric reaches `HERO`. The four mini-cards are the next four ring slots, so the hero never appears twice and circular order is preserved.
 4. The live page now animates accepted automatic swaps and touch overrides as a clockwise-only chain with constant perceived speed: each ring segment takes about 250 ms, so farther mini-cards get proportionally longer transitions instead of accelerating through the same fixed duration. Compact ghost cards scroll only inside the mini-card grid lanes, touch is blocked during the transition, small ghost-card fades handle the hero boundary, and the final frame redraws with the exact hero/mini templates.
