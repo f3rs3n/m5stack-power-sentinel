@@ -173,11 +173,11 @@ def main() -> int:
         if needle not in ledcards_interface_text:
             return fail(f"Ledcards Interface mini-card touch-to-hero override missing {needle}")
     required_ring_animation = [
-        "ringAnimationActive", "ringAnimationOverlay", "pendingAnimationView",
+        "ringAnimationActive", "ringAnimationOverlay", "pendingAnimationView", "RingGhostAnim", "ringGhostAnimations[5]",
         "rotate_order_to_hero", "find_metric_slot_in_order", "slot_position",
-        "kRingAnimationMs = 210", "lv_anim_set_exec_cb(&ax, anim_set_x)",
-        "lv_anim_set_exec_cb(&ay, anim_set_y)", "lv_anim_set_completed_cb(&ay, finish_ring_animation)",
-        "tile(ringAnimationOverlay, from.x, from.y, metric_for(kind, overlayView, true), false)",
+        "kRingAnimationMs = 252", "lv_anim_set_exec_cb(&a, anim_set_chain_progress)", "lv_anim_set_completed_cb(&a, finish_ring_animation)",
+        "place_ghost_between_slots", "fromSlot == 0", "toSlot == 0", "baseOpa", "chainSteps",
+        "tile(ringAnimationOverlay, start.x, start.y, metric_for(kind, overlayView, true), false)",
         "lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE)",
     ]
     for needle in required_ring_animation:

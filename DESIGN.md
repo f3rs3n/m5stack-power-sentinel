@@ -368,9 +368,11 @@ Do not keep a mini-card just because the old static grid had it. If the hero alr
 
 Animation contract:
 
-- Accepted automatic swaps and touch overrides should visually move the current metric cards as a short chain along the same ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
-- The implementation may use compact ghost cards for the hero/mini handoff; the final committed frame must normalize back to the exact hero and mini-card templates above.
-- Animation should be short (~200 ms), position-only, and clip-safe. Avoid blur, glass, shadows, full-screen transforms, or expensive opacity over large regions.
+- Accepted automatic swaps and touch overrides should visually move the current metric cards as a short bounded chain along the same ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
+- Use compact ghost cards for the transition, but keep the visible motion inside the mini-card grid lanes: right-column vertical moves, bottom-row horizontal moves, and left-column vertical moves. Do not let ghosts travel diagonally through the black gaps between the hero and mini-card regions.
+- The hero boundary is the exception: cards entering or leaving the hero area may fade at the adjacent mini-card slot instead of physically crossing the black space. The final committed frame must normalize back to the exact hero and mini-card templates above.
+- Target runtime is about 250 ms after the first physical test; the initial ~210 ms version was functional but read more like a quick rotation than a legible scroll.
+- Animation should stay lightweight: position-only inside mini-card lanes, with only small ghost-card opacity fades at the hero boundary. Avoid blur, glass, shadows, full-screen transforms, or expensive opacity over large regions.
 - While a ring animation is active, ignore/debounce further mini-card touches and queue the latest telemetry view for the final redraw.
 - Static fallback/final render must preserve the phase-1 ring semantics even if animation is unavailable.
 

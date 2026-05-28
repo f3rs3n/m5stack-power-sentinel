@@ -73,6 +73,15 @@ struct SlotPosition {
   int y;
 };
 
+struct RingGhostAnim {
+  lv_obj_t *obj;
+  uint8_t steps;
+  uint8_t path[5];
+  uint8_t baseOpa;
+};
+
+RingGhostAnim ringGhostAnimations[5]{};
+
 static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
 static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
 static void start_ring_transition(lv_obj_t *screen, MetricKind target, const LedcardsInterfaceNutView &view);
@@ -495,8 +504,53 @@ static SlotPosition slot_position(int slot) {
   }
 }
 
-static void anim_set_x(void *obj, int32_t v) { lv_obj_set_x(static_cast<lv_obj_t *>(obj), v); }
-static void anim_set_y(void *obj, int32_t v) { lv_obj_set_y(static_cast<lv_obj_t *>(obj), v); }
+static void place_ghost_in_slot(lv_obj_t *obj, uint8_t slot) {
+  SlotPosition pos = slot_position(slot == 0 ? 4 : slot);
+  lv_obj_set_pos(obj, pos.x, pos.y);
+}
+
+static void place_ghost_between_slots(lv_obj_t *obj, uint8_t fromSlot, uint8_t toSlot, int32_t segProgress) {
+  if (fromSlot == 0 && toSlot == 0) {
+    place_ghost_in_slot(obj, 4);
+    return;
+  }
+  if (fromSlot == 0) {
+    place_ghost_in_slot(obj, toSlot);
+    return;
+  }
+  if (toSlot == 0) {
+    place_ghost_in_slot(obj, fromSlot);
+    return;
+  }
+  SlotPosition from = slot_position(fromSlot);
+  SlotPosition to = slot_position(toSlot);
+  lv_obj_set_pos(obj,
+                 from.x + ((to.x - from.x) * segProgress) / 1000,
+                 from.y + ((to.y - from.y) * segProgress) / 1000);
+}
+
+static void anim_set_chain_progress(void *var, int32_t progress) {
+  RingGhostAnim *anim = static_cast<RingGhostAnim *>(var);
+  if (!anim || !anim->obj || anim->steps == 0) return;
+
+  int32_t scaled = progress * anim->steps;
+  uint8_t segment = scaled >= 1000 * anim->steps ? anim->steps - 1 : scaled / 1000;
+  int32_t segProgress = scaled - (int32_t)segment * 1000;
+  if (segProgress < 0) segProgress = 0;
+  if (segProgress > 1000) segProgress = 1000;
+
+  uint8_t fromSlot = anim->path[segment];
+  uint8_t toSlot = anim->path[segment + 1];
+  place_ghost_between_slots(anim->obj, fromSlot, toSlot, segProgress);
+
+  int32_t opa = anim->baseOpa;
+  if (fromSlot == 0 && toSlot != 0) {
+    opa = (anim->baseOpa * segProgress) / 1000;
+  } else if (fromSlot != 0 && toSlot == 0) {
+    opa = (anim->baseOpa * (1000 - segProgress)) / 1000;
+  }
+  lv_obj_set_style_opa(anim->obj, opa, 0);
+}
 
 static void finish_ring_animation_async(void *) {
   lv_obj_t *screen = lv_screen_active();
@@ -514,24 +568,18 @@ static void finish_ring_animation(lv_anim_t *) {
   lv_async_call(finish_ring_animation_async, nullptr);
 }
 
-static void animate_obj_pos(lv_obj_t *obj, SlotPosition from, SlotPosition to, bool finish) {
-  constexpr uint32_t kRingAnimationMs = 210;
-  lv_anim_t ax;
-  lv_anim_init(&ax);
-  lv_anim_set_var(&ax, obj);
-  lv_anim_set_values(&ax, from.x, to.x);
-  lv_anim_set_duration(&ax, kRingAnimationMs);
-  lv_anim_set_exec_cb(&ax, anim_set_x);
-  lv_anim_start(&ax);
-
-  lv_anim_t ay;
-  lv_anim_init(&ay);
-  lv_anim_set_var(&ay, obj);
-  lv_anim_set_values(&ay, from.y, to.y);
-  lv_anim_set_duration(&ay, kRingAnimationMs);
-  lv_anim_set_exec_cb(&ay, anim_set_y);
-  if (finish) lv_anim_set_completed_cb(&ay, finish_ring_animation);
-  lv_anim_start(&ay);
+static void animate_ghost_chain(RingGhostAnim *anim, bool finish) {
+  // User-tested phase-2 timing was responsive but slightly too brisk; +20% keeps
+  // the same lightweight position-only chain while making the scroll legible.
+  constexpr uint32_t kRingAnimationMs = 252;
+  lv_anim_t a;
+  lv_anim_init(&a);
+  lv_anim_set_var(&a, anim);
+  lv_anim_set_values(&a, 0, 1000);
+  lv_anim_set_duration(&a, kRingAnimationMs);
+  lv_anim_set_exec_cb(&a, anim_set_chain_progress);
+  if (finish) lv_anim_set_completed_cb(&a, finish_ring_animation);
+  lv_anim_start(&a);
 }
 
 static void start_ring_transition(lv_obj_t *screen, MetricKind target, const LedcardsInterfaceNutView &view) {
@@ -568,14 +616,22 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
   lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_set_scrollbar_mode(ringAnimationOverlay, LV_SCROLLBAR_MODE_OFF);
 
+  int targetOldSlot = find_metric_slot_in_order(oldOrder, target);
+  uint8_t chainSteps = targetOldSlot <= 0 ? 1 : static_cast<uint8_t>(targetOldSlot);
   for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
     MetricKind kind = oldOrder[oldSlot];
-    int newSlot = find_metric_slot_in_order(newOrder, kind);
-    SlotPosition from = slot_position(oldSlot);
-    SlotPosition to = slot_position(newSlot < 0 ? oldSlot : newSlot);
-    lv_obj_t *ghost = tile(ringAnimationOverlay, from.x, from.y, metric_for(kind, overlayView, true), false);
-    lv_obj_set_style_opa(ghost, LV_OPA_80, 0);
-    animate_obj_pos(ghost, from, to, oldSlot == 4);
+    RingGhostAnim &anim = ringGhostAnimations[oldSlot];
+    anim.steps = chainSteps;
+    anim.baseOpa = LV_OPA_80;
+    for (uint8_t step = 0; step <= chainSteps; ++step) {
+      anim.path[step] = static_cast<uint8_t>((oldSlot - step + 5) % 5);
+    }
+    uint8_t firstVisibleSlot = anim.path[0] == 0 ? anim.path[1] : anim.path[0];
+    SlotPosition start = slot_position(firstVisibleSlot);
+    lv_obj_t *ghost = tile(ringAnimationOverlay, start.x, start.y, metric_for(kind, overlayView, true), false);
+    anim.obj = ghost;
+    lv_obj_set_style_opa(ghost, anim.path[0] == 0 ? 0 : anim.baseOpa, 0);
+    animate_ghost_chain(&anim, oldSlot == 4);
   }
 }
 
