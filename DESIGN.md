@@ -255,12 +255,13 @@ Top micro-status row:
 
 Hero region:
 
-- vertical semantic LED/accent pill at `x=19 y=33 w=7 h=76 r=4`;
-- hero metric at `x=43 y=33 w=120`, D-DIN Condensed Bold 60;
-- hero side label at `y=33`, Montserrat 12;
-- hero side unit at `y=63`, Montserrat 12;
-- hero state line at `x=45 y=96 w=142`, Montserrat 14;
-- contextual chart/detail hitbox at `x=263 y=56 w=34 h=34`, containing the bare chart icon.
+- treat the hero as one large invisible card region at `x=12 y=25 w=296 h=91`; this is the animation object boundary even though the normal state has no visible card fill;
+- vertical semantic LED/accent pill inside that card at local `x=7 y=8 w=7 h=76 r=4` (absolute `x=19 y=33`), aligned to the mini-card LED column;
+- hero metric at local `x=31 y=8 w=120`, D-DIN Condensed Bold 60 (absolute `x=43 y=33`);
+- hero side label at local `y=8`, Montserrat 12;
+- hero side unit at local `y=38`, Montserrat 12;
+- hero state line at local `x=33 y=71 w=142`, Montserrat 14 (absolute `x=45 y=96`);
+- contextual chart/detail hitbox at local `x=251 y=31 w=34 h=34` (absolute `x=263 y=56`), containing the bare chart icon.
 
 Mini-card grid:
 
@@ -354,17 +355,19 @@ Selection/ordering rule:
 
 1. Pick candidate hero metric by severity/usefulness.
 2. Apply a short hero-swap cooldown before accepting a different hero, so transient sensor flips do not cause rapid visual churn. Start with a few seconds; tune on hardware after observing real data jitter.
-3. When a hero swap is accepted, rotate the directional five-slot ring clockwise/forward until the selected metric reaches `HERO`; do not move/promote it as a list item and do not choose the shorter counter-clockwise path.
+3. When a hero swap is accepted, choose the shortest direction on the physical five-slot loop, then rotate the entire ring in that direction until the selected metric reaches `HERO`; do not move/promote it as a list item.
 4. Render slot `1` as top-right, slot `2` as bottom-right, slot `3` as bottom-left, and slot `4` as top-left.
 5. If no swap is accepted, preserve the current ring order.
-6. A mini-card tap may temporarily rotate that metric to hero for 60 seconds. When the override expires, normal severity/priority hero selection resumes and may rotate the ring again.
+6. A mini-card tap may temporarily rotate that metric to hero for 60 seconds. When the override expires, normal severity/priority hero selection resumes and, if the priority metric differs from the current hero, runs the same ring animation path again.
 
 This means the mini-card order is a product of accepted ring rotations, not a static table or row-major list. The current hero is never duplicated in the mini-cards.
 
 Examples:
 
-- Mini-card slot order is a directional ring, not a row-major list: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
-- Accepted hero changes rotate the whole ring clockwise/forward until the selected/candidate metric reaches `HERO`; this preserves circular order for future chain-style animation and avoids mixed clockwise/counter-clockwise motion.
+- Mini-card slot order is a physical bidirectional ring, not a row-major list.
+- Forward path: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`.
+- Reverse path: `HERO -> top-left -> bottom-left -> bottom-right -> top-right -> HERO`.
+- Accepted hero changes rotate the whole ring along the shortest of those two paths, preserving circular order for chain-style animation.
 - Hero `Battery` (`FULL`, `LOW BATTERY`, `CHARGING`) from the default ring -> mini-cards should be `Runtime` top-right, `Load` bottom-right, `Input` bottom-left, `NUT client` top-left.
 - Hero `Runtime` (`ON BATTERY`) from the default ring -> mini-cards should be `Load` top-right, `Input` bottom-right, `NUT client` bottom-left, `Battery` top-left.
 - Hero `NUT` (`STALE 42s`) from the default ring -> mini-cards should be `Battery` top-right, `Runtime` bottom-right, `Load` bottom-left, `Input` top-left.
@@ -374,13 +377,16 @@ Do not keep a mini-card just because the old static grid had it. If the hero alr
 
 Animation contract:
 
-- Accepted automatic swaps and touch overrides should visually move the current metric cards as a short bounded clockwise chain along the same ring: `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`. Never reverse direction to take the shorter path.
-- Use compact ghost cards for the transition, but keep the visible motion inside the mini-card grid lanes: right-column vertical moves, bottom-row horizontal moves, and left-column vertical moves. Do not let ghosts travel diagonally through the black gaps between the hero and mini-card regions.
-- The hero boundary is the exception: cards entering or leaving the hero area may fade at the adjacent mini-card slot instead of physically crossing the black space. The final committed frame must normalize back to the exact hero and mini-card templates above.
-- Target speed is about 250 ms per ring segment after the first physical test. Do not keep the whole transition at a fixed duration: selecting farther mini-cards must get proportionally more time so the scroll speed stays homogeneous across one-, two-, three-, and four-segment moves.
-- Animation should stay lightweight: position-only inside mini-card lanes, with only small ghost-card opacity fades at the hero boundary. Avoid blur, glass, shadows, full-screen transforms, or expensive opacity over large regions.
-- While a ring animation is active, ignore/debounce further mini-card touches and queue the latest telemetry view for the final redraw.
-- Static fallback/final render must preserve the phase-1 ring semantics even if animation is unavailable.
+- Accepted automatic swaps, the post-60-second priority resume after a manual override, and touch overrides all use the same visual transition path in `start_ring_transition(...)`.
+- The hero is a real large invisible card region (`296x91`) for animation purposes. A metric crossing `HERO` must be drawn as the full-size hero card and slide horizontally left or right depending on rotation direction.
+- Mini-card ghosts must never invade the hero region. They animate only within the mini-card ring lanes: right-column vertical moves, bottom-row horizontal moves, and left-column vertical moves.
+- Use a full-screen overlay during animation to mask the old static hero lane, block touches, and queue the latest telemetry view for final redraw.
+- The final committed frame must normalize back to the exact hero-card and mini-card templates above.
+- Timing is weighted by visual path length, not by fixed logical steps. Hero crossings are weighted heavier than mini-card lane segments so the large hero card has more visual inertia.
+- All cards in a transition share one global duration derived from the longest weighted path, clamped to the current tested range of roughly `360..720 ms`. Segment progress is distance-based along each path, so long visual segments receive more of the timeline.
+- Use a subtle per-link mini-stagger (`18 ms` per chain link, under ~72 ms total) so the selected/priority target leads and the rest of the ring follows without feeling laggy.
+- Use a gentle ease-in-out path for the chain. Avoid blur, glass, shadows, full-screen transforms, or expensive opacity over large regions.
+- Static fallback/final render must preserve the ring semantics even if animation is unavailable.
 
 #### Hero state label contract
 

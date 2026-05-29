@@ -9,7 +9,10 @@ The default `platformio.ini` environment (`m5stack-cores3`) builds the normal fi
 The Ledcards Interface live page maps `SummaryState` into `LedcardsInterfaceNutView` in `main.cpp` and renders through `ledcards-interface-page.cpp`:
 
 - hero candidate priority: stale/unavailable -> NUT, low battery -> Battery, on battery -> Runtime, high load -> Load, marginal input -> Input, otherwise Battery;
-- hero swaps are rate-limited by a short cooldown and maintain a five-metric order stack (`Battery`, `Runtime`, `Load`, `Input`, `NUT`) so the hero is not duplicated in mini-cards;
+- hero swaps are rate-limited by a short cooldown and maintain a five-metric ring (`Battery`, `Runtime`, `Load`, `Input`, `NUT`) so the hero is not duplicated in mini-cards;
+- accepted automatic swaps, touch overrides, and post-60-second priority resume animate through the same bidirectional shortest-path ring transition;
+- the hero is rendered as a large invisible card region for animation; metrics crossing HERO slide horizontally as full-size hero cards, while mini-card ghosts stay in the mini-card lanes;
+- animation timing is weighted by visual path length, uses a subtle 18 ms per-link stagger, and waits for the latest-delayed ghost before the final static redraw;
 - missing or stale telemetry renders as `--`/gray, never as nominal demo data;
 - charging is inferred from NUT status/status label and overrides battery wording with `CHARGING`.
 
