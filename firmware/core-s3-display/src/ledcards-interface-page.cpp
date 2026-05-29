@@ -77,10 +77,16 @@ struct SlotPosition {
 
 struct RingGhostAnim {
   lv_obj_t *obj;
+  lv_obj_t *heroObj;
   uint8_t steps;
   uint8_t path[5];
   uint8_t baseOpa;
 };
+
+constexpr int kHeroCardX = 12;
+constexpr int kHeroCardY = 25;
+constexpr int kHeroCardW = 296;
+constexpr int kHeroCardH = 91;
 
 RingGhostAnim ringGhostAnimations[5]{};
 
@@ -530,10 +536,10 @@ static void top_status(lv_obj_t *screen, const LedcardsInterfaceNutView &view, u
   box(screen, 315, 8, 3, 3, 1, 0xb1b6b2, 0);
 }
 
-static void chart_button(lv_obj_t *screen) {
-  lv_obj_t *hit = lv_obj_create(screen);
+static void chart_icon(lv_obj_t *parent, int x, int y) {
+  lv_obj_t *hit = lv_obj_create(parent);
   lv_obj_remove_style_all(hit);
-  lv_obj_set_pos(hit, 263, 56);
+  lv_obj_set_pos(hit, x, y);
   lv_obj_set_size(hit, 34, 34);
   lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
   lv_obj_t *icon = lv_label_create(hit);
@@ -542,6 +548,28 @@ static void chart_button(lv_obj_t *screen) {
   lv_obj_set_style_text_color(icon, C(0xd6dad6), 0);
   lv_obj_set_style_bg_opa(icon, LV_OPA_TRANSP, 0);
   lv_obj_center(icon);
+}
+
+static lv_obj_t *hero_card(lv_obj_t *parent, int x, int y, const MetricRender &hero, bool includeChart = true) {
+  lv_obj_t *card = lv_obj_create(parent);
+  lv_obj_remove_style_all(card);
+  lv_obj_set_pos(card, x, y);
+  lv_obj_set_size(card, kHeroCardW, kHeroCardH);
+  lv_obj_set_style_bg_opa(card, LV_OPA_TRANSP, 0);
+  lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+
+  int label_x = 84;
+  size_t len = strlen(hero.value);
+  if (len >= 5) label_x = 148;
+  else if (len >= 3) label_x = 112;
+
+  box(card, 7, 8, 7, 76, 4, hero.accent, 0);
+  label(card, hero.value, 31, 8, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
+  label(card, hero.label, label_x, 8, 72, &lv_font_montserrat_12, 0xbeb8a0);
+  label(card, hero.unit, label_x, 38, 72, &lv_font_montserrat_12, 0x968f78);
+  label(card, hero.stateText, 33, 71, 142, &lv_font_montserrat_14, hero.stateColor);
+  if (includeChart) chart_icon(card, 251, 31);
+  return card;
 }
 
 static void on_tile_clicked(lv_event_t *event) {
@@ -588,62 +616,49 @@ static SlotPosition slot_position(int slot) {
   }
 }
 
-static void place_ghost_in_slot(lv_obj_t *obj, uint8_t slot) {
-  SlotPosition pos = slot_position(slot == 0 ? 4 : slot);
-  lv_obj_set_pos(obj, pos.x, pos.y);
-}
-
 static void place_between(lv_obj_t *obj, const SlotPosition &from, const SlotPosition &to, int32_t progress) {
   lv_obj_set_pos(obj,
                  from.x + ((to.x - from.x) * progress) / 1000,
                  from.y + ((to.y - from.y) * progress) / 1000);
 }
 
-static void place_ghost_through_hero_lane(lv_obj_t *obj, uint8_t fromSlot, uint8_t toSlot, int32_t segProgress) {
-  SlotPosition hero = slot_position(0);
-  if (fromSlot == 0) {
-    // Device-reference top segment: the current HERO exits horizontally first,
-    // then drops into the adjacent mini-card column.
-    SlotPosition to = slot_position(toSlot);
-    SlotPosition edge = {to.x, hero.y};
-    if (segProgress < 500) {
-      place_between(obj, hero, edge, segProgress * 2);
-    } else {
-      place_between(obj, edge, to, (segProgress - 500) * 2);
-    }
-    return;
+static void place_hero_between_slots(lv_obj_t *obj, uint8_t fromSlot, uint8_t toSlot, int32_t segProgress) {
+  int fromX = kHeroCardX;
+  int toX = kHeroCardX;
+  if (fromSlot == 0 && toSlot == 1) {
+    toX = kHeroCardX + kHeroCardW;
+  } else if (fromSlot == 0 && toSlot == 4) {
+    toX = kHeroCardX - kHeroCardW;
+  } else if (fromSlot == 1 && toSlot == 0) {
+    fromX = kHeroCardX + kHeroCardW;
+  } else if (fromSlot == 4 && toSlot == 0) {
+    fromX = kHeroCardX - kHeroCardW;
   }
-
-  if (toSlot == 0) {
-    // The incoming mini-card rises to the top lane first, then scrolls
-    // horizontally into HERO instead of fading in place.
-    SlotPosition from = slot_position(fromSlot);
-    SlotPosition edge = {from.x, hero.y};
-    if (segProgress < 500) {
-      place_between(obj, from, edge, segProgress * 2);
-    } else {
-      place_between(obj, edge, hero, (segProgress - 500) * 2);
-    }
-  }
+  lv_obj_set_pos(obj, fromX + ((toX - fromX) * segProgress) / 1000, kHeroCardY);
 }
 
-static void place_ghost_between_slots(lv_obj_t *obj, uint8_t fromSlot, uint8_t toSlot, int32_t segProgress) {
-  if (fromSlot == 0 && toSlot == 0) {
-    place_ghost_in_slot(obj, 4);
-    return;
-  }
+static void place_ghost_between_slots(RingGhostAnim *anim, uint8_t fromSlot, uint8_t toSlot, int32_t segProgress) {
+  if (!anim || !anim->obj || !anim->heroObj) return;
   if (fromSlot == 0 || toSlot == 0) {
-    place_ghost_through_hero_lane(obj, fromSlot, toSlot, segProgress);
+    // HERO is a full-width invisible card region. When a metric crosses it,
+    // render that metric as a large hero card that scrolls horizontally;
+    // mini-card ghosts never enter the hero area.
+    lv_obj_set_style_opa(anim->obj, 0, 0);
+    lv_obj_set_style_opa(anim->heroObj, anim->baseOpa, 0);
+    place_hero_between_slots(anim->heroObj, fromSlot, toSlot, segProgress);
     return;
   }
+
+  lv_obj_set_style_opa(anim->heroObj, 0, 0);
+  lv_obj_set_style_opa(anim->obj, anim->baseOpa, 0);
   SlotPosition from = slot_position(fromSlot);
   SlotPosition to = slot_position(toSlot);
-  place_between(obj, from, to, segProgress);
+  place_between(anim->obj, from, to, segProgress);
 }
 
 static void anim_set_chain_progress(void *var, int32_t progress) {
   RingGhostAnim *anim = static_cast<RingGhostAnim *>(var);
-  if (!anim || !anim->obj || anim->steps == 0) return;
+  if (!anim || !anim->obj || !anim->heroObj || anim->steps == 0) return;
 
   int32_t scaled = progress * anim->steps;
   uint8_t segment = scaled >= 1000 * anim->steps ? anim->steps - 1 : scaled / 1000;
@@ -653,15 +668,7 @@ static void anim_set_chain_progress(void *var, int32_t progress) {
 
   uint8_t fromSlot = anim->path[segment];
   uint8_t toSlot = anim->path[segment + 1];
-  place_ghost_between_slots(anim->obj, fromSlot, toSlot, segProgress);
-
-  int32_t opa = anim->baseOpa;
-  if (fromSlot == 0 && toSlot != 0) {
-    opa = (anim->baseOpa * segProgress) / 1000;
-  } else if (fromSlot != 0 && toSlot == 0) {
-    opa = (anim->baseOpa * (1000 - segProgress)) / 1000;
-  }
-  lv_obj_set_style_opa(anim->obj, opa, 0);
+  place_ghost_between_slots(anim, fromSlot, toSlot, segProgress);
 }
 
 static void finish_ring_animation_async(void *) {
@@ -730,6 +737,10 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
   lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_set_scrollbar_mode(ringAnimationOverlay, LV_SCROLLBAR_MODE_OFF);
 
+  // Mask the old static hero lane; animated metrics crossing HERO are drawn as
+  // full-size hero cards, while mini-card ghosts remain below this region.
+  box(ringAnimationOverlay, 0, kHeroCardY, 320, kHeroCardH, 0, 0x040607, 0);
+
   int targetOldSlot = find_metric_slot_in_order(oldOrder, target);
   int ringDirection = ring_direction_to_hero(targetOldSlot);
   uint8_t chainSteps = ring_steps_to_hero(targetOldSlot, ringDirection);
@@ -742,20 +753,17 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
     for (uint8_t step = 1; step <= chainSteps; ++step) {
       anim.path[step] = ring_step_slot(anim.path[step - 1], ringDirection);
     }
-    uint8_t firstVisibleSlot = anim.path[0] == 0 ? anim.path[1] : anim.path[0];
-    SlotPosition start = slot_position(firstVisibleSlot);
+    uint8_t firstMiniSlot = anim.path[0] == 0 ? anim.path[1] : anim.path[0];
+    if (firstMiniSlot == 0) firstMiniSlot = anim.path[chainSteps];
+    SlotPosition start = slot_position(firstMiniSlot == 0 ? 4 : firstMiniSlot);
     lv_obj_t *ghost = tile(ringAnimationOverlay, start.x, start.y, metric_for(kind, overlayView, true), false);
+    lv_obj_t *heroGhost = hero_card(ringAnimationOverlay, kHeroCardX, kHeroCardY, metric_for(kind, overlayView), true);
     anim.obj = ghost;
-    lv_obj_set_style_opa(ghost, anim.path[0] == 0 ? 0 : anim.baseOpa, 0);
+    anim.heroObj = heroGhost;
+    lv_obj_set_style_opa(ghost, 0, 0);
+    lv_obj_set_style_opa(heroGhost, 0, 0);
     animate_ghost_chain(&anim, oldSlot == 4);
   }
-}
-
-static int hero_label_x(const MetricRender &hero) {
-  size_t len = strlen(hero.value);
-  if (len >= 5) return 160;
-  if (len >= 3) return 124;
-  return 96;
 }
 
 static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutView &view) {
@@ -770,13 +778,7 @@ static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutVie
   MetricRender hero = metric_for(heroKind, view);
   top_status(screen, view, hero.accent);
 
-  int label_x = hero_label_x(hero);
-  box(screen, 19, 33, 7, 76, 4, hero.accent, 0);
-  label(screen, hero.value, 43, 33, 120, &ps_font_ddin_condensed_bold_60, 0xf5f6f2);
-  label(screen, hero.label, label_x, 33, 72, &lv_font_montserrat_12, 0xbeb8a0);
-  label(screen, hero.unit, label_x, 63, 72, &lv_font_montserrat_12, 0x968f78);
-  label(screen, hero.stateText, 45, 96, 142, &lv_font_montserrat_14, hero.stateColor);
-  chart_button(screen);
+  hero_card(screen, kHeroCardX, kHeroCardY, hero, true);
 
   const int xs[4] = {166, 166, 12, 12};
   const int ys[4] = {124, 182, 182, 124};
