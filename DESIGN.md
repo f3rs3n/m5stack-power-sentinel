@@ -261,7 +261,7 @@ Hero region:
 - hero side label at local `y=8`, Montserrat 12;
 - hero side unit at local `y=38`, Montserrat 12;
 - hero state line at local `x=33 y=71 w=142`, Montserrat 14 (absolute `x=45 y=96`);
-- contextual chart/detail hitbox at local `x=251 y=31 w=34 h=34` (absolute `x=263 y=56`), containing the bare chart icon.
+- contextual chart/detail hitbox at local `x=262 y=8 w=34 h=34` (absolute `x=274 y=33`), containing the bare chart icon. It is top-aligned with the hero LED pill/value and its right edge lands at `x=308`, matching the right mini-card edge rather than protruding farther toward the display border.
 
 Mini-card grid:
 

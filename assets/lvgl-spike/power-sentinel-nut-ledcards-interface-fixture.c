@@ -74,7 +74,7 @@ static void top_status(lv_obj_t *screen, uint32_t batt_color, int batt_w) {
 static void chart_button(lv_obj_t *screen) {
     lv_obj_t *hit = lv_obj_create(screen);
     lv_obj_remove_style_all(hit);
-    lv_obj_set_pos(hit, 263, 56);
+    lv_obj_set_pos(hit, 274, 33);
     lv_obj_set_size(hit, 34, 34);
     lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
     lv_obj_t *icon = lv_label_create(hit);

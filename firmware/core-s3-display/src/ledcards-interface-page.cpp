@@ -570,7 +570,7 @@ static lv_obj_t *hero_card(lv_obj_t *parent, int x, int y, const MetricRender &h
   label(card, hero.label, label_x, 8, 72, &lv_font_montserrat_12, 0xbeb8a0);
   label(card, hero.unit, label_x, 38, 72, &lv_font_montserrat_12, 0x968f78);
   label(card, hero.stateText, 33, 71, 142, &lv_font_montserrat_14, hero.stateColor);
-  if (includeChart) chart_icon(card, 251, 31);
+  if (includeChart) chart_icon(card, 262, 8);
   return card;
 }
 
