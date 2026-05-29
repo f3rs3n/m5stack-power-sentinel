@@ -80,6 +80,8 @@ struct RingGhostAnim {
   lv_obj_t *heroObj;
   uint8_t steps;
   uint8_t path[5];
+  uint16_t segmentLength[4];
+  uint16_t totalLength;
   uint8_t baseOpa;
 };
 
@@ -616,6 +618,36 @@ static SlotPosition slot_position(int slot) {
   }
 }
 
+static uint16_t segment_visual_length(uint8_t fromSlot, uint8_t toSlot) {
+  if (fromSlot == 0 || toSlot == 0) {
+    // The HERO slot is visually a wide full-card slide; weight it heavier than
+    // its raw pixel width so it has the inertia of a larger card in the chain.
+    return 360;
+  }
+  SlotPosition from = slot_position(fromSlot);
+  SlotPosition to = slot_position(toSlot);
+  int dx = from.x > to.x ? from.x - to.x : to.x - from.x;
+  int dy = from.y > to.y ? from.y - to.y : to.y - from.y;
+  return static_cast<uint16_t>(dx > dy ? dx : dy);
+}
+
+static void finalize_anim_path_lengths(RingGhostAnim &anim) {
+  anim.totalLength = 0;
+  for (uint8_t step = 0; step < anim.steps; ++step) {
+    anim.segmentLength[step] = segment_visual_length(anim.path[step], anim.path[step + 1]);
+    anim.totalLength += anim.segmentLength[step];
+  }
+}
+
+static uint32_t chain_duration_ms(uint16_t maxPathLength) {
+  // About 1.2 ms per weighted pixel: adjacent HERO crossings land around
+  // 430 ms, while two-segment chain moves land around 600-650 ms.
+  uint32_t duration = static_cast<uint32_t>(maxPathLength) * 12 / 10;
+  if (duration < 360) duration = 360;
+  if (duration > 720) duration = 720;
+  return duration;
+}
+
 static void place_between(lv_obj_t *obj, const SlotPosition &from, const SlotPosition &to, int32_t progress) {
   lv_obj_set_pos(obj,
                  from.x + ((to.x - from.x) * progress) / 1000,
@@ -658,11 +690,16 @@ static void place_ghost_between_slots(RingGhostAnim *anim, uint8_t fromSlot, uin
 
 static void anim_set_chain_progress(void *var, int32_t progress) {
   RingGhostAnim *anim = static_cast<RingGhostAnim *>(var);
-  if (!anim || !anim->obj || !anim->heroObj || anim->steps == 0) return;
+  if (!anim || !anim->obj || !anim->heroObj || anim->steps == 0 || anim->totalLength == 0) return;
 
-  int32_t scaled = progress * anim->steps;
-  uint8_t segment = scaled >= 1000 * anim->steps ? anim->steps - 1 : scaled / 1000;
-  int32_t segProgress = scaled - (int32_t)segment * 1000;
+  int32_t traveled = (static_cast<int32_t>(anim->totalLength) * progress) / 1000;
+  uint8_t segment = 0;
+  while (segment + 1 < anim->steps && traveled >= anim->segmentLength[segment]) {
+    traveled -= anim->segmentLength[segment];
+    ++segment;
+  }
+  int32_t segLen = anim->segmentLength[segment] ? anim->segmentLength[segment] : 1;
+  int32_t segProgress = (traveled * 1000) / segLen;
   if (segProgress < 0) segProgress = 0;
   if (segProgress > 1000) segProgress = 1000;
 
@@ -687,18 +724,15 @@ static void finish_ring_animation(lv_anim_t *) {
   lv_async_call(finish_ring_animation_async, nullptr);
 }
 
-static void animate_ghost_chain(RingGhostAnim *anim, bool finish) {
-  if (!anim || anim->steps == 0) return;
-  // Keep perceived speed constant: a touch on the adjacent mini-card moves one
-  // ring segment in 252 ms, while farther cards get proportionally more time.
-  // A fixed whole-transition duration made 2/3/4-segment moves accelerate too much.
-  constexpr uint32_t kRingAnimationStepMs = 252;
+static void animate_ghost_chain(RingGhostAnim *anim, uint32_t durationMs, bool finish) {
+  if (!anim || anim->steps == 0 || durationMs == 0) return;
   lv_anim_t a;
   lv_anim_init(&a);
   lv_anim_set_var(&a, anim);
   lv_anim_set_values(&a, 0, 1000);
-  lv_anim_set_duration(&a, kRingAnimationStepMs * anim->steps);
+  lv_anim_set_duration(&a, durationMs);
   lv_anim_set_exec_cb(&a, anim_set_chain_progress);
+  lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
   if (finish) lv_anim_set_completed_cb(&a, finish_ring_animation);
   lv_anim_start(&a);
 }
@@ -744,6 +778,7 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
   int targetOldSlot = find_metric_slot_in_order(oldOrder, target);
   int ringDirection = ring_direction_to_hero(targetOldSlot);
   uint8_t chainSteps = ring_steps_to_hero(targetOldSlot, ringDirection);
+  uint16_t maxPathLength = 0;
   for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
     MetricKind kind = oldOrder[oldSlot];
     RingGhostAnim &anim = ringGhostAnimations[oldSlot];
@@ -753,6 +788,9 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
     for (uint8_t step = 1; step <= chainSteps; ++step) {
       anim.path[step] = ring_step_slot(anim.path[step - 1], ringDirection);
     }
+    finalize_anim_path_lengths(anim);
+    if (anim.totalLength > maxPathLength) maxPathLength = anim.totalLength;
+
     uint8_t firstMiniSlot = anim.path[0] == 0 ? anim.path[1] : anim.path[0];
     if (firstMiniSlot == 0) firstMiniSlot = anim.path[chainSteps];
     SlotPosition start = slot_position(firstMiniSlot == 0 ? 4 : firstMiniSlot);
@@ -762,7 +800,11 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
     anim.heroObj = heroGhost;
     lv_obj_set_style_opa(ghost, 0, 0);
     lv_obj_set_style_opa(heroGhost, 0, 0);
-    animate_ghost_chain(&anim, oldSlot == 4);
+  }
+
+  uint32_t durationMs = chain_duration_ms(maxPathLength);
+  for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
+    animate_ghost_chain(&ringGhostAnimations[oldSlot], durationMs, oldSlot == 4);
   }
 }
 
