@@ -724,13 +724,25 @@ static void finish_ring_animation(lv_anim_t *) {
   lv_async_call(finish_ring_animation_async, nullptr);
 }
 
-static void animate_ghost_chain(RingGhostAnim *anim, uint32_t durationMs, bool finish) {
+static uint32_t chain_stagger_delay_ms(int oldSlot, int targetOldSlot, int ringDirection) {
+  constexpr uint32_t kChainStaggerStepMs = 18;
+  int delayUnits = 0;
+  if (ringDirection > 0) {
+    delayUnits = (targetOldSlot - oldSlot + 5) % 5;
+  } else if (ringDirection < 0) {
+    delayUnits = (oldSlot - targetOldSlot + 5) % 5;
+  }
+  return static_cast<uint32_t>(delayUnits) * kChainStaggerStepMs;
+}
+
+static void animate_ghost_chain(RingGhostAnim *anim, uint32_t durationMs, uint32_t delayMs, bool finish) {
   if (!anim || anim->steps == 0 || durationMs == 0) return;
   lv_anim_t a;
   lv_anim_init(&a);
   lv_anim_set_var(&a, anim);
   lv_anim_set_values(&a, 0, 1000);
   lv_anim_set_duration(&a, durationMs);
+  lv_anim_set_delay(&a, delayMs);
   lv_anim_set_exec_cb(&a, anim_set_chain_progress);
   lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
   if (finish) lv_anim_set_completed_cb(&a, finish_ring_animation);
@@ -803,8 +815,18 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
   }
 
   uint32_t durationMs = chain_duration_ms(maxPathLength);
+  uint32_t maxDelayMs = 0;
+  int finishSlot = 0;
   for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
-    animate_ghost_chain(&ringGhostAnimations[oldSlot], durationMs, oldSlot == 4);
+    uint32_t delayMs = chain_stagger_delay_ms(oldSlot, targetOldSlot, ringDirection);
+    if (delayMs >= maxDelayMs) {
+      maxDelayMs = delayMs;
+      finishSlot = oldSlot;
+    }
+  }
+  for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
+    uint32_t delayMs = chain_stagger_delay_ms(oldSlot, targetOldSlot, ringDirection);
+    animate_ghost_chain(&ringGhostAnimations[oldSlot], durationMs, delayMs, oldSlot == finishSlot);
   }
 }
 

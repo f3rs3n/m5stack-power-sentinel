@@ -176,7 +176,7 @@ def main() -> int:
     required_ring_animation = [
         "ringAnimationActive", "ringAnimationOverlay", "pendingAnimationView", "RingGhostAnim", "ringGhostAnimations[5]",
         "rotate_order_to_hero", "find_metric_slot_in_order", "slot_position",
-        "segment_visual_length", "finalize_anim_path_lengths", "chain_duration_ms", "segmentLength[4]", "totalLength", "durationMs", "maxPathLength", "lv_anim_set_duration(&a, durationMs)", "lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out)", "lv_anim_set_exec_cb(&a, anim_set_chain_progress)", "lv_anim_set_completed_cb(&a, finish_ring_animation)",
+        "segment_visual_length", "finalize_anim_path_lengths", "chain_duration_ms", "chain_stagger_delay_ms", "kChainStaggerStepMs = 18", "segmentLength[4]", "totalLength", "durationMs", "delayMs", "finishSlot", "maxPathLength", "lv_anim_set_duration(&a, durationMs)", "lv_anim_set_delay(&a, delayMs)", "lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out)", "lv_anim_set_exec_cb(&a, anim_set_chain_progress)", "lv_anim_set_completed_cb(&a, finish_ring_animation)",
         "place_ghost_between_slots", "place_hero_between_slots", "place_between", "mini-card ghosts never enter the hero area", "heroObj", "fromSlot == 0", "toSlot == 0", "baseOpa", "chainSteps", "ringDirection", "ring_direction_to_hero", "ring_step_slot", "ring_steps_to_hero",
         "tile(ringAnimationOverlay, start.x, start.y, metric_for(kind, overlayView, true), false)",
         "lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE)",
