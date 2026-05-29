@@ -435,11 +435,16 @@ static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
   return METRIC_BATTERY;
 }
 
-// Ring order is directional, not a list-style promote-to-front stack:
-//   slot 0 HERO -> slot 1 top-right -> slot 2 bottom-right ->
-//   slot 3 bottom-left -> slot 4 top-left -> HERO.
-// Promoting any metric rotates the whole ring clockwise/forward until that metric reaches HERO,
-// preserving a single visual direction instead of choosing the shorter reverse path.
+// Ring order follows the physical device-reference loop, not a list-style
+// promote-to-front stack. Internal slots are:
+//   slot 0 HERO, slot 1 top-right, slot 2 bottom-right,
+//   slot 3 bottom-left, slot 4 top-left.
+// Forward path (reference >>Hero>>): HERO -> top-right -> bottom-right ->
+//   bottom-left -> top-left -> HERO.
+// Reverse path (reference <<Hero<<): HERO -> top-left -> bottom-left ->
+//   bottom-right -> top-right -> HERO.
+// Promoting a metric chooses the shorter of those two bidirectional paths so
+// right-side cards do not travel around the whole loop just to reach HERO.
 static int find_metric_slot_in_order(const MetricKind order[5], MetricKind kind) {
   for (int i = 0; i < 5; ++i) {
     if (order[i] == kind) return i;
@@ -447,13 +452,36 @@ static int find_metric_slot_in_order(const MetricKind order[5], MetricKind kind)
   return -1;
 }
 
+static int ring_direction_to_hero(int pos) {
+  if (pos <= 0) return 0;
+  int forwardSteps = (5 - pos) % 5;
+  int reverseSteps = pos;
+  return forwardSteps <= reverseSteps ? 1 : -1;
+}
+
+static uint8_t ring_step_slot(uint8_t slot, int direction) {
+  if (direction >= 0) return static_cast<uint8_t>((slot + 1) % 5);
+  return static_cast<uint8_t>((slot + 4) % 5);
+}
+
+static uint8_t ring_steps_to_hero(int pos, int direction) {
+  if (pos <= 0 || direction == 0) return 0;
+  return static_cast<uint8_t>(direction > 0 ? (5 - pos) % 5 : pos);
+}
+
 static void rotate_order_to_hero(const MetricKind source[5], MetricKind kind, MetricKind dest[5]) {
   for (int i = 0; i < 5; ++i) dest[i] = source[i];
   int pos = find_metric_slot_in_order(source, kind);
-  if (pos <= 0) return;
-  int clockwiseSteps = (5 - pos) % 5;
+  int direction = ring_direction_to_hero(pos);
+  uint8_t steps = ring_steps_to_hero(pos, direction);
+  if (steps == 0) return;
+
   for (int i = 0; i < 5; ++i) {
-    dest[(i + clockwiseSteps) % 5] = source[i];
+    int destSlot = i;
+    for (uint8_t step = 0; step < steps; ++step) {
+      destSlot = ring_step_slot(static_cast<uint8_t>(destSlot), direction);
+    }
+    dest[destSlot] = source[i];
   }
 }
 
@@ -565,24 +593,52 @@ static void place_ghost_in_slot(lv_obj_t *obj, uint8_t slot) {
   lv_obj_set_pos(obj, pos.x, pos.y);
 }
 
+static void place_between(lv_obj_t *obj, const SlotPosition &from, const SlotPosition &to, int32_t progress) {
+  lv_obj_set_pos(obj,
+                 from.x + ((to.x - from.x) * progress) / 1000,
+                 from.y + ((to.y - from.y) * progress) / 1000);
+}
+
+static void place_ghost_through_hero_lane(lv_obj_t *obj, uint8_t fromSlot, uint8_t toSlot, int32_t segProgress) {
+  SlotPosition hero = slot_position(0);
+  if (fromSlot == 0) {
+    // Device-reference top segment: the current HERO exits horizontally first,
+    // then drops into the adjacent mini-card column.
+    SlotPosition to = slot_position(toSlot);
+    SlotPosition edge = {to.x, hero.y};
+    if (segProgress < 500) {
+      place_between(obj, hero, edge, segProgress * 2);
+    } else {
+      place_between(obj, edge, to, (segProgress - 500) * 2);
+    }
+    return;
+  }
+
+  if (toSlot == 0) {
+    // The incoming mini-card rises to the top lane first, then scrolls
+    // horizontally into HERO instead of fading in place.
+    SlotPosition from = slot_position(fromSlot);
+    SlotPosition edge = {from.x, hero.y};
+    if (segProgress < 500) {
+      place_between(obj, from, edge, segProgress * 2);
+    } else {
+      place_between(obj, edge, hero, (segProgress - 500) * 2);
+    }
+  }
+}
+
 static void place_ghost_between_slots(lv_obj_t *obj, uint8_t fromSlot, uint8_t toSlot, int32_t segProgress) {
   if (fromSlot == 0 && toSlot == 0) {
     place_ghost_in_slot(obj, 4);
     return;
   }
-  if (fromSlot == 0) {
-    place_ghost_in_slot(obj, toSlot);
-    return;
-  }
-  if (toSlot == 0) {
-    place_ghost_in_slot(obj, fromSlot);
+  if (fromSlot == 0 || toSlot == 0) {
+    place_ghost_through_hero_lane(obj, fromSlot, toSlot, segProgress);
     return;
   }
   SlotPosition from = slot_position(fromSlot);
   SlotPosition to = slot_position(toSlot);
-  lv_obj_set_pos(obj,
-                 from.x + ((to.x - from.x) * segProgress) / 1000,
-                 from.y + ((to.y - from.y) * segProgress) / 1000);
+  place_between(obj, from, to, segProgress);
 }
 
 static void anim_set_chain_progress(void *var, int32_t progress) {
@@ -675,14 +731,16 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
   lv_obj_set_scrollbar_mode(ringAnimationOverlay, LV_SCROLLBAR_MODE_OFF);
 
   int targetOldSlot = find_metric_slot_in_order(oldOrder, target);
-  uint8_t chainSteps = targetOldSlot <= 0 ? 1 : static_cast<uint8_t>((5 - targetOldSlot) % 5);
+  int ringDirection = ring_direction_to_hero(targetOldSlot);
+  uint8_t chainSteps = ring_steps_to_hero(targetOldSlot, ringDirection);
   for (int oldSlot = 0; oldSlot < 5; ++oldSlot) {
     MetricKind kind = oldOrder[oldSlot];
     RingGhostAnim &anim = ringGhostAnimations[oldSlot];
     anim.steps = chainSteps;
     anim.baseOpa = LV_OPA_80;
-    for (uint8_t step = 0; step <= chainSteps; ++step) {
-      anim.path[step] = static_cast<uint8_t>((oldSlot + step) % 5);
+    anim.path[0] = static_cast<uint8_t>(oldSlot);
+    for (uint8_t step = 1; step <= chainSteps; ++step) {
+      anim.path[step] = ring_step_slot(anim.path[step - 1], ringDirection);
     }
     uint8_t firstVisibleSlot = anim.path[0] == 0 ? anim.path[1] : anim.path[0];
     SlotPosition start = slot_position(firstVisibleSlot);
