@@ -77,3 +77,22 @@ def test_summary_can_enable_placeholder_pages_without_telemetry():
         assert summary["modules"]["ha"]["severity"] == "unknown"
         assert summary["severity"] == "warn"
     with_fake_nut(check)
+
+
+def test_nut_summary_payload_counts_local_primary_and_configured_clients():
+    old_load = api.load_nut_clients
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    try:
+        setattr(api, "load_nut_clients", lambda: [
+            {"name": "pve", "host": "192.168.2.99", "role": "secondary", "enabled": True}
+        ])
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        setattr(api, "systemd_active", lambda unit: True)
+        summary = api.build_summary({"modules": {"nut": True}})
+        assert summary["nut"]["client_count"] == 2
+        assert [client["name"] for client in summary["nut"]["clients"]] == ["power-sentinel", "pve"]
+    finally:
+        setattr(api, "load_nut_clients", old_load)
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)

@@ -201,10 +201,20 @@ def load_nut_clients(path: str = NUT_CLIENTS_FILE) -> list[dict[str, Any]]:
         if isinstance(item, dict):
             out.append({
                 "name": str(item.get("name") or item.get("host") or "unknown"),
+                "host": str(item.get("host") or ""),
                 "role": str(item.get("role") or "secondary"),
                 "enabled": bool(item.get("enabled", True)),
             })
     return out
+
+
+def local_nut_client(services: dict[str, bool | None]) -> dict[str, Any]:
+    return {
+        "name": "power-sentinel",
+        "host": "localhost",
+        "role": "primary",
+        "enabled": services.get("monitor_active") is not False,
+    }
 
 
 def build_nut_summary(_config: dict[str, Any]) -> dict[str, Any]:
@@ -215,7 +225,7 @@ def build_nut_summary(_config: dict[str, Any]) -> dict[str, Any]:
         "server_active": systemd_active("nut-server.service"),
         "monitor_active": systemd_active("nut-monitor.service"),
     }
-    clients = load_nut_clients()
+    clients = [local_nut_client(services), *load_nut_clients()]
     server_ok = services["server_active"] is not False and services["driver_active"] is not False
     severity = "critical" if ups["would_shutdown"] else ("warn" if not ups["available"] or not server_ok or ups["on_battery"] or ups["low_battery"] else "ok")
     return {
