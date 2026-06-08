@@ -159,7 +159,9 @@ static uint32_t battery_color(const LedcardsInterfaceNutView &view) {
     if (view.lowBattery || view.batteryPercent < 20) return kOrange;
     return kYellow;
   }
-  if (view.lowBattery || view.batteryPercent < 20) return kRed;
+  // NUT can keep LB asserted while line power is back (OL CHRG LB) and the
+  // battery is recovering. In that online state, avoid flapping between a red
+  // LOW BATTERY alarm and the normal percent bucket as LB clears/reasserts.
   if (view.batteryPercent < 50) return kOrange;
   if (view.batteryPercent < 90) return kYellow;
   return kGreen;
@@ -268,7 +270,7 @@ static const char *battery_state_text(const LedcardsInterfaceNutView &view) {
     if (view.lowBattery || view.batteryPercent < 20) return "LOW BATTERY";
     return "ON BATTERY";
   }
-  if (view.lowBattery || view.batteryPercent < 20) return "LOW BATTERY";
+  if (view.batteryPercent < 20) return "CHARGING";
   if (view.batteryPercent >= 90) return "FULL";
   if (view.batteryPercent >= 50) return "ALMOST FULL";
   return "CHARGING";
@@ -437,7 +439,7 @@ static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
     return METRIC_TTE;
   }
 
-  if (view.lowBattery || (view.batteryPercent >= 0 && view.batteryPercent < 20)) return METRIC_BATTERY;
+  if (view.batteryPercent >= 0 && view.batteryPercent < 20) return METRIC_BATTERY;
   if (view.loadPercent >= 70) return METRIC_LOAD;
   if (view.inputVoltage > 0.0f && view.inputVoltage < 210.0f) return METRIC_INPUT;
   return METRIC_BATTERY;

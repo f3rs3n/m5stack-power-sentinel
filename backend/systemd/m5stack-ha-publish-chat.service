@@ -1,8 +1,0 @@
-[Unit]
-Description=Publish M5Stack LLM chat smoke to Home Assistant MQTT
-After=network-online.target llm-openai-api.service llm-sys.service
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/m5stack-ha-publish --chat

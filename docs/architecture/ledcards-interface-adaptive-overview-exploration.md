@@ -34,7 +34,7 @@ GRID ONLINE:
 | --- | --- | --- | --- | --- |
 | 1 | UPS/source unavailable | NUT | `UNAVAILABLE` | purple `0x9b5cff` |
 | 1 | Telemetry stale/offline | NUT | `STALE` | gray `0x6c7470` |
-| 2 | Battery `<20%` or low-battery flag | Battery | `LOW BATTERY` | red `0xff4e3e` |
+| 2 | Battery `<20%` | Battery | `CHARGING` | orange `0xff8a2a` |
 | 3 | Load `>=90%` | Load | `OVERLOAD` | red `0xff4e3e` |
 | 3 | Load `70-89%` | Load | `HIGH LOAD` | orange `0xff8a2a` |
 | 4 | Input `190-209 V` | Input | `MARGINAL INPUT` | yellow `0xfcca3d` |
@@ -57,7 +57,7 @@ GRID OFFLINE:
 | 6 | Runtime unavailable, battery not low, load `>=90%` | Load | `OVERLOAD` | red `0xff4e3e` |
 | 6 | Runtime unavailable, battery not low, load `70-89%` | Load | `HIGH LOAD` | orange `0xff8a2a` |
 
-Hero state label rule: the large label below the hero value should be the literal state associated with the color/severity and grid state, not a generic summary. `NOMINAL`, `GOOD`, and generic `UNKNOWN` are not Ledcards Interface hero labels. Use gray `STALE` when a source existed but is old/offline; use purple `UNAVAILABLE` when the UPS/source is not available. Runtime thresholds are 5 min / 2 min: online `RESERVE` >=5m, `LOW RESERVE` 2-4:59, `CRITICAL RESERVE` <2m; offline `ON BATTERY` >=5m, `SHORT RUNTIME` 2-4:59, `CRITICAL RUNTIME` <2m. Battery thresholds are split by grid state: online `<20%` is red `LOW BATTERY`, `20-49%` orange `CHARGING`, `50-89%` yellow `ALMOST FULL`, `90-100%` green `FULL`; offline `<10%` red `CRITICAL BATTERY`, `10-19%` orange `LOW BATTERY`, `>=20%` yellow `ON BATTERY`.
+Hero state label rule: the large label below the hero value should be the literal state associated with the color/severity and grid state, not a generic summary. `NOMINAL`, `GOOD`, and generic `UNKNOWN` are not Ledcards Interface hero labels. Use gray `STALE` when a source existed but is old/offline; use purple `UNAVAILABLE` when the UPS/source is not available. Runtime thresholds are 5 min / 2 min: online `RESERVE` >=5m, `LOW RESERVE` 2-4:59, `CRITICAL RESERVE` <2m; offline `ON BATTERY` >=5m, `SHORT RUNTIME` 2-4:59, `CRITICAL RUNTIME` <2m. Battery thresholds are split by grid state: online ignores the NUT `LB` flag for display buckets because `OL CHRG LB` can persist during recharge; online `<50%` is orange `CHARGING`, `50-89%` yellow `ALMOST FULL`, `90-100%` green `FULL`; offline `<10%` red `CRITICAL BATTERY`, `10-19%` or `LB` orange `LOW BATTERY`, `>=20%` yellow `ON BATTERY`.
 
 Dynamic mini-card rule: do not duplicate the hero metric in the 2x2 supporting grid. The overview exposes five distinct facts as a physical bidirectional ring. Forward path is `HERO -> top-right -> bottom-right -> bottom-left -> top-left -> HERO`; reverse path is `HERO -> top-left -> bottom-left -> bottom-right -> top-right -> HERO`. The default ring starts as `Battery`, `Runtime`, `Load`, `Input`, `NUT client`. Accepted hero changes rotate the whole ring along the shortest path until the selected/candidate metric reaches `HERO`. Mini-cards are then the next four ring slots. Example: when low battery keeps `Battery` in the hero, `Runtime` is top-right, `Load` bottom-right, `Input` bottom-left, and `NUT client` top-left.
 
@@ -240,6 +240,6 @@ There are two coherent directions:
 2. Power Sentinel integrated
    - keep the existing left icon sidebar;
    - use the `1 + 4` adaptive overview inside the NUT/UPS tab content area;
-   - less exact visual match, but more consistent with the current multi-tab appliance model.
+   - less exact visual match, but more consistent with a future modular appliance model.
 
 The integrated/sidebar option was mocked and works mechanically, but it weakens the ledcards-interface reference feel and should not be the default for this specific adaptive overview pattern.

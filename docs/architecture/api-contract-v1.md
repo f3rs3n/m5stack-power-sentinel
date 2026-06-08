@@ -1,94 +1,52 @@
-# Architecture Notes
+# Power Sentinel API contract v1
 
-## Power Sentinel role
+Current profile: `nut-monitor-clean-baseline`.
 
-The M5Stack LLM Module is treated as an autonomous multi-function Linux appliance for the homelab.
+## Endpoint
 
-Primary responsibilities:
+`GET /api/v1/summary`
 
-- run NUT server for the directly attached UPS;
-- produce normalized local JSON state for dashboards and integrations;
-- expose a local API for the CoreS3 display;
-- publish MQTT retained state and Home Assistant Discovery for stack sensors/health;
-- provide read-only information dashboards for UPS/NUT, Proxmox, Home Assistant/Zigbee2MQTT, network, and the M5Stack appliance itself;
-- remain extensible for future mini-dashboards;
-- later use local LLM Module inference to enrich dashboard content or add a companion tab.
+`GET /api/v1/summary?stackflow_safe=1` for CoreS3/StackFlow polling.
 
-## Data contract direction
+## Top-level fields
 
-The CoreS3 consumes a compact summary endpoint, not raw NUT/Home Assistant/Proxmox APIs.
+- `schema`: `power-sentinel.summary.v1`
+- `timestamp`: UTC ISO timestamp
+- `product`: `Power Sentinel`
+- `profile`: `nut-monitor-clean-baseline`
+- `severity`: aggregate `ok` / `warn` / `critical` / `unknown`
+- `available_modules`: stable registry, currently `["nut", "proxmox", "ha"]`
+- `enabled_modules`: modules selected by `/etc/power-sentinel.json` or `POWER_SENTINEL_MODULES`
+- `pages`: UI pages corresponding to enabled modules
+- `modules`: per-module payloads
+- `ups`, `nut`: compatibility aliases for the NUT Monitor firmware
 
-Current endpoint:
+## Module policy
 
-```text
-GET /api/v1/summary
-```
+Only `modules.nut` is implemented in this baseline.
 
-Current schema:
+`modules.proxmox` and `modules.ha` are placeholders. They may be enabled in config to reserve pages, but must not fake telemetry. Reintroduce them as separate modules with tests before rendering live data.
 
-```json
-{
-  "schema": "power-sentinel.summary.v1",
-  "timestamp": "2026-05-17T12:00:00Z",
-  "severity": "ok",
-  "ups": {
-    "available": true,
-    "status": "OL",
-    "status_label": "Online",
-    "on_battery": false,
-    "low_battery": false,
-    "battery_percent": 100,
-    "runtime_seconds": 6120,
-    "load_percent": 18,
-    "input_voltage": 231.2,
-    "output_voltage": 230.0,
-    "stale": false,
-    "age_seconds": 4
-  },
-  "nut": {
-    "server_available": true,
-    "driver_available": true,
-    "connected_client_count": 1,
-    "connected_clients": ["pve"]
-  },
-  "homeassistant": {
-    "available": true,
-    "severity": "ok"
-  },
-  "proxmox": {
-    "available": true,
-    "severity": "ok",
-    "node": "pve",
-    "node_status": "online",
-    "cpu_percent": 18,
-    "ram_percent": 46,
-    "ram_total_bytes": 34359738368,
-    "storage_percent": 8,
-    "storage_total_bytes": 7897066643456,
-    "active_network_interfaces": ["eth25g"],
-    "zfs": {"status": "ONLINE"},
-    "smart": {"status": "OK"}
-  },
-  "m5stack": {
-    "available": true,
-    "severity": "ok",
-    "temperature_c": 45.4,
-    "ram_available_mb": 500,
-    "disk_free_gb": 20.5,
-    "stackflow_ok": true,
-    "openai_ok": true,
-    "chat_smoke_ok": true
-  },
-  "problems": []
-}
-```
+## NUT module
 
-Implementation status:
+`modules.nut.ups` and top-level `ups` expose:
 
-- `ups` and `nut`: implemented from live NUT/upsc data for the APC Back-UPS ES 850G2.
-- `proxmox`: implemented as read-only API integration for one node (`pve`) with CPU/RAM/storage/ZFS/SMART, running VM/LXC summaries, active non-loopback network interfaces, and aggregate Total Node Capacity from `/nodes/{node}/storage`.
-- `homeassistant`, `mqtt`, `zigbee2mqtt`: implemented as HA TCP reachability plus MQTT/Zigbee2MQTT bridge-topic health; HA update count is read from HA `/api/states` when a read-only token is configured.
-- `network`: implemented on the LLM Module using Linux default-route state plus a TCP probe, currently `1.1.1.1:53`.
-- `m5stack`: implemented from local healthcheck/service state.
-- NUT history/trend endpoints are not implemented. If tested later, history should be backend-owned and downsampled, not a raw display concern.
-- Local LLM inference for dashboard enrichment / companion UI is not implemented yet; current LLM usage is baseline health and optional chat smoke.
+- `available`, `stale`
+- `status`, `status_label`
+- `on_battery`, `low_battery`, `charging`
+- `would_shutdown`
+- `battery_percent`, `battery_voltage`, `runtime_seconds`
+- `load_percent`, `realpower_nominal_w`, `load_w`
+- `input_voltage`, `output_voltage`
+- `beeper_status`, `transfer_reason`, `driver`
+
+Shutdown rule: `would_shutdown` is true only when `ups.status` contains both `OB` and `LB`. `OL ... LB` is warning/no-shutdown.
+
+`modules.nut.nut` and top-level `nut` expose:
+
+- `mode`
+- `driver_active`, `server_active`, `monitor_active`
+- `client_count`, `clients`
+- `shutdown_owner: upsmon`
+- `would_shutdown`
+- `shutdown_rule`

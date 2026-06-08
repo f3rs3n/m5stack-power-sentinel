@@ -1,13 +1,13 @@
-# Runtime config directory
+# Backend config templates
 
-This directory is for sanitized examples/templates only.
+This directory contains sanitized templates only. Do not commit deployed secrets.
 
-Do not commit real files copied from `/etc/*` if they contain:
+Current clean baseline:
 
-- MQTT passwords;
-- NUT user passwords;
-- SSH material;
-- Home Assistant tokens;
-- Proxmox API tokens.
+- `power-sentinel.example.json`: module selection; defaults to `nut` only.
+- `nut*.example`, `ups*.example`: NUT reference templates.
+- `nut-clients.example.json`: optional read-only client inventory for the NUT page.
 
-Use `.example.json` / `.example.conf` files for templates.
+Removed from active baseline:
+
+- Home Assistant/MQTT publisher config. Reintroduce it only as the `ha` module backend, with separate tests and installer handling.

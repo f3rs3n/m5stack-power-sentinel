@@ -1,7 +1,0 @@
-{
-  "host": "192.168.2.200",
-  "port": 1883,
-  "username": "m5stack_llm",
-  "password": "CHANGE_ME",
-  "prefix": "m5stack/llm"
-}

@@ -1,30 +1,11 @@
 {
+  "modules": {
+    "nut": true,
+    "proxmox": false,
+    "ha": false
+  },
   "nut": {
-    "ups_name": "homelab_ups",
-    "endpoint": "localhost"
-  },
-  "mqtt": {
-    "config_file": "/etc/m5stack-ha-publish.json",
-    "host": "192.168.2.200",
-    "port": 1883,
-    "username": "m5stack_ups",
-    "password": "CHANGE_ME",
-    "prefix": "m5stack/ups"
-  },
-  "zigbee2mqtt": {
-    "base_topic": "zigbee2mqtt"
-  },
-  "api": {
-    "bind_host": "192.168.2.202",
-    "port": 8088
-  },
-  "proxmox": {
-    "host": "192.168.2.99",
-    "dns_name": "pve.warpzone.info",
-    "port": 8006,
-    "node": "pve",
-    "verify_ssl": false,
-    "token_id": "power-sentinel@pve!readonly",
-    "token_secret": "CHANGE_ME"
+    "ups": "homelab_ups@localhost",
+    "clients_file": "/etc/power-sentinel-nut-clients.json"
   }
 }

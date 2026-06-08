@@ -1,35 +1,33 @@
-# CoreS3 Display Firmware
+# CoreS3 display firmware
 
-PlatformIO firmware for the M5Stack CoreS3 display used by Power Sentinel.
+Clean baseline: NUT Monitor only.
 
-## Current UI
+## Build
 
-The default `platformio.ini` environment (`m5stack-cores3`) builds the normal five-tab live firmware. A separate `m5stack-cores3-ledcards-interface` environment defines `POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY=1`; despite the historical environment name, this now builds the fullscreen Ledcards Interface NUT/UPS page against the same live StackFlow/HTTP summary path. It keeps the sidebar/dashboard disabled so the CoreS3 can be checked as a dedicated Ledcards Interface appliance surface, but it no longer uses compile-time fake NUT values.
+```bash
+platformio run -e m5stack-cores3-ledcards-interface
+```
 
-The Ledcards Interface live page maps `SummaryState` into `LedcardsInterfaceNutView` in `main.cpp` and renders through `ledcards-interface-page.cpp`:
+If `platformio` is not on PATH:
 
-- hero candidate priority: stale/unavailable -> NUT, low battery -> Battery, on battery -> Runtime, high load -> Load, marginal input -> Input, otherwise Battery;
-- hero swaps are rate-limited by a short cooldown and maintain a five-metric ring (`Battery`, `Runtime`, `Load`, `Input`, `NUT`) so the hero is not duplicated in mini-cards;
-- accepted automatic swaps, touch overrides, and post-60-second priority resume animate through the same bidirectional shortest-path ring transition;
-- the hero is rendered as a large invisible card region for animation; metrics crossing HERO slide horizontally as full-size hero cards, while mini-card ghosts stay in the mini-card lanes;
-- animation timing is weighted by visual path length, uses a subtle 18 ms per-link stagger, and waits for the latest-delayed ghost before the final static redraw;
-- missing or stale telemetry renders as `--`/gray, never as nominal demo data;
-- charging is inferred from NUT status/status label and overrides battery wording with `CHARGING`.
+```bash
+~/.platformio/penv/bin/platformio run -e m5stack-cores3-ledcards-interface
+```
 
-The normal firmware UI renders a five-tab LVGL dashboard:
+## Transport
 
-1. `HOME` - overall power and homelab status.
-2. `NUT` - UPS telemetry, NUT service state, connected-client count, and optional connected-host list.
-3. `PVE` - Proxmox node health, capacity, storage, ZFS/SMART, and active interfaces.
-4. `HA` - Home Assistant, MQTT, Zigbee2MQTT, update count, and coordinator/device status.
-5. `M5S` - M5Stack appliance health, StackFlow/API freshness, local resources, and LLM smoke state.
+Default transport is StackFlow over the internal stacked UART:
 
-Navigation in normal mode uses the icon-only left sidebar. Top-level tabs switch vertically through the sidebar stack; horizontal gestures inside the content area belong to the current tab/card carousel.
+- CoreS3 RX=G18
+- CoreS3 TX=G17
+- `Serial2`
+- 115200 baud
+- `work_id: sentinel`, `action: summary`
 
-## Data source
+HTTP is kept as a development fallback when WiFi is configured in ignored local config.
 
-The firmware consumes the normalized `power-sentinel.summary.v1` payload through the local StackFlow path. Missing data must render as unknown/unavailable/stale and must never fall back to demo values.
+## UI
 
-## UI validation
+`src/main.cpp` only fetches/parses NUT summary fields and drives `ledcards-interface-page.*`.
 
-Visible firmware UI changes must be mirrored in `assets/lvgl-spike/power-sentinel-dashboard-fixture.c` and rendered through the LVGL/MCP workflow documented in `assets/lvgl-spike/README.md`.
+Legacy HOME/PVE/HA/M5S tab rendering is intentionally absent from this baseline. Reintroduce future pages as separate modules after their backend contracts are restored.

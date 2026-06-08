@@ -1,52 +1,48 @@
-# LLM Module Dependency Inventory
+# LLM Module dependencies
 
-This file records the packages, config files, and smoke checks needed to reproduce the Power Sentinel backend on a fresh M5Stack LLM Module.
+Clean NUT Monitor baseline dependencies for a fresh M5Stack LLM Module.
 
-## Base assumptions
+## Debian/Ubuntu packages
 
-- Ubuntu 22.04 style userspace on the LLM Module.
-- Python 3.10+.
-- Vendor StackFlow / `llm_sys` runtime remains installed.
-- Root-only runtime config files are used for secrets.
+Required:
 
-## Apt packages
-
-Expected package groups:
-
-```text
-python3 python3-venv python3-pip
-nut nut-server nut-client nut-cgi
-mosquitto-clients
-curl jq iproute2
+```bash
+apt-get update
+apt-get install -y nut nut-server nut-client curl python3 python3-zmq
 ```
 
-## Python packages
+Optional diagnostics:
 
-Backend scripts currently use stdlib plus project-pinned packages where present. Verify with the project test runner and the live API smoke check.
+```bash
+apt-get install -y usbutils iproute2
+```
 
-## Runtime config files
+## Installed project files
+
+Installed by `scripts/install-power-sentinel.sh --modules nut`:
 
 ```text
-/etc/m5stack-ha-publish.json          # MQTT/HA publisher credentials/config
-/etc/power-sentinel.json              # summary API config: HA, MQTT, Proxmox token, network targets, etc.
-/etc/power-sentinel-nut-clients.json  # optional NUT connected-host display inventory
-/etc/nut/ups.conf                     # UPS driver config
-/etc/nut/upsd.conf                    # NUT server listener config
-/etc/nut/upsd.users                   # NUT server user config
+/usr/local/bin/power-sentinel-api
+/usr/local/bin/power-sentinel-stackflow-unit
+/usr/local/bin/m5stack-ups-detect
+/etc/systemd/system/power-sentinel-api.service
+/etc/systemd/system/power-sentinel-stackflow-unit.service
+/etc/power-sentinel.json
 ```
+
+Runtime NUT config remains under `/etc/nut/` and should be managed deliberately, not overwritten blindly by the project installer.
 
 ## Smoke checks
 
 ```bash
-python3 --version
-command -v upsc upsdrvctl upsd nut-scanner mosquitto_pub mosquitto_sub curl ss
-systemctl status llm-sys nut-server power-sentinel-api power-sentinel-stackflow-unit --no-pager
-curl -fsS 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1' | python3 -m json.tool >/dev/null
-upsc homelab_ups@localhost ups.status
+/usr/local/bin/m5stack-ups-detect
+/usr/bin/upsc homelab_ups@localhost
+curl -fsS 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1'
+python3 -m json.tool /etc/power-sentinel.json
+systemctl is-active power-sentinel-api.service
+systemctl is-active power-sentinel-stackflow-unit.service
 ```
 
-## Installer safety notes
+## Future modules
 
-- Never overwrite secret-bearing `/etc/*.json` or `/etc/nut/*` without a timestamped backup and explicit flag.
-- Never install a parallel serial bridge on `/dev/ttyS1`; StackFlow via `llm_sys` remains the primary transport.
-- Keep public-release docs sanitized if this repo is prepared for publication.
+`proxmox` and `ha` are installer-recognized placeholders only. Add their package/config dependencies here only when the module backend is reintroduced with tests.
