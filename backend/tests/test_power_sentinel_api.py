@@ -217,6 +217,17 @@ def test_build_summary_includes_nut_service_state_when_available():
     }
 
 
+def test_observed_nut_clients_from_ss_extracts_remote_peer_ips_only():
+    api = load_module()
+    ss_output = """
+ESTAB 0 0 127.0.0.1:3493 127.0.0.1:44160
+ESTAB 0 0 192.168.2.202:3493 192.168.2.99:53314
+LISTEN 0 128 0.0.0.0:3493 0.0.0.0:*
+"""
+
+    assert api.observed_nut_clients_from_ss(ss_output) == ["127.0.0.1", "192.168.2.99"]
+
+
 def test_nut_client_readiness_is_generic_and_distinguishes_discovery_states():
     api = load_module()
 
@@ -360,12 +371,15 @@ def test_standard_nut_shutdown_would_shutdown_on_low_battery_only():
     nut = {"server_active": True, "driver_active": True, "monitor_active": False, "mode": "netserver", "client_count": 1, "clients": ["pve"], "shutdown_state": "disarmed"}
 
     on_battery = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OB\nbattery.runtime: 600"), nut)
+    online_low_battery = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OL CHRG LB\nbattery.runtime: 90"), nut)
     low_battery = api.summarize_standard_nut_shutdown(api.parse_upsc_output("ups.status: OB LB\nbattery.runtime: 90"), nut)
 
     assert on_battery["would_shutdown"] is False
     assert on_battery["reason"] == "UPS on battery, waiting for NUT LOWBATT/FSD"
+    assert online_low_battery["would_shutdown"] is False
+    assert online_low_battery["reason"] == "UPS online but battery is still low; waiting, no shutdown while line power is present"
     assert low_battery["would_shutdown"] is True
-    assert low_battery["reason"] == "UPS low battery; standard NUT upsmon would initiate shutdown"
+    assert low_battery["reason"] == "UPS on battery and low battery; standard NUT upsmon would initiate shutdown"
 
 
 def test_build_summary_exposes_standard_nut_shutdown_contract():

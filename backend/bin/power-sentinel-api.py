@@ -308,6 +308,33 @@ def systemd_is_active(service: str) -> bool | None:
     return cp.stdout.strip() == "active"
 
 
+def observed_nut_clients_from_ss(output: str) -> list[str]:
+    clients: list[str] = []
+    seen: set[str] = set()
+    for line in output.splitlines():
+        parts = line.split()
+        if not parts or parts[0] != "ESTAB" or len(parts) < 5:
+            continue
+        peer = parts[4]
+        if peer.endswith(":*"):
+            continue
+        host = peer.rsplit(":", 1)[0].strip("[]")
+        if host and host not in seen:
+            clients.append(host)
+            seen.add(host)
+    return clients
+
+
+def load_observed_nut_clients() -> list[str]:
+    try:
+        cp = subprocess.run(["ss", "-H", "-tn", "sport", "=", ":3493"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=0.75, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if cp.returncode != 0:
+        return []
+    return observed_nut_clients_from_ss(cp.stdout)
+
+
 def nut_mode(path: str = "/etc/nut/nut.conf") -> str | None:
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -328,7 +355,7 @@ def load_nut_status() -> dict[str, Any]:
         "monitor_active": monitor_active,
         "mode": nut_mode(),
         "client_count": None,
-        "clients": [],
+        "clients": load_observed_nut_clients(),
         "shutdown_state": "unknown" if monitor_active is None else ("armed" if monitor_active else "disarmed"),
     }
 
@@ -501,12 +528,16 @@ def summarize_standard_nut_shutdown(
     proxmox_client = select_proxmox_nut_client(summarized_clients, pve=pve, config=config)
     secondary_ready = any(client.get("role") == "secondary" and (client.get("connected_as_upsmon") or client.get("armed")) for client in summarized_clients)
     upsmon = nut_upsmon_summary(nut.get("monitor_active"))
-    if ups.get("low_battery"):
+    critical_power_state = bool(ups.get("on_battery") and ups.get("low_battery"))
+    if critical_power_state:
         would_shutdown = True
-        reason = "UPS low battery; standard NUT upsmon would initiate shutdown"
+        reason = "UPS on battery and low battery; standard NUT upsmon would initiate shutdown"
     elif ups.get("on_battery"):
         would_shutdown = False
         reason = "UPS on battery, waiting for NUT LOWBATT/FSD"
+    elif ups.get("available") and ups.get("low_battery"):
+        would_shutdown = False
+        reason = "UPS online but battery is still low; waiting, no shutdown while line power is present"
     elif ups.get("available"):
         would_shutdown = False
         reason = "UPS online"
@@ -580,7 +611,7 @@ def first_health_value(health: dict[str, Any] | None, paths: list[tuple[str, ...
 
 
 def derive_severity(ups: dict[str, Any], m5_ok: bool, checks: dict[str, bool], problems: list[str], pve: dict[str, Any] | None = None) -> str:
-    if ups.get("low_battery"):
+    if ups.get("on_battery") and ups.get("low_battery"):
         return "critical"
     if pve and pve.get("severity") == "critical":
         return "critical"
