@@ -131,6 +131,25 @@ bool jsonBool(JsonVariantConst v, bool fallback = false) {
   return fallback;
 }
 
+int parseNutClientCount(JsonDocument &doc, JsonObjectConst nut) {
+  int count = jsonInt(nut["client_count"], -1);
+  if (count >= 0) return count;
+
+  // Compatibility with the pre-clean-baseline backend still deployed on the
+  // LLM Module: it emitted nut.clients=[...] and shutdown.nut_client_summary,
+  // but nut.client_count was null. Without these fallbacks the Ledcards NUT
+  // tile renders the client metric as stale even when Proxmox + local upsmon
+  // are both connected.
+  JsonArrayConst clients = nut["clients"].as<JsonArrayConst>();
+  if (!clients.isNull()) return static_cast<int>(clients.size());
+
+  JsonObjectConst shutdown = doc["shutdown"].as<JsonObjectConst>();
+  JsonObjectConst summary = shutdown["nut_client_summary"].as<JsonObjectConst>();
+  count = jsonInt(summary["connected"], -1);
+  if (count >= 0) return count;
+  return jsonInt(summary["total"], -1);
+}
+
 void parseSummary(const String &json, const char *source) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
@@ -154,7 +173,7 @@ void parseSummary(const String &json, const char *source) {
   state.ups.inputVoltage = jsonFloat(ups["input_voltage"], 0.0f);
   state.ups.ageSeconds = jsonInt(ups["age_seconds"], -1);
   JsonObjectConst nut = doc["nut"].as<JsonObjectConst>();
-  state.nut.clientCount = jsonInt(nut["client_count"], -1);
+  state.nut.clientCount = parseNutClientCount(doc, nut);
   state.nut.wouldShutdown = jsonBool(nut["would_shutdown"], false);
   state.offline = false;
   state.lastGoodMillis = millis();
