@@ -294,14 +294,16 @@ void refreshLedcardsUi() {
 }
 
 void enterDisplayDim(uint32_t now) {
-  if (displayMode == DisplayMode::Dim && !displayFadeActive) return;
+  if ((displayMode == DisplayMode::Dim && !displayFadeActive) ||
+      (displayFadeActive && displayFadeTargetMode == DisplayMode::Dim)) return;
   if (displayMode == DisplayMode::Off) refreshLedcardsUi();
   startDisplayFade(DisplayMode::Dim, kDisplayDimBrightness, now);
 }
 
 void enterDisplaySleep() {
   uint32_t now = millis();
-  if (displayMode == DisplayMode::Off && !displayFadeActive) return;
+  if ((displayMode == DisplayMode::Off && !displayFadeActive) ||
+      (displayFadeActive && displayFadeTargetMode == DisplayMode::Off)) return;
   startDisplayFade(DisplayMode::Off, 0, now);
   // Static guard marker: off is implemented via hardware brightness only.
   if (false) psDisplaySetBrightness(0);
@@ -309,7 +311,8 @@ void enterDisplaySleep() {
 
 void wakeDisplay() {
   uint32_t now = millis();
-  if (displayMode == DisplayMode::Awake && !displayFadeActive) return;
+  if ((displayMode == DisplayMode::Awake && !displayFadeActive) ||
+      (displayFadeActive && displayFadeTargetMode == DisplayMode::Awake)) return;
   if (displayMode == DisplayMode::Off) refreshLedcardsUi();
   displayAsleep = false;
   displaySleepWakeArmed = true;
