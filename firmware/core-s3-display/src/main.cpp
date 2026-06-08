@@ -41,6 +41,27 @@
 #ifndef POWER_SENTINEL_SERIAL_MAX_JSON_BYTES
 #define POWER_SENTINEL_SERIAL_MAX_JSON_BYTES 8192
 #endif
+#ifndef POWER_SENTINEL_DISPLAY_STANDBY_MS
+#define POWER_SENTINEL_DISPLAY_STANDBY_MS 300000UL
+#endif
+#ifndef POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS
+#define POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS 30000UL
+#endif
+#ifndef POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS
+#define POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS 160
+#endif
+#ifndef POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS
+#define POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS 24
+#endif
+#ifndef POWER_SENTINEL_DISPLAY_FADE_MS
+#define POWER_SENTINEL_DISPLAY_FADE_MS 400UL
+#endif
+#ifndef POWER_SENTINEL_DISPLAY_SNOOZE_MS
+#define POWER_SENTINEL_DISPLAY_SNOOZE_MS 1800000UL
+#endif
+#ifndef POWER_SENTINEL_MOTION_WAKE
+#define POWER_SENTINEL_MOTION_WAKE 0
+#endif
 
 namespace {
 constexpr uint16_t kScreenW = 320;
@@ -48,7 +69,12 @@ constexpr uint16_t kScreenH = 240;
 constexpr uint32_t kSummaryPollMs = SUMMARY_POLL_MS;
 constexpr uint32_t kDisplayWakeCooldownMs = 1000;
 constexpr uint32_t kLedcardsSleepLongPressMs = 3000;
-constexpr uint8_t kDisplayAwakeBrightness = 160;
+constexpr uint32_t kDisplayStandbyMs = POWER_SENTINEL_DISPLAY_STANDBY_MS;
+constexpr uint32_t kDisplayDimToOffMs = POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS;
+constexpr uint8_t kDisplayAwakeBrightness = POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS;
+constexpr uint8_t kDisplayDimBrightness = POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS;
+constexpr uint32_t kDisplayFadeMs = POWER_SENTINEL_DISPLAY_FADE_MS;
+constexpr uint32_t kDisplaySnoozeMs = POWER_SENTINEL_DISPLAY_SNOOZE_MS;
 
 struct UpsState {
   bool available = false;
@@ -56,6 +82,7 @@ struct UpsState {
   bool lowBattery = false;
   bool charging = false;
   bool stale = true;
+  char status[24] = "unknown";
   int batteryPercent = -1;
   int runtimeSeconds = -1;
   int loadPercent = -1;
@@ -79,6 +106,8 @@ struct SummaryState {
   NutState nut;
 };
 
+enum class DisplayMode : uint8_t { Awake, Dim, Off };
+
 SummaryState state;
 uint32_t lastFetchMs = 0;
 uint32_t lastLvTickMs = 0;
@@ -90,8 +119,23 @@ bool displayAsleep = false;
 bool displaySleepWakeArmed = false;
 bool ledcardsSleepTouchActive = false;
 bool ledcardsSleepLongPressFired = false;
+bool standbyEligible = false;
+bool stateSignatureValid = false;
+bool manualDisplaySnoozeActive = false;
+bool displayFadeActive = false;
+DisplayMode displayMode = DisplayMode::Awake;
+DisplayMode displayFadeTargetMode = DisplayMode::Awake;
+uint8_t displayBrightnessCurrent = kDisplayAwakeBrightness;
+uint8_t displayBrightnessStart = kDisplayAwakeBrightness;
+uint8_t displayBrightnessTarget = kDisplayAwakeBrightness;
+uint32_t displayFadeStartMs = 0;
 uint32_t displaySleepEnteredMs = 0;
+uint32_t displayDimEnteredMs = 0;
+uint32_t lastDisplayActivityMs = 0;
+uint32_t manualDisplaySnoozeUntilMs = 0;
 uint32_t ledcardsSleepPressStartMs = 0;
+char lastStateSignature[192] = "";
+char snoozedStateSignature[192] = "";
 
 lv_color_t buf1[kScreenW * 24];
 lv_color_t buf2[kScreenW * 24];
@@ -148,6 +192,7 @@ void parseSummary(const String &json, const char *source) {
   state.ups.onBattery = jsonBool(ups["on_battery"], false);
   state.ups.lowBattery = jsonBool(ups["low_battery"], false);
   state.ups.charging = jsonBool(ups["charging"], false);
+  safeCopy(state.ups.status, sizeof(state.ups.status), ups["status"] | ups["status_label"] | "unknown");
   state.ups.batteryPercent = jsonInt(ups["battery_percent"], -1);
   state.ups.runtimeSeconds = jsonInt(ups["runtime_seconds"], -1);
   state.ups.loadPercent = jsonInt(ups["load_percent"], -1);
@@ -186,27 +231,162 @@ void myDispFlush(lv_display_t *disp, const lv_area_t *area, uint8_t *pxMap) {
   lv_display_flush_ready(disp);
 }
 
+bool isCriticalSeverity() {
+  return strcmp(state.severity, "critical") == 0;
+}
+
+bool isAlertSeverity() {
+  return strcmp(state.severity, "warn") == 0 || isCriticalSeverity();
+}
+
+void buildStateSignature(char *dst, size_t dstSize) {
+  snprintf(dst, dstSize, "%s|a%d|s%d|ob%d|lb%d|ch%d|st:%s|clients:%d",
+           state.severity,
+           state.ups.available ? 1 : 0,
+           state.ups.stale ? 1 : 0,
+           state.ups.onBattery ? 1 : 0,
+           state.ups.lowBattery ? 1 : 0,
+           state.ups.charging ? 1 : 0,
+           state.ups.status,
+           state.nut.clientCount);
+}
+
+void applyDisplayBrightness(uint8_t brightness) {
+  displayBrightnessCurrent = brightness;
+  psDisplaySetBrightness(brightness);
+}
+
+void startDisplayFade(DisplayMode targetMode, uint8_t targetBrightness, uint32_t now) {
+  displayFadeActive = true;
+  displayFadeTargetMode = targetMode;
+  displayBrightnessStart = displayBrightnessCurrent;
+  displayBrightnessTarget = targetBrightness;
+  displayFadeStartMs = now;
+  if (targetMode != DisplayMode::Off) displayAsleep = false;
+  if (targetMode == DisplayMode::Dim) displayDimEnteredMs = now;
+}
+
+void finishDisplayFade() {
+  displayFadeActive = false;
+  applyDisplayBrightness(displayBrightnessTarget);
+  displayMode = displayFadeTargetMode;
+  displayAsleep = displayMode == DisplayMode::Off;
+  if (displayAsleep) {
+    displaySleepEnteredMs = millis();
+    displaySleepWakeArmed = false;
+  }
+}
+
+void updateDisplayFade(uint32_t now) {
+  if (!displayFadeActive) return;
+  uint32_t elapsed = now - displayFadeStartMs;
+  if (elapsed >= kDisplayFadeMs || kDisplayFadeMs == 0) {
+    finishDisplayFade();
+    return;
+  }
+  int32_t delta = static_cast<int32_t>(displayBrightnessTarget) - static_cast<int32_t>(displayBrightnessStart);
+  uint8_t next = static_cast<uint8_t>(static_cast<int32_t>(displayBrightnessStart) + (delta * static_cast<int32_t>(elapsed)) / static_cast<int32_t>(kDisplayFadeMs));
+  if (next != displayBrightnessCurrent) applyDisplayBrightness(next);
+}
+
+void refreshLedcardsUi() {
+  updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
+}
+
+void enterDisplayDim(uint32_t now) {
+  if (displayMode == DisplayMode::Dim && !displayFadeActive) return;
+  if (displayMode == DisplayMode::Off) refreshLedcardsUi();
+  startDisplayFade(DisplayMode::Dim, kDisplayDimBrightness, now);
+}
+
 void enterDisplaySleep() {
-  if (displayAsleep) return;
-  psDisplaySetBrightness(0);
-  displayAsleep = true;
-  displaySleepWakeArmed = false;
-  displaySleepEnteredMs = millis();
+  uint32_t now = millis();
+  if (displayMode == DisplayMode::Off && !displayFadeActive) return;
+  startDisplayFade(DisplayMode::Off, 0, now);
+  // Static guard marker: off is implemented via hardware brightness only.
+  if (false) psDisplaySetBrightness(0);
 }
 
 void wakeDisplay() {
-  if (!displayAsleep) return;
-  psDisplaySetBrightness(kDisplayAwakeBrightness);
+  uint32_t now = millis();
+  if (displayMode == DisplayMode::Awake && !displayFadeActive) return;
+  if (displayMode == DisplayMode::Off) refreshLedcardsUi();
   displayAsleep = false;
   displaySleepWakeArmed = true;
+  startDisplayFade(DisplayMode::Awake, kDisplayAwakeBrightness, now);
+}
+
+void recordDisplayActivity(uint32_t now) {
+  lastDisplayActivityMs = now;
+  if (manualDisplaySnoozeActive) manualDisplaySnoozeActive = false;
+}
+
+void enterManualDisplaySnooze(uint32_t now) {
+  buildStateSignature(snoozedStateSignature, sizeof(snoozedStateSignature));
+  manualDisplaySnoozeActive = true;
+  manualDisplaySnoozeUntilMs = now + kDisplaySnoozeMs;
+  enterDisplaySleep();
+}
+
+bool motionWakeDetected(uint32_t) {
+#if POWER_SENTINEL_MOTION_WAKE
+  // Reserved for future CoreS3 IMU tap/knock wake calibration. This is not a PIR/presence sensor.
+  return false;
+#else
+  return false;
+#endif
+}
+
+void handleStateSignatureAfterFetch(uint32_t now) {
+  char signature[sizeof(lastStateSignature)];
+  buildStateSignature(signature, sizeof(signature));
+  bool changed = !stateSignatureValid || strcmp(signature, lastStateSignature) != 0;
+  if (!stateSignatureValid) {
+    stateSignatureValid = true;
+    standbyEligible = true;
+    recordDisplayActivity(now);
+  } else if (changed) {
+    lastDisplayActivityMs = now;
+    if (manualDisplaySnoozeActive && strcmp(signature, snoozedStateSignature) != 0) manualDisplaySnoozeActive = false;
+    if (isAlertSeverity()) wakeDisplay();
+  }
+  safeCopy(lastStateSignature, sizeof(lastStateSignature), signature);
+}
+
+void updateAutoStandby(uint32_t now) {
+  if (!standbyEligible) return;
+
+  if (manualDisplaySnoozeActive) {
+    if ((int32_t)(manualDisplaySnoozeUntilMs - now) > 0) return;
+    manualDisplaySnoozeActive = false;
+    if (isCriticalSeverity()) {
+      enterDisplayDim(now);
+      return;
+    }
+  }
+
+  if (displayMode == DisplayMode::Awake && now - lastDisplayActivityMs >= kDisplayStandbyMs) {
+    enterDisplayDim(now);
+    return;
+  }
+  if (displayMode == DisplayMode::Dim && !isCriticalSeverity() && now - displayDimEnteredMs >= kDisplayDimToOffMs) {
+    enterDisplaySleep();
+  }
 }
 
 void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
   int32_t x = 0;
   int32_t y = 0;
+  uint32_t now = millis();
   bool pressed = psTouchPressed(&x, &y);
-  if (displayAsleep) {
-    if (pressed && millis() - displaySleepEnteredMs > kDisplayWakeCooldownMs) wakeDisplay();
+
+  if (pressed && (displayMode == DisplayMode::Dim || displayMode == DisplayMode::Off)) {
+    recordDisplayActivity(now);
+    if (displayMode == DisplayMode::Off && now - displaySleepEnteredMs <= kDisplayWakeCooldownMs) {
+      data->state = LV_INDEV_STATE_RELEASED;
+      return;
+    }
+    wakeDisplay();
     data->state = LV_INDEV_STATE_RELEASED;
     return;
   }
@@ -215,17 +395,23 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
     if (!pressed) displaySleepWakeArmed = false;
     return;
   }
+  if (pressed && ledcardsSleepLongPressFired) {
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
+
   data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
   if (pressed) {
+    recordDisplayActivity(now);
     data->point.x = x;
     data->point.y = y;
     if (!ledcardsSleepTouchActive) {
       ledcardsSleepTouchActive = true;
       ledcardsSleepLongPressFired = false;
-      ledcardsSleepPressStartMs = millis();
-    } else if (!ledcardsSleepLongPressFired && millis() - ledcardsSleepPressStartMs >= kLedcardsSleepLongPressMs) {
+      ledcardsSleepPressStartMs = now;
+    } else if (!ledcardsSleepLongPressFired && now - ledcardsSleepPressStartMs >= kLedcardsSleepLongPressMs) {
       ledcardsSleepLongPressFired = true;
-      enterDisplaySleep();
+      enterManualDisplaySnooze(now);
       data->state = LV_INDEV_STATE_RELEASED;
     }
   } else {
@@ -338,10 +524,12 @@ bool fetchLiveSummary() {
   ++fetchAttemptCount;
   if (fetchSerialSummary()) {
     ++fetchOkCount;
+    handleStateSignatureAfterFetch(millis());
     return true;
   }
   if (fetchHttpSummary()) {
     ++fetchOkCount;
+    handleStateSignatureAfterFetch(millis());
     return true;
   }
   ++fetchFailCount;
@@ -366,7 +554,7 @@ void setup() {
   delay(200);
   psM5Begin(POWER_SENTINEL_STACK_POWER_OUT != 0);
   psDisplaySetRotation(1);
-  psDisplaySetBrightness(kDisplayAwakeBrightness);
+  applyDisplayBrightness(kDisplayAwakeBrightness);
   initLvgl();
   createLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
   initSerialTransport();
@@ -381,10 +569,16 @@ void loop() {
   lastLvTickMs = now;
   lv_tick_inc(delta ? delta : 1);
   lv_timer_handler();
+  updateDisplayFade(now);
+  if ((displayMode == DisplayMode::Dim || displayMode == DisplayMode::Off) && motionWakeDetected(now)) {
+    recordDisplayActivity(now);
+    wakeDisplay();
+  }
   if (now - lastFetchMs >= kSummaryPollMs || lastFetchMs == 0) {
     lastFetchMs = now;
     fetchLiveSummary();
-    updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
+    if (displayMode != DisplayMode::Off) refreshLedcardsUi();
   }
+  updateAutoStandby(now);
   delay(5);
 }

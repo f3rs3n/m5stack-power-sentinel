@@ -13,6 +13,18 @@
 // Network/API polling interval for live data.
 #define SUMMARY_POLL_MS 30000UL
 
+// Display standby policy. Values are compile-time defaults and may be
+// overridden by build flags for short hardware validation runs.
+#define POWER_SENTINEL_DISPLAY_STANDBY_MS 300000UL
+#define POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS 30000UL
+#define POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS 160
+#define POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS 24
+#define POWER_SENTINEL_DISPLAY_FADE_MS 400UL
+#define POWER_SENTINEL_DISPLAY_SNOOZE_MS 1800000UL
+
+// Reserved for future CoreS3 IMU tap/knock wake calibration; not a PIR/presence sensor.
+#define POWER_SENTINEL_MOTION_WAKE 0
+
 // Data transport. The final stacked appliance uses the internal UART as
 // primary transport, but through vendor StackFlow/llm_sys rather than a
 // parallel /dev/ttyS1 bridge:
