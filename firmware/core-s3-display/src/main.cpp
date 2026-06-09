@@ -374,7 +374,12 @@ void handleStateSignatureAfterFetch(uint32_t now) {
 }
 
 void updateAutoStandby(uint32_t now) {
-  uint32_t lastPayloadAgeMs = state.lastGoodMillis > 0 ? now - state.lastGoodMillis : now;
+  uint32_t lastPayloadAgeMs = 0;
+  if (state.lastGoodMillis == 0) {
+    lastPayloadAgeMs = now;
+  } else if (now >= state.lastGoodMillis) {
+    lastPayloadAgeMs = now - state.lastGoodMillis;
+  }
   if (kDisplayNoPayloadOffMs > 0 && lastPayloadAgeMs >= kDisplayNoPayloadOffMs) {
     missingPayloadDisplayOffActive = true;
     enterDisplaySleep();
