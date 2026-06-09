@@ -44,8 +44,8 @@
 #ifndef POWER_SENTINEL_DISPLAY_STANDBY_MS
 #define POWER_SENTINEL_DISPLAY_STANDBY_MS 300000UL
 #endif
-#ifndef POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS
-#define POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS 30000UL
+#ifndef POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS
+#define POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS 900000UL
 #endif
 #ifndef POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS
 #define POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS 160
@@ -70,7 +70,7 @@ constexpr uint32_t kSummaryPollMs = SUMMARY_POLL_MS;
 constexpr uint32_t kDisplayWakeCooldownMs = 1000;
 constexpr uint32_t kLedcardsSleepLongPressMs = 3000;
 constexpr uint32_t kDisplayStandbyMs = POWER_SENTINEL_DISPLAY_STANDBY_MS;
-constexpr uint32_t kDisplayDimToOffMs = POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS;
+constexpr uint32_t kDisplayNoPayloadOffMs = POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS;
 constexpr uint8_t kDisplayAwakeBrightness = POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS;
 constexpr uint8_t kDisplayDimBrightness = POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS;
 constexpr uint32_t kDisplayFadeMs = POWER_SENTINEL_DISPLAY_FADE_MS;
@@ -122,6 +122,7 @@ bool ledcardsSleepLongPressFired = false;
 bool standbyEligible = false;
 bool stateSignatureValid = false;
 bool manualDisplaySnoozeActive = false;
+bool missingPayloadDisplayOffActive = false;
 bool displayFadeActive = false;
 DisplayMode displayMode = DisplayMode::Awake;
 DisplayMode displayFadeTargetMode = DisplayMode::Awake;
@@ -344,6 +345,8 @@ void handleStateSignatureAfterFetch(uint32_t now) {
   char signature[sizeof(lastStateSignature)];
   buildStateSignature(signature, sizeof(signature));
   bool changed = !stateSignatureValid || strcmp(signature, lastStateSignature) != 0;
+  bool wasMissingPayloadOff = missingPayloadDisplayOffActive;
+  missingPayloadDisplayOffActive = false;
   if (!stateSignatureValid) {
     stateSignatureValid = true;
     standbyEligible = true;
@@ -351,12 +354,23 @@ void handleStateSignatureAfterFetch(uint32_t now) {
   } else if (changed) {
     lastDisplayActivityMs = now;
     if (manualDisplaySnoozeActive && strcmp(signature, snoozedStateSignature) != 0) manualDisplaySnoozeActive = false;
-    if (isAlertSeverity()) wakeDisplay();
+  }
+  if (changed && isAlertSeverity()) {
+    wakeDisplay();
+  } else if (wasMissingPayloadOff) {
+    enterDisplayDim(now);
   }
   safeCopy(lastStateSignature, sizeof(lastStateSignature), signature);
 }
 
 void updateAutoStandby(uint32_t now) {
+  uint32_t lastPayloadAgeMs = state.lastGoodMillis > 0 ? now - state.lastGoodMillis : now;
+  if (kDisplayNoPayloadOffMs > 0 && lastPayloadAgeMs >= kDisplayNoPayloadOffMs) {
+    missingPayloadDisplayOffActive = true;
+    enterDisplaySleep();
+    return;
+  }
+
   if (!standbyEligible) return;
 
   if (manualDisplaySnoozeActive) {
@@ -372,9 +386,8 @@ void updateAutoStandby(uint32_t now) {
     enterDisplayDim(now);
     return;
   }
-  if (displayMode == DisplayMode::Dim && !isCriticalSeverity() && now - displayDimEnteredMs >= kDisplayDimToOffMs) {
-    enterDisplaySleep();
-  }
+  // Automatic standby stops at DIM for all valid-payload states. OFF is reserved
+  // for deliberate long-press snooze or a prolonged missing-payload condition.
 }
 
 void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {

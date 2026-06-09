@@ -15,8 +15,10 @@
 
 // Display standby policy. Values are compile-time defaults and may be
 // overridden by build flags for short hardware validation runs.
+// Auto-standby fades to DIM and stays visible; OFF is reserved for manual
+// long-press snooze or for a prolonged missing-payload condition.
 #define POWER_SENTINEL_DISPLAY_STANDBY_MS 300000UL
-#define POWER_SENTINEL_DISPLAY_DIM_TO_OFF_MS 30000UL
+#define POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS 900000UL
 #define POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS 160
 #define POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS 48
 #define POWER_SENTINEL_DISPLAY_FADE_MS 400UL
