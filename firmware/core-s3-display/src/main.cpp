@@ -62,6 +62,97 @@
 #ifndef POWER_SENTINEL_MOTION_WAKE
 #define POWER_SENTINEL_MOTION_WAKE 0
 #endif
+#ifndef POWER_SENTINEL_ALS_SENSOR_ENABLED
+#define POWER_SENTINEL_ALS_SENSOR_ENABLED 1
+#endif
+#ifndef POWER_SENTINEL_ADAPTIVE_BRIGHTNESS_ENABLED
+#define POWER_SENTINEL_ADAPTIVE_BRIGHTNESS_ENABLED 1
+#endif
+#ifndef POWER_SENTINEL_ALS_POLL_MS
+#define POWER_SENTINEL_ALS_POLL_MS 100UL
+#endif
+#ifndef POWER_SENTINEL_ALS_WARMUP_SAMPLES
+#define POWER_SENTINEL_ALS_WARMUP_SAMPLES 4
+#endif
+#ifndef POWER_SENTINEL_ALS_EMA_ALPHA_NUM
+#define POWER_SENTINEL_ALS_EMA_ALPHA_NUM 2
+#endif
+#ifndef POWER_SENTINEL_ALS_EMA_ALPHA_DEN
+#define POWER_SENTINEL_ALS_EMA_ALPHA_DEN 3
+#endif
+#ifndef POWER_SENTINEL_ALS_BUCKET_DEBOUNCE_MS
+#define POWER_SENTINEL_ALS_BUCKET_DEBOUNCE_MS 250UL
+#endif
+#ifndef POWER_SENTINEL_ALS_BUCKET_HYSTERESIS_RAW
+#define POWER_SENTINEL_ALS_BUCKET_HYSTERESIS_RAW 2
+#endif
+#ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_INTERVAL_MS
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_INTERVAL_MS 30UL
+#endif
+#ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_STEP
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_STEP 1
+#endif
+#ifndef POWER_SENTINEL_ALS_DEBUG_SERIAL
+#define POWER_SENTINEL_ALS_DEBUG_SERIAL 0
+#endif
+#ifndef POWER_SENTINEL_ALS_DEBUG_OVERLAY
+#define POWER_SENTINEL_ALS_DEBUG_OVERLAY 0
+#endif
+#ifndef POWER_SENTINEL_ALS_WAKE_ON_LIGHT
+#define POWER_SENTINEL_ALS_WAKE_ON_LIGHT 0
+#endif
+#ifndef POWER_SENTINEL_ALS_BUCKET0_MAX
+#define POWER_SENTINEL_ALS_BUCKET0_MAX 1
+#endif
+#ifndef POWER_SENTINEL_ALS_BUCKET1_MAX
+#define POWER_SENTINEL_ALS_BUCKET1_MAX 12
+#endif
+#ifndef POWER_SENTINEL_ALS_BUCKET2_MAX
+#define POWER_SENTINEL_ALS_BUCKET2_MAX 45
+#endif
+#ifndef POWER_SENTINEL_ALS_BUCKET3_MAX
+#define POWER_SENTINEL_ALS_BUCKET3_MAX 95
+#endif
+#ifndef POWER_SENTINEL_ALS_INTERPOLATION_MAX_RAW
+#define POWER_SENTINEL_ALS_INTERPOLATION_MAX_RAW 135
+#endif
+#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_0
+#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_0 32
+#endif
+#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_1
+#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_1 48
+#endif
+#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_2
+#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_2 64
+#endif
+#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_3
+#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_3 80
+#endif
+#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_4
+#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_4 96
+#endif
+#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_0
+#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_0 80
+#endif
+#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_1
+#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_1 112
+#endif
+#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_2
+#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_2 144
+#endif
+#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_3
+#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_3 176
+#endif
+#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_4
+#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_4 208
+#endif
+
+#if POWER_SENTINEL_ALS_EMA_ALPHA_DEN == 0
+#error "POWER_SENTINEL_ALS_EMA_ALPHA_DEN must be greater than 0"
+#endif
+#if POWER_SENTINEL_ALS_EMA_ALPHA_NUM > POWER_SENTINEL_ALS_EMA_ALPHA_DEN
+#error "POWER_SENTINEL_ALS_EMA_ALPHA_NUM must be <= POWER_SENTINEL_ALS_EMA_ALPHA_DEN"
+#endif
 
 #if POWER_SENTINEL_DISPLAY_STANDBY_MS < 60000UL
 #warning "POWER_SENTINEL_DISPLAY_STANDBY_MS is under 60s; check local power_sentinel_config.h/build flags if this is not an accelerated test build."
@@ -85,6 +176,39 @@ constexpr uint8_t kDisplayAwakeBrightness = POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTN
 constexpr uint8_t kDisplayDimBrightness = POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS;
 constexpr uint32_t kDisplayFadeMs = POWER_SENTINEL_DISPLAY_FADE_MS;
 constexpr uint32_t kDisplaySnoozeMs = POWER_SENTINEL_DISPLAY_SNOOZE_MS;
+constexpr uint32_t kAlsPollMs = POWER_SENTINEL_ALS_POLL_MS;
+constexpr uint8_t kAlsWarmupSamples = POWER_SENTINEL_ALS_WARMUP_SAMPLES;
+constexpr uint32_t kAlsBucketDebounceMs = POWER_SENTINEL_ALS_BUCKET_DEBOUNCE_MS;
+constexpr uint16_t kAlsBucketHysteresisRaw = POWER_SENTINEL_ALS_BUCKET_HYSTERESIS_RAW;
+constexpr uint32_t kAlsBrightnessSlewIntervalMs = POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_INTERVAL_MS;
+constexpr uint8_t kAlsBrightnessSlewStep = POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_STEP;
+constexpr uint16_t kAlsBucketMax[4] = {
+  POWER_SENTINEL_ALS_BUCKET0_MAX,
+  POWER_SENTINEL_ALS_BUCKET1_MAX,
+  POWER_SENTINEL_ALS_BUCKET2_MAX,
+  POWER_SENTINEL_ALS_BUCKET3_MAX,
+};
+constexpr uint16_t kAlsInterpolationRaw[5] = {
+  0,
+  POWER_SENTINEL_ALS_BUCKET1_MAX,
+  POWER_SENTINEL_ALS_BUCKET2_MAX,
+  POWER_SENTINEL_ALS_BUCKET3_MAX,
+  POWER_SENTINEL_ALS_INTERPOLATION_MAX_RAW,
+};
+constexpr uint8_t kAlsDimBrightness[5] = {
+  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_0,
+  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_1,
+  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_2,
+  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_3,
+  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_4,
+};
+constexpr uint8_t kAlsAwakeBrightness[5] = {
+  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_0,
+  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_1,
+  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_2,
+  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_3,
+  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_4,
+};
 
 struct UpsState {
   bool available = false;
@@ -142,6 +266,17 @@ uint8_t displayBrightnessTarget = kDisplayAwakeBrightness;
 uint32_t displayFadeStartMs = 0;
 uint32_t displaySleepEnteredMs = 0;
 uint32_t displayDimEnteredMs = 0;
+bool alsSensorReady = false;
+bool alsEmaValid = false;
+bool alsAdaptiveReady = false;
+uint16_t alsRawCurrent = 0;
+uint16_t alsEmaCurrent = 0;
+uint8_t alsValidSamples = 0;
+uint8_t alsStableBucket = 2;
+uint8_t alsCandidateBucket = 2;
+uint32_t alsCandidateSinceMs = 0;
+uint32_t lastAlsPollMs = 0;
+uint32_t lastAlsBrightnessSlewMs = 0;
 uint32_t lastDisplayActivityMs = 0;
 uint32_t manualDisplaySnoozeUntilMs = 0;
 uint32_t ledcardsSleepPressStartMs = 0;
@@ -250,6 +385,9 @@ bool isAlertSeverity() {
   return strcmp(state.severity, "warn") == 0 || isCriticalSeverity();
 }
 
+void startDisplayFade(DisplayMode targetMode, uint8_t targetBrightness, uint32_t now);
+void applyDisplayBrightness(uint8_t brightness);
+
 void buildStateSignature(char *dst, size_t dstSize) {
   snprintf(dst, dstSize, "%s|a%d|s%d|ob%d|lb%d|ch%d|st:%s|clients:%d",
            state.severity,
@@ -260,6 +398,167 @@ void buildStateSignature(char *dst, size_t dstSize) {
            state.ups.charging ? 1 : 0,
            state.ups.status,
            state.nut.clientCount);
+}
+
+uint8_t bucketForAls(uint16_t value) {
+  if (value <= kAlsBucketMax[0]) return 0;
+  if (value <= kAlsBucketMax[1]) return 1;
+  if (value <= kAlsBucketMax[2]) return 2;
+  if (value <= kAlsBucketMax[3]) return 3;
+  return 4;
+}
+
+uint16_t lowerBoundaryForBucket(uint8_t bucket) {
+  if (bucket == 0) return 0;
+  return kAlsBucketMax[bucket - 1];
+}
+
+uint8_t bucketForAlsWithHysteresis(uint16_t value) {
+  if (!alsAdaptiveReady) return bucketForAls(value);
+  uint8_t current = alsStableBucket;
+  if (current < 4 && value > static_cast<uint16_t>(kAlsBucketMax[current] + kAlsBucketHysteresisRaw)) {
+    return bucketForAls(value);
+  }
+  if (current > 0) {
+    uint16_t lower = lowerBoundaryForBucket(current);
+    uint16_t lowerWithHysteresis = lower > kAlsBucketHysteresisRaw ? lower - kAlsBucketHysteresisRaw : 0;
+    if (value <= lowerWithHysteresis) return bucketForAls(value);
+  }
+  return current;
+}
+
+bool adaptiveBrightnessActive() {
+#if POWER_SENTINEL_ADAPTIVE_BRIGHTNESS_ENABLED
+  return alsSensorReady && alsAdaptiveReady;
+#else
+  return false;
+#endif
+}
+
+uint8_t staticBrightnessForMode(DisplayMode mode) {
+  if (mode == DisplayMode::Dim) return kDisplayDimBrightness;
+  if (mode == DisplayMode::Awake) return kDisplayAwakeBrightness;
+  return 0;
+}
+
+uint8_t interpolateAdaptiveBrightness(const uint8_t curve[5], uint16_t raw) {
+  if (raw <= kAlsInterpolationRaw[0]) return curve[0];
+  for (uint8_t i = 1; i < 5; ++i) {
+    uint16_t lowerRaw = kAlsInterpolationRaw[i - 1];
+    uint16_t upperRaw = kAlsInterpolationRaw[i];
+    if (upperRaw <= lowerRaw) continue;
+    if (raw <= upperRaw) {
+      int32_t lowerBrightness = curve[i - 1];
+      int32_t upperBrightness = curve[i];
+      int32_t span = static_cast<int32_t>(upperRaw - lowerRaw);
+      int32_t position = static_cast<int32_t>(raw - lowerRaw);
+      int32_t value = lowerBrightness + ((upperBrightness - lowerBrightness) * position + (span / 2)) / span;
+      if (value < 0) return 0;
+      if (value > 255) return 255;
+      return static_cast<uint8_t>(value);
+    }
+  }
+  return curve[4];
+}
+
+uint8_t adaptiveBrightnessForMode(DisplayMode mode) {
+  uint16_t raw = alsEmaValid ? alsEmaCurrent : alsRawCurrent;
+  if (mode == DisplayMode::Dim) return interpolateAdaptiveBrightness(kAlsDimBrightness, raw);
+  if (mode == DisplayMode::Awake) return interpolateAdaptiveBrightness(kAlsAwakeBrightness, raw);
+  return 0;
+}
+
+uint8_t brightnessForMode(DisplayMode mode) {
+  if (!adaptiveBrightnessActive()) return staticBrightnessForMode(mode);
+  return adaptiveBrightnessForMode(mode);
+}
+
+DisplayMode currentDisplayBrightnessMode() {
+  return displayFadeActive ? displayFadeTargetMode : displayMode;
+}
+
+void planAdaptiveBrightnessFade(uint32_t now) {
+  DisplayMode mode = currentDisplayBrightnessMode();
+  if (mode == DisplayMode::Off) return;
+  uint8_t target = brightnessForMode(mode);
+  if (displayFadeActive && displayBrightnessTarget == target && displayFadeTargetMode == mode) return;
+  if (!displayFadeActive && displayBrightnessCurrent == target) return;
+  startDisplayFade(mode, target, now);
+}
+
+void updateAmbientLight(uint32_t now) {
+#if POWER_SENTINEL_ALS_SENSOR_ENABLED
+  if (!alsSensorReady || kAlsPollMs == 0) return;
+  if (lastAlsPollMs != 0 && now - lastAlsPollMs < kAlsPollMs) return;
+  lastAlsPollMs = now;
+
+  uint16_t raw = 0;
+  if (!psAmbientLightRead(&raw)) return;
+  alsRawCurrent = raw;
+  if (!alsEmaValid) {
+    alsEmaCurrent = raw;
+    alsEmaValid = true;
+  } else {
+    uint32_t weighted = static_cast<uint32_t>(alsEmaCurrent) * (POWER_SENTINEL_ALS_EMA_ALPHA_DEN - POWER_SENTINEL_ALS_EMA_ALPHA_NUM) +
+                        static_cast<uint32_t>(raw) * POWER_SENTINEL_ALS_EMA_ALPHA_NUM +
+                        (POWER_SENTINEL_ALS_EMA_ALPHA_DEN / 2);
+    alsEmaCurrent = static_cast<uint16_t>(weighted / POWER_SENTINEL_ALS_EMA_ALPHA_DEN);
+  }
+  if (alsValidSamples < 255) ++alsValidSamples;
+
+  uint8_t nextCandidate = bucketForAlsWithHysteresis(alsEmaCurrent);
+  if (!alsAdaptiveReady) {
+    if (alsValidSamples >= kAlsWarmupSamples) {
+      alsStableBucket = bucketForAls(alsEmaCurrent);
+      alsCandidateBucket = alsStableBucket;
+      alsCandidateSinceMs = now;
+      alsAdaptiveReady = true;
+    }
+  } else if (nextCandidate != alsStableBucket) {
+    if (nextCandidate != alsCandidateBucket) {
+      alsCandidateBucket = nextCandidate;
+      alsCandidateSinceMs = now;
+    } else if (now - alsCandidateSinceMs >= kAlsBucketDebounceMs) {
+      alsStableBucket = nextCandidate;
+    }
+  } else {
+    alsCandidateBucket = alsStableBucket;
+    alsCandidateSinceMs = now;
+  }
+
+#if POWER_SENTINEL_ALS_DEBUG_SERIAL
+  Serial.printf("ALS raw=%u ema=%u bucket=%u candidate=%u adaptive=%u target=%u\n",
+                static_cast<unsigned>(alsRawCurrent),
+                static_cast<unsigned>(alsEmaCurrent),
+                static_cast<unsigned>(alsStableBucket),
+                static_cast<unsigned>(alsCandidateBucket),
+                adaptiveBrightnessActive() ? 1U : 0U,
+                static_cast<unsigned>(brightnessForMode(currentDisplayBrightnessMode())));
+#endif
+#else
+  (void)now;
+#endif
+}
+
+void updateAdaptiveBrightnessSlew(uint32_t now) {
+  if (!adaptiveBrightnessActive() || displayFadeActive || kAlsBrightnessSlewIntervalMs == 0) return;
+  DisplayMode mode = currentDisplayBrightnessMode();
+  if (mode == DisplayMode::Off) return;
+  if (lastAlsBrightnessSlewMs != 0 && now - lastAlsBrightnessSlewMs < kAlsBrightnessSlewIntervalMs) return;
+  lastAlsBrightnessSlewMs = now;
+
+  uint8_t target = brightnessForMode(mode);
+  if (displayBrightnessCurrent == target) return;
+
+  uint8_t step = kAlsBrightnessSlewStep == 0 ? 1 : kAlsBrightnessSlewStep;
+  uint8_t next = displayBrightnessCurrent;
+  if (displayBrightnessCurrent < target) {
+    uint16_t raised = static_cast<uint16_t>(displayBrightnessCurrent) + step;
+    next = raised >= target ? target : static_cast<uint8_t>(raised);
+  } else {
+    next = displayBrightnessCurrent - target <= step ? target : static_cast<uint8_t>(displayBrightnessCurrent - step);
+  }
+  applyDisplayBrightness(next);
 }
 
 void applyDisplayBrightness(uint8_t brightness) {
@@ -308,7 +607,7 @@ void enterDisplayDim(uint32_t now) {
   if ((displayMode == DisplayMode::Dim && !displayFadeActive) ||
       (displayFadeActive && displayFadeTargetMode == DisplayMode::Dim)) return;
   if (displayMode == DisplayMode::Off) refreshLedcardsUi();
-  startDisplayFade(DisplayMode::Dim, kDisplayDimBrightness, now);
+  startDisplayFade(DisplayMode::Dim, brightnessForMode(DisplayMode::Dim), now);
 }
 
 void enterDisplaySleep() {
@@ -327,7 +626,7 @@ void wakeDisplay() {
   if (displayMode == DisplayMode::Off) refreshLedcardsUi();
   displayAsleep = false;
   displaySleepWakeArmed = true;
-  startDisplayFade(DisplayMode::Awake, kDisplayAwakeBrightness, now);
+  startDisplayFade(DisplayMode::Awake, brightnessForMode(DisplayMode::Awake), now);
 }
 
 void recordDisplayActivity(uint32_t now) {
@@ -588,6 +887,11 @@ void setup() {
   applyDisplayBrightness(kDisplayAwakeBrightness);
   initLvgl();
   createLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
+  alsSensorReady = psAmbientLightBegin();
+  Serial.printf("ALS sensor: %s adaptive=%u poll=%lu ms\n",
+                alsSensorReady ? "ready" : "unavailable",
+                POWER_SENTINEL_ADAPTIVE_BRIGHTNESS_ENABLED ? 1U : 0U,
+                static_cast<unsigned long>(kAlsPollMs));
   initSerialTransport();
   connectWiFi();
   Serial.printf("Power Sentinel %s clean NUT monitor baseline\n", POWER_SENTINEL_FIRMWARE_BUILD);
@@ -606,6 +910,8 @@ void loop() {
   lv_tick_inc(delta ? delta : 1);
   lv_timer_handler();
   updateDisplayFade(now);
+  updateAmbientLight(now);
+  updateAdaptiveBrightnessSlew(now);
   if ((displayMode == DisplayMode::Dim || displayMode == DisplayMode::Off) && motionWakeDetected(now)) {
     recordDisplayActivity(now);
     wakeDisplay();
