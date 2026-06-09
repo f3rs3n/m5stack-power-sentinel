@@ -10,18 +10,6 @@ void psM5Begin(bool stackPowerOut) {
   cfg.output_power = stackPowerOut;
   M5.begin(cfg);
   M5.Power.setChargeCurrent(200);
-
-  if (!stackPowerOut) {
-    // M5Unified::Power.setExtOutput(false) clears CoreS3 BUS_EN but also clears
-    // AW9523 BOOST_EN. On the CoreS3 + LLM Kit Power Sentinel stack this can
-    // make the display/power path go dark after boot even though the firmware
-    // display standby state is still AWAKE. Re-enable only BOOST_EN here; do not
-    // re-enable BUS_EN, so the CoreS3 still does not feed 5V back into M-Bus.
-    static constexpr uint8_t kAw9523Addr = 0x58;
-    static constexpr uint8_t kAw9523Port1OutputReg = 0x03;
-    static constexpr uint8_t kCoreS3BoostEnableBit = 0x80;
-    M5.In_I2C.bitOn(kAw9523Addr, kAw9523Port1OutputReg, kCoreS3BoostEnableBit, 400000);
-  }
 }
 
 void psM5Update() {

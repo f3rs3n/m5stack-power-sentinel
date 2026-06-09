@@ -10,7 +10,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
-M5_HAL_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "m5_hal.cpp"
 NUT_FIXTURE = ROOT / "assets" / "lvgl-spike" / "power-sentinel-nut-ledcards-interface-fixture.c"
 
 
@@ -27,10 +26,9 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists() or not M5_HAL_CPP.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
-    m5_hal = M5_HAL_CPP.read_text(encoding="utf-8")
     ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8")
     if require(main, [
         "nut-monitor-clean-baseline",
@@ -60,12 +58,6 @@ def main() -> int:
         "kLedcardsSleepLongPressMs = 3000",
         "psDisplaySetBrightness(0)",
     ], "main NUT monitor"):
-        return 1
-    if require(m5_hal, [
-        "kCoreS3BoostEnableBit",
-        "does not feed 5V back into M-Bus",
-        "M5.In_I2C.bitOn",
-    ], "CoreS3 power HAL"):
         return 1
     forbidden = [
         "renderHome(", "renderProxmox(", "renderHa(", "renderM5s(", "tabview", "PS_ICON_HOME", "Zigbee2MqttState",
