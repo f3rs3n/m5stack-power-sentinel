@@ -62,6 +62,9 @@
 #ifndef POWER_SENTINEL_MOTION_WAKE
 #define POWER_SENTINEL_MOTION_WAKE 0
 #endif
+#ifndef POWER_SENTINEL_ALLOW_SHORT_DISPLAY_TIMEOUTS
+#define POWER_SENTINEL_ALLOW_SHORT_DISPLAY_TIMEOUTS 0
+#endif
 
 namespace {
 constexpr uint16_t kScreenW = 320;
@@ -69,10 +72,21 @@ constexpr uint16_t kScreenH = 240;
 constexpr uint32_t kSummaryPollMs = SUMMARY_POLL_MS;
 constexpr uint32_t kDisplayWakeCooldownMs = 1000;
 constexpr uint32_t kLedcardsSleepLongPressMs = 3000;
-constexpr uint32_t kDisplayStandbyMs = POWER_SENTINEL_DISPLAY_STANDBY_MS;
-constexpr uint32_t kDisplayNoPayloadOffMs = POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS;
+constexpr uint32_t kDisplayStandbyDefaultMs = 300000UL;
+constexpr uint32_t kDisplayNoPayloadOffDefaultMs = 900000UL;
+constexpr uint8_t kDisplayDimDefaultBrightness = 48;
+constexpr uint32_t kDisplayStandbyRawMs = POWER_SENTINEL_DISPLAY_STANDBY_MS;
+constexpr uint32_t kDisplayNoPayloadOffRawMs = POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS;
+constexpr uint8_t kDisplayDimRawBrightness = POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS;
+#if POWER_SENTINEL_ALLOW_SHORT_DISPLAY_TIMEOUTS
+constexpr uint32_t kDisplayStandbyMs = kDisplayStandbyRawMs;
+constexpr uint32_t kDisplayNoPayloadOffMs = kDisplayNoPayloadOffRawMs;
+#else
+constexpr uint32_t kDisplayStandbyMs = kDisplayStandbyRawMs < kDisplayStandbyDefaultMs ? kDisplayStandbyDefaultMs : kDisplayStandbyRawMs;
+constexpr uint32_t kDisplayNoPayloadOffMs = kDisplayNoPayloadOffRawMs < kDisplayNoPayloadOffDefaultMs ? kDisplayNoPayloadOffDefaultMs : kDisplayNoPayloadOffRawMs;
+#endif
 constexpr uint8_t kDisplayAwakeBrightness = POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS;
-constexpr uint8_t kDisplayDimBrightness = POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS;
+constexpr uint8_t kDisplayDimBrightness = kDisplayDimRawBrightness == 0 ? kDisplayDimDefaultBrightness : kDisplayDimRawBrightness;
 constexpr uint32_t kDisplayFadeMs = POWER_SENTINEL_DISPLAY_FADE_MS;
 constexpr uint32_t kDisplaySnoozeMs = POWER_SENTINEL_DISPLAY_SNOOZE_MS;
 
@@ -576,6 +590,12 @@ void setup() {
   initSerialTransport();
   connectWiFi();
   Serial.printf("Power Sentinel %s clean NUT monitor baseline\n", POWER_SENTINEL_FIRMWARE_BUILD);
+  Serial.printf("Display policy: standby=%lu no_payload_off=%lu awake=%u dim=%u short_timeouts=%u\n",
+                static_cast<unsigned long>(kDisplayStandbyMs),
+                static_cast<unsigned long>(kDisplayNoPayloadOffMs),
+                static_cast<unsigned>(kDisplayAwakeBrightness),
+                static_cast<unsigned>(kDisplayDimBrightness),
+                static_cast<unsigned>(POWER_SENTINEL_ALLOW_SHORT_DISPLAY_TIMEOUTS));
 }
 
 void loop() {
