@@ -40,10 +40,10 @@ The main firmware has a compile-time gated CoreS3 LTR553 ALS path:
 
 - `POWER_SENTINEL_ALS_SENSOR_ENABLED=1` initializes and samples the integrated ambient-light sensor.
 - `POWER_SENTINEL_ADAPTIVE_BRIGHTNESS_ENABLED=1` applies the adaptive DIM/AWAKE curves by default after the 2026-06-09 passive and active CoreS3 checks.
-- When adaptive brightness is enabled, the firmware samples ALS every 100 ms, uses EMA alpha 2/3, and keeps the calibrated buckets for stability/debug only. The DIM (`32,48,64,80,96`) and AWAKE (`80,112,144,176,208`) values are interpolation anchors, so ambient-light changes produce a continuous target brightness instead of 5 discrete output steps. A continuous slew limiter (`1` brightness point every `30 ms`) applies the target; the 900 ms fade remains for display mode changes.
+- When adaptive brightness is enabled, the firmware samples ALS every 100 ms and uses EMA alpha 2/3. The DIM (`32,48,64,80,96`) and AWAKE (`80,112,144,176,208`) values are interpolation anchors, so ALS changes first produce an instantaneous continuous brightness target. Tiny target changes inside `POWER_SENTINEL_ALS_TARGET_DEADBAND=2` are ignored when accepting a new brightness target, except curve endpoints which are always accepted; once a target is accepted, it is applied directly (`POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT=0`) and the non-linear PWM slew provides the visual smoothing (`1` point every 5/10/18/28 ms from high to low brightness, under 2s from max DIM to min DIM). The 900 ms fade remains only for display mode changes.
 - OFF remains OFF; ambient light never wakes the display in the current implementation. `POWER_SENTINEL_ALS_WAKE_ON_LIGHT` is reserved for a future test.
 
-Initial bucket thresholds come from `docs/als-calibration-2026-06-09.md` and should be revalidated with daylight/current placement before enabling adaptive brightness by default.
+Initial raw interpolation anchors come from `docs/als-calibration-2026-06-09.md` and should be revalidated with daylight/current placement before enabling adaptive brightness by default.
 
 ## Transport
 

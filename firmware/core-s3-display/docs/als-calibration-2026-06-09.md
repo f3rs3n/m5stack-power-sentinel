@@ -36,7 +36,7 @@ Notes:
 - Previous partial run with PC monitor on was discarded because it influenced ALS readings.
 - The plafoniera was restored to the initial state after calibration.
 
-Preliminary bucket idea, pending validation with daylight/other real conditions:
+Preliminary raw-light ranges used to derive interpolation anchors, pending validation with daylight/other real conditions:
 - B0: <= 1 raw, very dark / low light
 - B1: 2–12 raw, dim indoor
 - B2: 13–45 raw, normal indoor
@@ -48,9 +48,11 @@ Do not treat these thresholds as final until natural daylight and actual install
 Current firmware tuning after physical visual checks:
 - ALS is sampled every 100 ms.
 - EMA uses alpha 2/3.
-- Bucket debounce is 250 ms with raw hysteresis 2, but buckets are now classification/debug state only; brightness target comes from continuous ALS EMA interpolation.
-- The 5 DIM/AWAKE brightness values are interpolation anchors, not direct output steps.
+- Bucket debounce/raw hysteresis was removed from the runtime path after interpolation made it redundant.
+- The 5 DIM/AWAKE brightness values are interpolation anchors, not direct output steps. Current DIM anchors are `32,48,64,80,96`; AWAKE anchors are `80,112,144,176,208`.
 - The continuous interpolation raw anchors are 0, 12, 45, 95, and 135.
-- Ambient brightness changes are applied with a 1-point / 30 ms slew limiter.
+- Tiny instantaneous target changes inside `POWER_SENTINEL_ALS_TARGET_DEADBAND=2` are ignored when accepting a new target, but curve endpoints are always accepted so the accepted target reaches the real dark/bright endpoints.
+- The remaining accepted brightness target is applied directly (`POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT=0`); smoothness is handled by the PWM slew, while deadband still suppresses tiny target jitter.
+- Ambient brightness changes use a 1-point slew with a non-linear interval: 5 ms above 80, 10 ms from 64-79, 18 ms from 48-63, and 28 ms below 48. This intentionally preserves the faster-high/slower-low compensation while keeping a full DIM 96→32 transition under 2 seconds.
 - Display mode changes still use the normal 900 ms fade.
 - `DisplayMode::Off` remains brightness 0 and is not woken by ALS.
