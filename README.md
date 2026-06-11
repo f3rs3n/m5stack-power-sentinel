@@ -118,11 +118,11 @@ Se `platformio` è nel PATH, si può usare `platformio run ...`.
 
 ## Flash workflow
 
-Il workflow Windows/VSCode rimane quello preferito: il repo è buildabile senza segreti. La config privata opzionale resta in `firmware/core-s3-display/include/power_sentinel_config.h` ed è ignorata da Git; il fallback committed è `power_sentinel_config.example.h`.
+Il workflow Windows/VSCode rimane quello preferito: il repo è buildabile senza segreti. La config privata opzionale resta in `firmware/core-s3-display/include/power_sentinel_config.h` ed è ignorata da Git; il template committed è `power_sentinel_config.example.h`.
 
 Default firmware:
 
 - StackFlow/UART interno su CoreS3 RX=G18 TX=G17, `Serial2`, 115200.
-- HTTP solo fallback di sviluppo.
+- Nessun polling HTTP dal CoreS3 nella baseline corrente.
 - UI unica: NUT Monitor Ledcards.
 - Sleep display con long press; loop/telemetria restano attivi.

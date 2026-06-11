@@ -56,7 +56,7 @@ Default transport is StackFlow over the internal stacked UART:
 - 115200 baud
 - `work_id: sentinel`, `action: summary`
 
-HTTP is kept as a development fallback when WiFi is configured in ignored local config.
+CoreS3 HTTP polling is out of scope for the current baseline; live data comes through StackFlow/UART only.
 
 ## UI
 

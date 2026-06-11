@@ -1,7 +1,5 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
-#include <WiFi.h>
 #include <lvgl.h>
 #include <string.h>
 
@@ -28,9 +26,6 @@
 #endif
 #ifndef POWER_SENTINEL_TRANSPORT_SERIAL
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
-#endif
-#ifndef POWER_SENTINEL_HTTP_FALLBACK
-#define POWER_SENTINEL_HTTP_FALLBACK 1
 #endif
 #ifndef POWER_SENTINEL_SERIAL_TIMEOUT_MS
 #define POWER_SENTINEL_SERIAL_TIMEOUT_MS 3500UL
@@ -806,41 +801,6 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
   }
 }
 
-bool wifiConfigured() {
-  return strlen(WIFI_SSID) > 0 && strcmp(WIFI_SSID, "change-me") != 0;
-}
-
-void connectWiFi() {
-#if POWER_SENTINEL_HTTP_FALLBACK
-  if (!wifiConfigured()) return;
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) delay(250);
-#endif
-}
-
-bool fetchHttpSummary() {
-#if POWER_SENTINEL_HTTP_FALLBACK
-  if (!wifiConfigured() || WiFi.status() != WL_CONNECTED) return false;
-  HTTPClient http;
-  http.setTimeout(3500);
-  if (!http.begin(POWER_SENTINEL_SUMMARY_URL)) return false;
-  int code = http.GET();
-  if (code != 200) {
-    http.end();
-    snprintf(state.transportStatus, sizeof(state.transportStatus), "HTTP %d", code);
-    return false;
-  }
-  String body = http.getString();
-  http.end();
-  parseSummary(body, "http");
-  return !state.offline;
-#else
-  return false;
-#endif
-}
-
 void initSerialTransport() {
 #if POWER_SENTINEL_TRANSPORT_SERIAL
   Serial2.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN);
@@ -913,11 +873,6 @@ bool fetchLiveSummary() {
     handleStateSignatureAfterFetch(millis());
     return true;
   }
-  if (fetchHttpSummary()) {
-    ++fetchOkCount;
-    handleStateSignatureAfterFetch(millis());
-    return true;
-  }
   ++fetchFailCount;
   state.offline = true;
   return false;
@@ -949,7 +904,6 @@ void setup() {
                 POWER_SENTINEL_ADAPTIVE_BRIGHTNESS_ENABLED ? 1U : 0U,
                 static_cast<unsigned long>(kAlsPollMs));
   initSerialTransport();
-  connectWiFi();
   Serial.printf("Power Sentinel %s clean NUT monitor baseline\n", POWER_SENTINEL_FIRMWARE_BUILD);
   Serial.printf("Display policy: standby=%lu no_payload_off=%lu awake=%u dim=%u\n",
                 static_cast<unsigned long>(kDisplayStandbyMs),

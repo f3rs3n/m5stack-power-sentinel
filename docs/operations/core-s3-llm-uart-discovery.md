@@ -127,7 +127,7 @@ The custom unit calls:
 http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1
 ```
 
-WiFi HTTP remains useful for development and fallback:
+The direct HTTP endpoint can still be queried for backend/manual diagnostics, but it is not a CoreS3 firmware transport in the current baseline:
 
 ```text
 GET http://192.168.2.202:8088/api/v1/summary

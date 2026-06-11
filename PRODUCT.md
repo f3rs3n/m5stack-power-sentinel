@@ -10,8 +10,8 @@ NUT Monitor on M5Stack CoreS3 + LLM Kit:
 
 - local Linux backend reads UPS/NUT state;
 - CoreS3 renders one polished fullscreen NUT page;
-- StackFlow/UART is the preferred stacked transport;
-- HTTP remains development fallback;
+- CoreS3 uses the internal StackFlow/UART path as the current transport;
+- HTTP polling from CoreS3 is out of scope for the current baseline;
 - no plausible demo telemetry when live data is missing.
 
 ## Module roadmap

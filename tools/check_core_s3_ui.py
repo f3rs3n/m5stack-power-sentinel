@@ -37,7 +37,7 @@ def main() -> int:
         "POWER_SENTINEL_TRANSPORT_SERIAL",
         "Serial2.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN)",
         "work_id\"] = \"sentinel\"",
-        "POWER_SENTINEL_HTTP_FALLBACK",
+        "parseSummary(body, \"stackflow\")",
         "POWER_SENTINEL_DISPLAY_STANDBY_MS",
         "POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS",
         "POWER_SENTINEL_DISPLAY_SNOOZE_MS",
@@ -62,6 +62,8 @@ def main() -> int:
     forbidden = [
         "renderHome(", "renderProxmox(", "renderHa(", "renderM5s(", "tabview", "PS_ICON_HOME", "Zigbee2MqttState",
         "ProxmoxState", "WorkloadMetric", "HOME", "M5S", "Running workloads", "HA OK", "PVE OK",
+        "POWER_SENTINEL_HTTP_FALLBACK", "#include <HTTPClient.h>", "fetchHttpSummary", "HTTPClient http",
+        "POWER_SENTINEL_SUMMARY_URL", "parseSummary(body, \"http\")",
     ]
     for needle in forbidden:
         if needle in main:
