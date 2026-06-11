@@ -46,13 +46,15 @@ Preliminary raw-light ranges used to derive interpolation anchors, pending valid
 Do not treat these thresholds as final until natural daylight and actual installed viewing conditions are sampled.
 
 Current firmware tuning after physical visual checks:
+- Status: confirmed working and acceptable after 2026-06-11 installed-device visual checks in the user's studio. Response debounce felt good; PWM motion was slowed once and accepted for now.
 - ALS is sampled every 100 ms.
 - EMA uses alpha 2/3.
 - Bucket debounce/raw hysteresis was removed from the runtime path after interpolation made it redundant.
 - The 5 DIM/AWAKE brightness values are interpolation anchors, not direct output steps. Current DIM anchors are `32,48,64,80,96`; AWAKE anchors are `80,112,144,176,208`.
 - The continuous interpolation raw anchors are 0, 12, 45, 95, and 135.
-- Tiny instantaneous target changes inside `POWER_SENTINEL_ALS_TARGET_DEADBAND=2` are ignored when accepting a new target, but curve endpoints are always accepted so the accepted target reaches the real dark/bright endpoints.
-- The remaining accepted brightness target is applied directly (`POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT=0`); smoothness is handled by the PWM slew, while deadband still suppresses tiny target jitter.
-- Ambient brightness changes use a 1-point slew with a non-linear interval: 5 ms above 80, 10 ms from 64-79, 18 ms from 48-63, and 28 ms below 48. This intentionally preserves the faster-high/slower-low compensation while keeping a full DIM 96→32 transition under 2 seconds.
+- Tiny instantaneous target changes inside `POWER_SENTINEL_ALS_TARGET_DEADBAND=2` are ignored when accepting a new target, but curve endpoints are always eligible so the accepted target can still reach the real dark/bright endpoints.
+- Eligible targets are debounced asymmetrically: `POWER_SENTINEL_ALS_BRIGHTENING_DEBOUNCE_MS=300` and `POWER_SENTINEL_ALS_DARKENING_DEBOUNCE_MS=1000`, matching the real-system pattern of accepting brightening faster than transient darkening/shadows.
+- The remaining accepted brightness target is applied directly (`POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT=0`); smoothness is handled by the PWM slew, while deadband/debounce suppress target jitter.
+- Ambient brightness changes use a 1-point gamma-derived slew with a non-linear interval: 24 ms above 80, 34 ms from 64-79, 40 ms from 48-63, and 48 ms below 48. This preserves the gamma 2.2 relative weighting while slowing the visible PWM motion to roughly 3.1 seconds for a full DIM 96→32 transition after target acceptance.
 - Display mode changes still use the normal 900 ms fade.
 - `DisplayMode::Off` remains brightness 0 and is not woken by ALS.

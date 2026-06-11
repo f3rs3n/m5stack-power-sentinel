@@ -84,16 +84,22 @@
 #define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_STEP 1
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_HIGH_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_HIGH_MS 5UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_HIGH_MS 24UL
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_HIGH_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_HIGH_MS 10UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_HIGH_MS 34UL
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_LOW_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_LOW_MS 18UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_LOW_MS 40UL
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_LOW_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_LOW_MS 28UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_LOW_MS 48UL
+#endif
+#ifndef POWER_SENTINEL_ALS_BRIGHTENING_DEBOUNCE_MS
+#define POWER_SENTINEL_ALS_BRIGHTENING_DEBOUNCE_MS 300UL
+#endif
+#ifndef POWER_SENTINEL_ALS_DARKENING_DEBOUNCE_MS
+#define POWER_SENTINEL_ALS_DARKENING_DEBOUNCE_MS 1000UL
 #endif
 #ifndef POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT
 #define POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT 0
@@ -189,6 +195,8 @@ constexpr uint32_t kAlsBrightnessSlewHighMs = POWER_SENTINEL_ALS_BRIGHTNESS_SLEW
 constexpr uint32_t kAlsBrightnessSlewMidHighMs = POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_HIGH_MS;
 constexpr uint32_t kAlsBrightnessSlewMidLowMs = POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_LOW_MS;
 constexpr uint32_t kAlsBrightnessSlewLowMs = POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_LOW_MS;
+constexpr uint32_t kAlsBrighteningDebounceMs = POWER_SENTINEL_ALS_BRIGHTENING_DEBOUNCE_MS;
+constexpr uint32_t kAlsDarkeningDebounceMs = POWER_SENTINEL_ALS_DARKENING_DEBOUNCE_MS;
 constexpr uint8_t kAlsTargetFilterShift = POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT;
 constexpr uint8_t kAlsTargetDeadband = POWER_SENTINEL_ALS_TARGET_DEADBAND;
 constexpr uint16_t kAlsInterpolationRaw[5] = {
@@ -279,9 +287,11 @@ bool alsBrightnessFilterValid = false;
 DisplayMode alsBrightnessFilterMode = DisplayMode::Awake;
 int32_t alsBrightnessAcceptedTargetQ8 = static_cast<int32_t>(kDisplayAwakeBrightness) << 8;
 int32_t alsBrightnessFilteredQ8 = static_cast<int32_t>(kDisplayAwakeBrightness) << 8;
+int32_t alsBrightnessPendingTargetQ8 = static_cast<int32_t>(kDisplayAwakeBrightness) << 8;
 uint32_t lastAlsPollMs = 0;
 uint32_t lastAlsTargetFilterMs = 0;
 uint32_t lastAlsBrightnessSlewMs = 0;
+uint32_t alsBrightnessPendingSinceMs = 0;
 uint32_t lastDisplayActivityMs = 0;
 uint32_t manualDisplaySnoozeUntilMs = 0;
 uint32_t ledcardsSleepPressStartMs = 0;
@@ -519,11 +529,13 @@ void updateAmbientLight(uint32_t now) {
 void updateAdaptiveBrightnessTargetFilter(uint32_t now) {
   if (!adaptiveBrightnessActive()) {
     alsBrightnessFilterValid = false;
+    alsBrightnessPendingSinceMs = 0;
     return;
   }
   DisplayMode mode = currentDisplayBrightnessMode();
   if (mode == DisplayMode::Off) {
     alsBrightnessFilterValid = false;
+    alsBrightnessPendingSinceMs = 0;
     return;
   }
 
@@ -535,6 +547,8 @@ void updateAdaptiveBrightnessTargetFilter(uint32_t now) {
   if (!alsBrightnessFilterValid || alsBrightnessFilterMode != mode) {
     alsBrightnessAcceptedTargetQ8 = targetQ8;
     alsBrightnessFilteredQ8 = targetQ8;
+    alsBrightnessPendingTargetQ8 = targetQ8;
+    alsBrightnessPendingSinceMs = 0;
     alsBrightnessFilterMode = mode;
     alsBrightnessFilterValid = true;
     return;
@@ -542,8 +556,30 @@ void updateAdaptiveBrightnessTargetFilter(uint32_t now) {
 
   int32_t deadbandQ8 = static_cast<int32_t>(kAlsTargetDeadband) << 8;
   int32_t targetDelta = targetQ8 - alsBrightnessAcceptedTargetQ8;
-  if (adaptiveBrightnessIsEndpointTarget(mode, instantTarget) || targetDelta < -deadbandQ8 || targetDelta > deadbandQ8) {
-    alsBrightnessAcceptedTargetQ8 = targetQ8;
+  bool significantTarget = targetDelta != 0 &&
+                           (adaptiveBrightnessIsEndpointTarget(mode, instantTarget) ||
+                            targetDelta < -deadbandQ8 || targetDelta > deadbandQ8);
+  if (!significantTarget) {
+    alsBrightnessPendingSinceMs = 0;
+  } else {
+    uint32_t debounceMs = targetDelta > 0 ? kAlsBrighteningDebounceMs : kAlsDarkeningDebounceMs;
+    bool pendingDirectionChanged =
+        alsBrightnessPendingSinceMs == 0 ||
+        (targetQ8 > alsBrightnessAcceptedTargetQ8) !=
+            (alsBrightnessPendingTargetQ8 > alsBrightnessAcceptedTargetQ8);
+    if (debounceMs == 0) {
+      alsBrightnessAcceptedTargetQ8 = targetQ8;
+      alsBrightnessPendingSinceMs = 0;
+    } else if (pendingDirectionChanged) {
+      alsBrightnessPendingTargetQ8 = targetQ8;
+      alsBrightnessPendingSinceMs = now;
+    } else {
+      alsBrightnessPendingTargetQ8 = targetQ8;
+      if (now - alsBrightnessPendingSinceMs >= debounceMs) {
+        alsBrightnessAcceptedTargetQ8 = alsBrightnessPendingTargetQ8;
+        alsBrightnessPendingSinceMs = 0;
+      }
+    }
   }
 
   int32_t delta = alsBrightnessAcceptedTargetQ8 - alsBrightnessFilteredQ8;
