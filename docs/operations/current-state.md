@@ -16,7 +16,9 @@ Hardware notes:
 
 - Current physical stack order is `DIN Base -> LLM Mate -> LLM Module -> CoreS3`.
 - The DIN Base switch must be ON for the BAT rail to be visible through the stack. With it ON, the CoreS3/AXP2101 can see the DIN battery rail (`battery_mv` around 4190 mV and `charging=1` in the probe), but the SOC percentage may need time to settle after long storage/off time.
-- Leave battery-icon heuristics conservative until a future physical test removes external power and observes voltage, percent, and charging behavior over time.
+- A short physical power-loss test with USB power removed from the LLM Mate/Module kept the CoreS3 powered, while the LLM Mate and LLM Module powered off. Treat the DIN battery/BAT rail as CoreS3/local-display backup only, not as a full-stack UPS for the Linux/LLM side.
+- Leave battery-icon heuristics conservative until a longer physical test observes voltage, percent, and charging behavior over time during and after external-power removal.
+- Detailed DIN Base / LLM Mate rail notes live in `docs/operations/stack-power-architecture.md`.
 
 Archived/removed from active baseline:
 
