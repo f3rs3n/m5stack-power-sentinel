@@ -11,3 +11,5 @@ void psDisplaySetBrightness(uint8_t brightness);
 bool psTouchPressed(int32_t *x, int32_t *y);
 bool psAmbientLightBegin();
 bool psAmbientLightRead(uint16_t *alsRaw);
+int psBatteryLevel();
+bool psBatteryCharging();

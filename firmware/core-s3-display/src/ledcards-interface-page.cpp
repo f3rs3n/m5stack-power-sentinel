@@ -11,6 +11,7 @@
 LV_FONT_DECLARE(ps_font_ddin_condensed_bold_60);
 LV_FONT_DECLARE(ps_font_ddin_condensed_bold_40);
 LV_FONT_DECLARE(ps_icon_chart_32);
+LV_FONT_DECLARE(ps_icon_status_14);
 
 namespace {
 
@@ -517,27 +518,41 @@ static MetricKind accepted_hero_metric(const LedcardsInterfaceNutView &view) {
   return metricOrder[0];
 }
 
-static void top_status(lv_obj_t *screen, const LedcardsInterfaceNutView &view, uint32_t batt_color) {
-  box(screen, 6, 8, 2, 1, 0, 0x919792, 0);
-  box(screen, 8, 7, 2, 1, 0, 0x919792, 0);
-  box(screen, 10, 6, 2, 1, 0, 0x919792, 0);
-  box(screen, 12, 7, 2, 1, 0, 0x919792, 0);
-  box(screen, 14, 8, 2, 1, 0, 0x919792, 0);
-  box(screen, 8, 11, 2, 1, 0, 0x919792, 0);
-  box(screen, 10, 10, 2, 1, 0, 0x919792, 0);
-  box(screen, 12, 11, 2, 1, 0, 0x919792, 0);
-  box(screen, 10, 14, 3, 3, 2, 0x919792, 0);
-  label(screen, view.offline ? "STALE" : "LIVE", 24, 2, 46, &lv_font_montserrat_10, view.offline ? kYellow : 0x919792);
+static lv_obj_t *icon_label(lv_obj_t *parent, const char *text, int x, int y, int w, uint32_t color) {
+  return label(parent, text, x, y, w, &ps_icon_status_14, color);
+}
 
-  box(screen, 148, 8, 5, 5, 3, 0xf5f6f2, 0);
-  box(screen, 160, 8, 4, 4, 2, 0x4d5450, 0);
-  box(screen, 172, 8, 4, 4, 2, 0x4d5450, 0);
+static const char *local_battery_icon(const LedcardsInterfaceNutView &view) {
+  if (view.localBatteryCharging) return "\xF3\xB0\x82\x84";  // nf-md-battery_charging
+  if (!view.localBatteryKnown || view.localBatteryPercent < 10) return "\xF3\xB0\x82\x83";  // nf-md-battery_alert
+  if (view.localBatteryPercent < 30) return "\xF3\xB1\x8A\xA1";  // nf-md-battery_low
+  return "\xF3\xB0\x81\xB9";  // nf-md-battery
+}
 
-  int bw = 8;
-  if (view.batteryPercent >= 0) bw = 2 + (view.batteryPercent > 100 ? 100 : view.batteryPercent) * 14 / 100;
-  lv_obj_t *bat = box(screen, 294, 5, 20, 9, 2, 0x040607, 0xb1b6b2);
-  box(bat, 2, 2, bw, 5, 1, batt_color, 0);
-  box(screen, 315, 8, 3, 3, 1, 0xb1b6b2, 0);
+static void top_status(lv_obj_t *screen, const LedcardsInterfaceNutView &view) {
+  constexpr uint32_t kStatusOn = 0xaab0ac;
+  constexpr uint32_t kStatusOff = 0x66706b;
+  icon_label(screen, view.moduleLanConnected ? "\xF3\xB0\x8C\x98" : "\xF3\xB0\x8C\x99", 6, 2, 16,
+             view.moduleLanConnected ? kStatusOn : kStatusOff);  // nf-md-lan_connect / nf-md-lan_disconnect
+  icon_label(screen, view.wifiConnected ? "\xF3\xB0\x96\xA9" : "\xF3\xB0\x96\xAA", 22, 2, 16,
+             view.wifiConnected ? kStatusOn : kStatusOff);  // wifi / wifi_off
+  icon_label(screen, view.linkOk ? "\xF3\xB0\x8C\xB9" : "\xF3\xB0\x8C\xBA", 38, 2, 16,
+             view.linkOk ? kStatusOn : kStatusOff);  // link_variant / link_variant_off
+
+  uint8_t pageCount = view.pageCount == 0 ? 1 : view.pageCount;
+  if (pageCount > 5) pageCount = 5;
+  uint8_t pageIndex = view.pageIndex < pageCount ? view.pageIndex : 0;
+  int totalW = static_cast<int>(pageCount) * 7 - 3;
+  int x = 160 - totalW / 2;
+  for (uint8_t i = 0; i < pageCount; ++i) {
+    bool active = i == pageIndex;
+    box(screen, x + static_cast<int>(i) * 7, 8, active ? 5 : 4, active ? 5 : 4, 3, active ? 0xf5f6f2 : 0x4d5450, 0);
+  }
+
+  const char *timeText = (view.moduleTimeHhmm[0] != '\0') ? view.moduleTimeHhmm : "--:--";
+  lv_obj_t *time = label(screen, timeText, 234, 2, 48, &lv_font_montserrat_12, kStatusOn);
+  lv_obj_set_style_text_align(time, LV_TEXT_ALIGN_RIGHT, 0);
+  icon_label(screen, local_battery_icon(view), 292, 2, 20, view.localBatteryKnown ? kStatusOn : kStatusOff);
 }
 
 static void chart_icon(lv_obj_t *parent, int x, int y) {
@@ -842,7 +857,7 @@ static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutVie
 
   MetricKind heroKind = metricOrder[0];
   MetricRender hero = metric_for(heroKind, view);
-  top_status(screen, view, hero.accent);
+  top_status(screen, view);
 
   hero_card(screen, kHeroCardX, kHeroCardY, hero, true);
 

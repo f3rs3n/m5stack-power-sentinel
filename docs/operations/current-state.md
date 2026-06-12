@@ -6,10 +6,17 @@ Implemented now:
 
 - Backend API `power-sentinel-api.py` with modular registry.
 - `nut` module enabled by default and backed by live `upsc homelab_ups@localhost` plus lightweight NUT service checks.
-- StackFlow custom unit preserved for internal CoreS3 transport.
-- CoreS3 firmware simplified to one screen: the new Ledcards NUT Monitor UI.
+- Backend summary includes a `module` status block for the CoreS3 top row: Module LLM LAN state/IP and local `HH:MM` time. The deployed Module LLM host should run in `Europe/Rome` so the display uses local 24-hour time.
+- StackFlow custom unit preserved as the only CoreS3 live-data transport; the CoreS3 firmware no longer has an HTTP client/fallback path.
+- CoreS3 firmware simplified to one screen: the new Ledcards NUT Monitor UI with Module LLM LAN, CoreS3 Wi-Fi, serial-link status, page dots, local time, and local battery glyph in the top row.
 - LVGL MCP fixture/results retained only for the NUT Ledcards interface.
 - Installer script supports `--modules nut[,proxmox,ha]`; only `nut` installs telemetry today.
+
+Hardware notes:
+
+- Current physical stack order is `DIN Base -> LLM Mate -> LLM Module -> CoreS3`.
+- The DIN Base switch must be ON for the BAT rail to be visible through the stack. With it ON, the CoreS3/AXP2101 can see the DIN battery rail (`battery_mv` around 4190 mV and `charging=1` in the probe), but the SOC percentage may need time to settle after long storage/off time.
+- Leave battery-icon heuristics conservative until a future physical test removes external power and observes voltage, percent, and charging behavior over time.
 
 Archived/removed from active baseline:
 

@@ -33,11 +33,17 @@ def main() -> int:
     if require(main, [
         "nut-monitor-clean-baseline",
         "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())",
-        "updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView())",
+        "updateLedcardsInterfaceUi(view)",
+        "currentLinkOk != lastRenderedLinkOk",
         "POWER_SENTINEL_TRANSPORT_SERIAL",
         "Serial2.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN)",
         "work_id\"] = \"sentinel\"",
         "parseSummary(body, \"stackflow\")",
+        "kLinkStatusTimeoutMs = 10000",
+        "doc[\"module\"].as<JsonObjectConst>()",
+        "WiFi.status() == WL_CONNECTED",
+        "initStatusWiFi()",
+        "psBatteryLevel()",
         "POWER_SENTINEL_DISPLAY_STANDBY_MS",
         "POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS",
         "POWER_SENTINEL_DISPLAY_SNOOZE_MS",
@@ -59,6 +65,9 @@ def main() -> int:
         "psDisplaySetBrightness(0)",
     ], "main NUT monitor"):
         return 1
+    config_example = (ROOT / "firmware" / "core-s3-display" / "include" / "power_sentinel_config.example.h").read_text(encoding="utf-8")
+    if require(config_example, ["#define SUMMARY_POLL_MS 5000UL", "POWER_SENTINEL_WIFI_SSID"], "CoreS3 config example"):
+        return 1
     forbidden = [
         "renderHome(", "renderProxmox(", "renderHa(", "renderM5s(", "tabview", "PS_ICON_HOME", "Zigbee2MqttState",
         "ProxmoxState", "WorkloadMetric", "HOME", "M5S", "Running workloads", "HA OK", "PVE OK",
@@ -70,6 +79,10 @@ def main() -> int:
             return fail(f"clean NUT firmware still contains legacy multi-page marker {needle!r}")
     if require(ledcards, [
         "struct LedcardsInterfaceNutView",
+        "ps_icon_status_14",
+        "moduleLanConnected", "wifiConnected", "linkOk", "moduleTimeHhmm", "localBatteryPercent",
+        "nf-md-lan_connect", "nf-md-lan_disconnect",
+        "nf-md-battery_charging", "nf-md-battery_alert", "nf-md-battery_low",
         "createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
         "updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
         "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT",
@@ -80,10 +93,19 @@ def main() -> int:
         return 1
     if "  }\n  if (view.lowBattery || view.batteryPercent < 20) return \"LOW BATTERY\";" in ledcards:
         return fail("online battery display must not let NUT LB override percent buckets")
+    forbidden_ledcards = [
+        "view.offline ? \"STALE\" : \"LIVE\"",
+        "top_status(screen, view, hero.accent)",
+        "if (view.batteryPercent >= 0) bw =",
+        "box(screen, 148, 8, 5, 5",
+    ]
+    for needle in forbidden_ledcards:
+        if needle in ledcards:
+            return fail(f"Ledcards top bar still contains obsolete marker {needle!r}")
     if not NUT_FIXTURE.exists():
         return fail("NUT Ledcards LVGL MCP fixture is missing")
     fixture = NUT_FIXTURE.read_text(encoding="utf-8")
-    if require(fixture, ["NUT", "Runtime", "Battery", "Input", "Load", "STATE_LOW_BATTERY"], "NUT fixture"):
+    if require(fixture, ["NUT", "Runtime", "Battery", "Input", "Load", "STATE_LOW_BATTERY", "ps_icon_status_14"], "NUT fixture"):
         return 1
     print("PASS core-s3-ui clean NUT monitor guard")
     return 0

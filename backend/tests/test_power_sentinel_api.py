@@ -1,5 +1,6 @@
 import importlib.util
 import pathlib
+import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 API_PATH = ROOT / "backend" / "bin" / "power-sentinel-api.py"
@@ -67,6 +68,26 @@ def test_summary_defaults_to_nut_only_and_declares_future_modules():
         assert summary["modules"]["proxmox"]["implemented"] is False
         assert summary["ups"]["available"] is False
     with_fake_nut(check)
+
+
+def test_summary_includes_module_lan_status_and_local_time():
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    try:
+        def fake_run(cmd, *args, **kwargs):
+            if cmd[:5] == ["ip", "-4", "-o", "addr", "show"]:
+                return (0, "2: eth0    inet 192.168.2.123/24 brd 192.168.2.255 scope global eth0\n", "")
+            return (1, "", "no ups")
+
+        setattr(api, "run_text_command", fake_run)
+        setattr(api, "systemd_active", lambda unit: None)
+        summary = api.build_summary({})
+        assert summary["module"]["lan_connected"] is True
+        assert summary["module"]["lan_ip"] == "192.168.2.123"
+        assert re.match(r"^\d{2}:\d{2}$", summary["module"]["time_hhmm"])
+    finally:
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)
 
 
 def test_summary_can_enable_placeholder_pages_without_telemetry():

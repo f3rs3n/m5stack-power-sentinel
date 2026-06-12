@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 32 px
  * Bpp: 4
- * Source: generated from Symbols Nerd Font Mono.
+ * Source: generated with scripts/generate-lvgl-icon-font.sh from Symbols Nerd Font Mono.
  * Ranges: Nerd Font PUA icon 0xF154D nf-md-chart_box.
  ******************************************************************************/
 

@@ -85,3 +85,11 @@ bool psAmbientLightRead(uint16_t *alsRaw) {
   return false;
 #endif
 }
+
+int psBatteryLevel() {
+  return M5.Power.getBatteryLevel();
+}
+
+bool psBatteryCharging() {
+  return M5.Power.isCharging();
+}

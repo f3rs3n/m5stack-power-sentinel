@@ -4,7 +4,14 @@
 // include/power_sentinel_config.h is intentionally ignored by git.
 
 // Serial/StackFlow polling interval for live data.
-#define SUMMARY_POLL_MS 30000UL
+#define SUMMARY_POLL_MS 5000UL
+
+// Optional CoreS3 Wi-Fi status only. Leave SSID empty for the serial-only
+// appliance default; defining credentials in the ignored local config lets the
+// top-bar Wi-Fi icon reflect a real CoreS3 station connection without enabling
+// any HTTP fallback transport.
+#define POWER_SENTINEL_WIFI_SSID ""
+#define POWER_SENTINEL_WIFI_PASSWORD ""
 
 // Display standby policy. Values are compile-time defaults and may be
 // overridden by build flags for short hardware validation runs.

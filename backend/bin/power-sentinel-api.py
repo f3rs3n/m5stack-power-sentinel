@@ -42,6 +42,39 @@ def iso_utc(ts: float | int | None = None) -> str:
     return dt.datetime.fromtimestamp(float(ts), tz=dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def local_time_hhmm(ts: float | int | None = None) -> str:
+    if ts is None:
+        ts = time.time()
+    return dt.datetime.fromtimestamp(float(ts)).strftime("%H:%M")
+
+
+def module_lan_status() -> dict[str, Any]:
+    code, out, _err = run_text_command(["ip", "-4", "-o", "addr", "show", "scope", "global"], timeout=1.0)
+    if code != 0:
+        return {"lan_connected": False, "lan_ip": None}
+    fallback_ip: str | None = None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        iface = parts[1].rstrip(":")
+        try:
+            inet_index = parts.index("inet")
+        except ValueError:
+            continue
+        if inet_index + 1 >= len(parts):
+            continue
+        ip = parts[inet_index + 1].split("/", 1)[0]
+        if not ip or ip.startswith("127."):
+            continue
+        if fallback_ip is None:
+            fallback_ip = ip
+        lowered = iface.lower()
+        if not (lowered.startswith("docker") or lowered.startswith("br-") or lowered in {"lo"}):
+            return {"lan_connected": True, "lan_ip": ip}
+    return {"lan_connected": fallback_ip is not None, "lan_ip": fallback_ip}
+
+
 def load_json_file(path: str) -> dict[str, Any]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -297,6 +330,7 @@ def build_summary(config: dict[str, Any] | None = None, *, stackflow_safe: bool 
         "enabled_modules": sorted(enabled),
         "available_modules": list(MODULES.keys()),
         "pages": [MODULES[name].page for name in MODULES if name in enabled],
+        "module": {**module_lan_status(), "time_hhmm": local_time_hhmm()},
         "modules": modules,
         # Compatibility aliases for the current CoreS3 NUT monitor firmware.
         "ups": nut.get("ups", unavailable_ups("NUT module disabled")),

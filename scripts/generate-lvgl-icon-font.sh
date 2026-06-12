@@ -12,6 +12,8 @@ OUT="$ROOT/firmware/core-s3-display/src/ps_ui_tab_12.c"
 TMP_OUT="$CACHE_DIR/ps_ui_tab_12.c"
 CHART_OUT="$ROOT/firmware/core-s3-display/src/ps_icon_chart_32.c"
 CHART_TMP_OUT="$CACHE_DIR/ps_icon_chart_32.c"
+STATUS_OUT="$ROOT/firmware/core-s3-display/src/ps_icon_status_14.c"
+STATUS_TMP_OUT="$CACHE_DIR/ps_icon_status_14.c"
 
 MONTSERRAT_URL="https://github.com/googlefonts/montserrat/raw/master/fonts/ttf/Montserrat-Regular.ttf"
 NERD_SYMBOLS_URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip"
@@ -110,3 +112,41 @@ PY
 cp "$CHART_OUT" "$ROOT/assets/lvgl-spike/ps_icon_chart_32.c"
 printf 'Generated %s and copied fixture font\n' "$CHART_OUT"
 wc -c "$CHART_OUT" "$ROOT/assets/lvgl-spike/ps_icon_chart_32.c"
+
+# Top status bar icons. Codepoints verified from the Nerd Fonts webfont CSS
+# and rendered from the local Symbols Nerd Font Mono source:
+# U+F0318 nf-md-lan_connect, U+F0319 nf-md-lan_disconnect,
+# U+F05A9 nf-md-wifi, U+F05AA nf-md-wifi_off,
+# U+F0339 nf-md-link_variant, U+F033A nf-md-link_variant_off,
+# U+F0084 nf-md-battery_charging, U+F0079 nf-md-battery,
+# U+F12A1 nf-md-battery_low, U+F0083 nf-md-battery_alert.
+"${NPX:-npx}" --yes lv_font_conv \
+  --font "$NERD_TTF" -r 0xF0318,0xF0319,0xF05A9,0xF05AA,0xF0339,0xF033A,0xF0084,0xF0079,0xF12A1,0xF0083 \
+  --size 14 --bpp 4 --format lvgl --no-compress --no-kerning \
+  --lv-include lvgl.h \
+  --lv-font-name ps_icon_status_14 \
+  -o "$STATUS_TMP_OUT"
+
+python3 - "$STATUS_TMP_OUT" "$STATUS_OUT" <<'PY'
+import pathlib
+import sys
+src = pathlib.Path(sys.argv[1])
+dst = pathlib.Path(sys.argv[2])
+text = src.read_text(encoding="utf-8")
+start = text.find("/*******************************************************************************")
+end = text.find(" ******************************************************************************/", start)
+if start == -1 or end == -1:
+    raise SystemExit("unexpected lv_font_conv header format")
+end += len(" ******************************************************************************/")
+header = "/*******************************************************************************\n"
+header += " * Size: 14 px\n"
+header += " * Bpp: 4\n"
+header += " * Source: generated with scripts/generate-lvgl-icon-font.sh from Symbols Nerd Font Mono.\n"
+header += " * Ranges: 0xF0318 nf-md-lan_connect, 0xF0319 nf-md-lan_disconnect, 0xF05A9 nf-md-wifi, 0xF05AA nf-md-wifi_off, 0xF0339 nf-md-link_variant, 0xF033A nf-md-link_variant_off, 0xF0084 nf-md-battery_charging, 0xF0079 nf-md-battery, 0xF12A1 nf-md-battery_low, 0xF0083 nf-md-battery_alert.\n"
+header += " ******************************************************************************/"
+dst.write_text(header + text[end:].rstrip() + "\n", encoding="utf-8")
+PY
+
+cp "$STATUS_OUT" "$ROOT/assets/lvgl-spike/ps_icon_status_14.c"
+printf 'Generated %s and copied fixture font\n' "$STATUS_OUT"
+wc -c "$STATUS_OUT" "$ROOT/assets/lvgl-spike/ps_icon_status_14.c"

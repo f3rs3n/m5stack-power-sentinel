@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 #include <lvgl.h>
 #include <string.h>
 
@@ -26,6 +27,12 @@
 #endif
 #ifndef POWER_SENTINEL_TRANSPORT_SERIAL
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
+#endif
+#ifndef POWER_SENTINEL_WIFI_SSID
+#define POWER_SENTINEL_WIFI_SSID ""
+#endif
+#ifndef POWER_SENTINEL_WIFI_PASSWORD
+#define POWER_SENTINEL_WIFI_PASSWORD ""
 #endif
 #ifndef POWER_SENTINEL_SERIAL_TIMEOUT_MS
 #define POWER_SENTINEL_SERIAL_TIMEOUT_MS 3500UL
@@ -183,6 +190,7 @@ constexpr uint8_t kDisplayAwakeBrightness = POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTN
 constexpr uint8_t kDisplayDimBrightness = POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS;
 constexpr uint32_t kDisplayFadeMs = POWER_SENTINEL_DISPLAY_FADE_MS;
 constexpr uint32_t kDisplaySnoozeMs = POWER_SENTINEL_DISPLAY_SNOOZE_MS;
+constexpr uint32_t kLinkStatusTimeoutMs = 10000;
 constexpr uint32_t kAlsPollMs = POWER_SENTINEL_ALS_POLL_MS;
 constexpr uint8_t kAlsWarmupSamples = POWER_SENTINEL_ALS_WARMUP_SAMPLES;
 constexpr uint8_t kAlsBrightnessSlewStep = POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_STEP;
@@ -240,6 +248,8 @@ struct SummaryState {
   char severity[12] = "unknown";
   char source[16] = "boot";
   char transportStatus[96] = "Waiting for StackFlow summary";
+  bool moduleLanConnected = false;
+  char moduleTimeHhmm[6] = "--:--";
   bool offline = true;
   uint32_t lastGoodMillis = 0;
   UpsState ups;
@@ -264,6 +274,8 @@ bool stateSignatureValid = false;
 bool manualDisplaySnoozeActive = false;
 bool missingPayloadDisplayOffActive = false;
 bool displayFadeActive = false;
+bool linkStatusRenderedValid = false;
+bool lastRenderedLinkOk = false;
 DisplayMode displayMode = DisplayMode::Awake;
 DisplayMode displayFadeTargetMode = DisplayMode::Awake;
 uint8_t displayBrightnessCurrent = kDisplayAwakeBrightness;
@@ -331,6 +343,21 @@ bool jsonBool(JsonVariantConst v, bool fallback = false) {
   return fallback;
 }
 
+bool validHhmm(const char *s) {
+  if (!s) return false;
+  return s[0] >= '0' && s[0] <= '2' &&
+         s[1] >= '0' && s[1] <= '9' &&
+         s[2] == ':' &&
+         s[3] >= '0' && s[3] <= '5' &&
+         s[4] >= '0' && s[4] <= '9' &&
+         s[5] == '\0' &&
+         !(s[0] == '2' && s[1] > '3');
+}
+
+bool linkOkAt(uint32_t now) {
+  return state.lastGoodMillis != 0 && now - state.lastGoodMillis <= kLinkStatusTimeoutMs;
+}
+
 void parseSummary(const String &json, const char *source) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
@@ -357,6 +384,10 @@ void parseSummary(const String &json, const char *source) {
   JsonObjectConst nut = doc["nut"].as<JsonObjectConst>();
   state.nut.clientCount = jsonInt(nut["client_count"], -1);
   state.nut.wouldShutdown = jsonBool(nut["would_shutdown"], false);
+  JsonObjectConst module = doc["module"].as<JsonObjectConst>();
+  state.moduleLanConnected = jsonBool(module["lan_connected"], false);
+  const char *timeHhmm = module["time_hhmm"] | "--:--";
+  safeCopy(state.moduleTimeHhmm, sizeof(state.moduleTimeHhmm), validHhmm(timeHhmm) ? timeHhmm : "--:--");
   state.offline = false;
   state.lastGoodMillis = millis();
   snprintf(state.transportStatus, sizeof(state.transportStatus), "%s summary OK", source);
@@ -376,7 +407,17 @@ LedcardsInterfaceNutView makeLedcardsInterfaceNutView() {
   view.inputVoltage = state.ups.inputVoltage;
   view.nutClientCount = state.nut.clientCount;
   view.ageSeconds = state.ups.ageSeconds;
-  view.nowMillis = millis();
+  uint32_t now = millis();
+  view.moduleLanConnected = state.moduleLanConnected;
+  view.wifiConnected = WiFi.status() == WL_CONNECTED;
+  view.linkOk = linkOkAt(now);
+  safeCopy(view.moduleTimeHhmm, sizeof(view.moduleTimeHhmm), validHhmm(state.moduleTimeHhmm) ? state.moduleTimeHhmm : "--:--");
+  view.localBatteryPercent = psBatteryLevel();
+  view.localBatteryCharging = psBatteryCharging();
+  view.localBatteryKnown = view.localBatteryPercent >= 0;
+  view.pageCount = 1;
+  view.pageIndex = 0;
+  view.nowMillis = now;
   return view;
 }
 
@@ -651,7 +692,10 @@ void updateDisplayFade(uint32_t now) {
 }
 
 void refreshLedcardsUi() {
-  updateLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
+  LedcardsInterfaceNutView view = makeLedcardsInterfaceNutView();
+  updateLedcardsInterfaceUi(view);
+  lastRenderedLinkOk = view.linkOk;
+  linkStatusRenderedValid = true;
 }
 
 void enterDisplayDim(uint32_t now) {
@@ -807,6 +851,13 @@ void initSerialTransport() {
 #endif
 }
 
+void initStatusWiFi() {
+  if (strlen(POWER_SENTINEL_WIFI_SSID) == 0) return;
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(POWER_SENTINEL_WIFI_SSID, POWER_SENTINEL_WIFI_PASSWORD);
+}
+
 bool readSerialLine(String &line, uint32_t timeoutMs) {
 #if POWER_SENTINEL_TRANSPORT_SERIAL
   line = "";
@@ -903,6 +954,7 @@ void setup() {
                 alsSensorReady ? "ready" : "unavailable",
                 POWER_SENTINEL_ADAPTIVE_BRIGHTNESS_ENABLED ? 1U : 0U,
                 static_cast<unsigned long>(kAlsPollMs));
+  initStatusWiFi();
   initSerialTransport();
   Serial.printf("Power Sentinel %s clean NUT monitor baseline\n", POWER_SENTINEL_FIRMWARE_BUILD);
   Serial.printf("Display policy: standby=%lu no_payload_off=%lu awake=%u dim=%u\n",
@@ -930,7 +982,12 @@ void loop() {
   if (now - lastFetchMs >= kSummaryPollMs || lastFetchMs == 0) {
     lastFetchMs = now;
     fetchLiveSummary();
+    now = millis();
     if (displayMode != DisplayMode::Off) refreshLedcardsUi();
+  }
+  if (displayMode != DisplayMode::Off) {
+    bool currentLinkOk = linkOkAt(now);
+    if (!linkStatusRenderedValid || currentLinkOk != lastRenderedLinkOk) refreshLedcardsUi();
   }
   updateAutoStandby(now);
   delay(5);

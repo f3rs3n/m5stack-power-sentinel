@@ -2,6 +2,7 @@
 #include "ps_font_ddin_condensed_bold_60.c"
 #include "ps_font_ddin_condensed_bold_40.c"
 #include "ps_icon_chart_32.c"
+#include "ps_icon_status_14.c"
 
 #ifndef PS_NUT_HOME_STATE
 #define PS_NUT_HOME_STATE 0
@@ -48,27 +49,20 @@ static lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y, int w, 
     return l;
 }
 
-static void top_status(lv_obj_t *screen, uint32_t batt_color, int batt_w) {
-    // Small iconographic row: approximate Wi-Fi glyph + time, carousel dots, local/module battery.
-    // Keep this visually quiet; it should not become a product header.
-    box(screen, 6, 8, 2, 1, 0, 0x919792, 0);
-    box(screen, 8, 7, 2, 1, 0, 0x919792, 0);
-    box(screen, 10, 6, 2, 1, 0, 0x919792, 0);
-    box(screen, 12, 7, 2, 1, 0, 0x919792, 0);
-    box(screen, 14, 8, 2, 1, 0, 0x919792, 0);
-    box(screen, 8, 11, 2, 1, 0, 0x919792, 0);
-    box(screen, 10, 10, 2, 1, 0, 0x919792, 0);
-    box(screen, 12, 11, 2, 1, 0, 0x919792, 0);
-    box(screen, 10, 14, 3, 3, 2, 0x919792, 0);
-    label(screen, "10:23", 24, 2, 46, &lv_font_montserrat_10, 0x919792);
+static lv_obj_t *icon_label(lv_obj_t *parent, const char *text, int x, int y, int w, uint32_t color) {
+    return label(parent, text, x, y, w, &ps_icon_status_14, color);
+}
 
-    box(screen, 148, 8, 5, 5, 3, 0xf5f6f2, 0);
-    box(screen, 160, 8, 4, 4, 2, 0x4d5450, 0);
-    box(screen, 172, 8, 4, 4, 2, 0x4d5450, 0);
-
-    lv_obj_t *bat = box(screen, 294, 5, 20, 9, 2, 0x040607, 0xb1b6b2);
-    box(bat, 2, 2, batt_w, 5, 1, batt_color, 0);
-    box(screen, 315, 8, 3, 3, 1, 0xb1b6b2, 0);
+static void top_status(lv_obj_t *screen, int lan, int wifi, int link, const char *time_text, const char *battery_icon) {
+    const uint32_t on = 0xaab0ac;
+    const uint32_t off = 0x4d5450;
+    icon_label(screen, lan ? "\xF3\xB0\x88\x80" : "\xF3\xB0\x88\x82", 6, 2, 16, lan ? on : off);
+    icon_label(screen, wifi ? "\xF3\xB0\x96\xA9" : "\xF3\xB0\x96\xAA", 22, 2, 16, wifi ? on : off);
+    icon_label(screen, link ? "\xF3\xB0\x8C\xB9" : "\xF3\xB0\x8C\xBA", 38, 2, 16, link ? on : off);
+    box(screen, 158, 8, 5, 5, 3, 0xf5f6f2, 0);
+    lv_obj_t *time = label(screen, time_text, 222, 2, 48, &lv_font_montserrat_12, on);
+    lv_obj_set_style_text_align(time, LV_TEXT_ALIGN_RIGHT, 0);
+    icon_label(screen, battery_icon, 292, 2, 20, on);
 }
 
 static void chart_button(lv_obj_t *screen) {
@@ -104,7 +98,7 @@ static void render_nut_home(lv_obj_t *screen) {
     set_no_border(screen);
 
 #if PS_NUT_HOME_STATE == PS_NUT_STATE_ON_BATTERY
-    top_status(screen, 0xfcca3d, 10);
+    top_status(screen, 1, 1, 1, "10:23", "\xF3\xB0\x82\x84");
     const char *hero_value = "06:24";
     const char *hero_label = "Runtime";
     const char *hero_unit = "mm:ss";
@@ -113,7 +107,7 @@ static void render_nut_home(lv_obj_t *screen) {
     uint32_t state_color = 0xfcca3d;
     int label_x = 160;
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_LOW_BATTERY
-    top_status(screen, 0xff4e3e, 4);
+    top_status(screen, 1, 1, 1, "10:23", "\xF3\xB1\x8A\xA1");
     const char *hero_value = "18";
     const char *hero_label = "Battery";
     const char *hero_unit = "%";
@@ -122,7 +116,7 @@ static void render_nut_home(lv_obj_t *screen) {
     uint32_t state_color = 0xff6a57;
     int label_x = 96;
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_STALE
-    top_status(screen, 0xaab0ac, 8);
+    top_status(screen, 1, 1, 0, "--:--", "\xF3\xB0\x82\x83");
     const char *hero_value = "--";
     const char *hero_label = "NUT";
     const char *hero_unit = "stale";
@@ -131,7 +125,7 @@ static void render_nut_home(lv_obj_t *screen) {
     uint32_t state_color = 0xc1c5c1;
     int label_x = 92;
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_HIGH_LOAD
-    top_status(screen, 0xff8a2a, 12);
+    top_status(screen, 0, 1, 1, "10:23", "\xF3\xB0\x81\xB9");
     const char *hero_value = "86";
     const char *hero_label = "Load";
     const char *hero_unit = "%";
@@ -140,7 +134,7 @@ static void render_nut_home(lv_obj_t *screen) {
     uint32_t state_color = 0xffb064;
     int label_x = 100;
 #elif PS_NUT_HOME_STATE == PS_NUT_STATE_INPUT_LOW
-    top_status(screen, 0xfcca3d, 10);
+    top_status(screen, 1, 0, 1, "10:23", "\xF3\xB0\x81\xB9");
     const char *hero_value = "185";
     const char *hero_label = "Input";
     const char *hero_unit = "V";
@@ -149,7 +143,7 @@ static void render_nut_home(lv_obj_t *screen) {
     uint32_t state_color = 0xfcca3d;
     int label_x = 124;
 #else
-    top_status(screen, 0xaab0ac, 14);
+    top_status(screen, 1, 1, 1, "10:23", "\xF3\xB0\x81\xB9");
     const char *hero_value = "100";
     const char *hero_label = "Battery";
     const char *hero_unit = "%";

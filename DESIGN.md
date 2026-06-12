@@ -19,6 +19,7 @@ The old HOME/NUT/PVE/HA/M5S tab dashboard is archived out of the active baseline
 - Missing/stale data must show unavailable/stale states, never plausible sample values.
 - Touching a mini-card may promote it to hero through the ring transition.
 - Long press sleeps only the display backlight; telemetry loop continues.
+- The top status bar is local/device status only: Module LLM LAN, CoreS3 Wi-Fi, recent serial/StackFlow link, real page dot(s), Module LLM `HH:MM`, and CoreS3 battery. LAN/Wi-Fi do not affect hero/severity; link error means no valid serial payload within 10 seconds; the battery icon is CoreS3-local, not UPS/NUT battery.
 
 ## Future pages
 

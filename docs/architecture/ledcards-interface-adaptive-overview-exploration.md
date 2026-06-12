@@ -83,13 +83,17 @@ The button should not imply a generic menu. It is context-bound to the active he
 
 ## Top micro-status row and carousel dots
 
-The top row should be mostly iconographic. It may keep compact status indicators for local Wi-Fi/link, time, and CoreS3/module battery, but it should not become a product top bar.
+The top row is mostly iconographic local/device status. It shows Module LLM LAN, CoreS3 Wi-Fi, recent serial/StackFlow link, real page dot(s), Module LLM local `HH:MM` (or `--:--`), and CoreS3-local battery state. It should not become a product header.
 
 Recommended structure:
 
-- left: Wi-Fi/link icon plus compact time, e.g. `⌁ 10:23` or an LVGL symbol/icon equivalent;
-- center: carousel dots;
-- right: small battery glyph/state for the CoreS3/module battery or local power state.
+- left: LAN, Wi-Fi, and serial-link icons from the Nerd Font/LVGL icon subset;
+- center: real page dots, one active dot for the current one-page NUT baseline;
+- right: Module LLM `HH:MM` and a small CoreS3 battery glyph.
+
+LAN and Wi-Fi are informational and do not affect hero/severity. Link error reflects missing/invalid recent serial payload. The top-bar battery is independent from UPS/NUT battery/status.
+
+Battery validation note: in the physical stack `DIN Base -> LLM Mate -> LLM Module -> CoreS3`, the DIN Base switch must be ON for the BAT rail to be visible through the stack. With the switch ON, a temporary CoreS3 probe saw a plausible LiPo rail through AXP2101 (`battery_mv` about 4190 mV, `charging=1`, `vbus_mv` about 4760 mV) even though the SOC percentage initially remained low after long storage/off time. Leave the current battery-icon logic unchanged until the DIN battery has settled and a future test captures behavior while removing external power from the LLM Mate/DIN stack; then decide whether percent, voltage, or charging state should drive the icon.
 
 The dots indicate horizontal dashboard/card position while consuming very little vertical space.
 

@@ -12,6 +12,7 @@ NUT Monitor on M5Stack CoreS3 + LLM Kit:
 - CoreS3 renders one polished fullscreen NUT page;
 - CoreS3 uses the internal StackFlow/UART path as the current transport;
 - HTTP polling from CoreS3 is out of scope for the current baseline;
+- top status bar shows local Module LLM/CoreS3 status only: LAN, Wi-Fi, serial link recency, page dot(s), Module LLM time, and CoreS3 battery;
 - no plausible demo telemetry when live data is missing.
 
 ## Module roadmap

@@ -18,8 +18,17 @@ Current profile: `nut-monitor-clean-baseline`.
 - `available_modules`: stable registry, currently `["nut", "proxmox", "ha"]`
 - `enabled_modules`: modules selected by `/etc/power-sentinel.json` or `POWER_SENTINEL_MODULES`
 - `pages`: UI pages corresponding to enabled modules
+- `module`: local Module LLM/backend status used by the CoreS3 top bar
 - `modules`: per-module payloads
 - `ups`, `nut`: compatibility aliases for the NUT Monitor firmware
+
+`module` exposes:
+
+- `lan_connected`: boolean Module LLM Ethernet/global IPv4 status
+- `lan_ip`: selected Module LLM IPv4 address as a string, or `null`
+- `time_hhmm`: Module LLM local time in 24-hour `HH:MM` format, or `null` if unavailable. The deployed Module LLM host is expected to use the local site timezone (`Europe/Rome` for the current installation).
+
+These fields are informational UI status only. They do not affect aggregate `severity` or NUT hero selection.
 
 ## Module policy
 
