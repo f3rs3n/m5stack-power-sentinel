@@ -32,3 +32,4 @@ struct LedcardsInterfaceNutView {
 void createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view);
 void updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view);
 void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view);
+void renderProxmoxAmbientUi(const ProxmoxAmbientView &view);

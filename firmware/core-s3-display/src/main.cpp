@@ -256,6 +256,8 @@ struct ProxmoxState {
   int onlineNodeCount = -1;
   int watchedGuestCount = -1;
   int runningWatchedGuestCount = -1;
+  int storageCount = -1;
+  int maxStorageUsedPercent = -1;
 };
 
 struct SummaryState {
@@ -414,6 +416,13 @@ void parseSummary(const String &json, const char *source) {
   state.proxmox.onlineNodeCount = jsonInt(proxmoxEnvironment["online_node_count"], -1);
   state.proxmox.watchedGuestCount = jsonInt(proxmoxEnvironment["watched_guest_count"], -1);
   state.proxmox.runningWatchedGuestCount = jsonInt(proxmoxEnvironment["running_watched_guest_count"], -1);
+  state.proxmox.storageCount = jsonInt(proxmoxEnvironment["storage_count"], -1);
+  state.proxmox.maxStorageUsedPercent = -1;
+  JsonArrayConst proxmoxStorage = proxmox["storage"].as<JsonArrayConst>();
+  for (JsonObjectConst item : proxmoxStorage) {
+    int used = jsonInt(item["used_percent"], -1);
+    if (used > state.proxmox.maxStorageUsedPercent) state.proxmox.maxStorageUsedPercent = used;
+  }
   JsonArrayConst proxmoxSignals = proxmox["signals"].as<JsonArrayConst>();
   JsonObjectConst firstProxmoxSignal = proxmoxSignals.size() > 0 ? proxmoxSignals[0].as<JsonObjectConst>() : JsonObjectConst();
   safeCopy(state.proxmox.signalKind, sizeof(state.proxmox.signalKind), firstProxmoxSignal["kind"] | "");
@@ -468,6 +477,8 @@ ProxmoxAmbientView makeProxmoxAmbientView() {
   view.onlineNodeCount = state.proxmox.onlineNodeCount;
   view.watchedGuestCount = state.proxmox.watchedGuestCount;
   view.runningWatchedGuestCount = state.proxmox.runningWatchedGuestCount;
+  view.storageCount = state.proxmox.storageCount;
+  view.maxStorageUsedPercent = state.proxmox.maxStorageUsedPercent;
   return view;
 }
 

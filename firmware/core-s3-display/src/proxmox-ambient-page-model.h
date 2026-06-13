@@ -16,6 +16,8 @@ struct ProxmoxAmbientView {
   int onlineNodeCount;
   int watchedGuestCount;
   int runningWatchedGuestCount;
+  int storageCount;
+  int maxStorageUsedPercent;
 };
 
 struct ProxmoxAmbientCard {
@@ -113,7 +115,7 @@ inline void fillProxmoxAmbientNodesCard(ProxmoxAmbientCard &card, const ProxmoxA
   proxmoxAmbientCopy(card.label, sizeof(card.label), "Nodes");
   proxmoxAmbientFormatCountPair(proxmoxAmbientHasLiveData(view), view.onlineNodeCount, view.nodeCount, card.value, sizeof(card.value));
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "online");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientHasLiveData(view) ? "NODES" : "UNAVAILABLE");
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientHasLiveData(view) ? "ONLINE" : "UNAVAILABLE");
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), proxmoxAmbientHasLiveData(view) ? "green" : "purple");
 }
@@ -123,7 +125,18 @@ inline void fillProxmoxAmbientGuestsCard(ProxmoxAmbientCard &card, const Proxmox
   bool valid = proxmoxAmbientHasLiveData(view) && view.watchedGuestCount >= 0 && view.runningWatchedGuestCount >= 0;
   proxmoxAmbientFormatCountPair(valid, view.runningWatchedGuestCount, view.watchedGuestCount, card.value, sizeof(card.value));
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "running");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "WATCHED" : "UNAVAILABLE");
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "RUNNING" : "UNAVAILABLE");
+  proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), valid ? "green" : "purple");
+}
+
+inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
+  proxmoxAmbientCopy(card.label, sizeof(card.label), "Storage");
+  bool valid = proxmoxAmbientHasLiveData(view) && view.storageCount >= 0 && view.maxStorageUsedPercent >= 0;
+  if (valid) snprintf(card.value, sizeof(card.value), "%d", view.maxStorageUsedPercent);
+  else snprintf(card.value, sizeof(card.value), "--");
+  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "% max");
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "OK" : "UNAVAILABLE");
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), valid ? "green" : "purple");
 }
@@ -136,9 +149,10 @@ inline ProxmoxAmbientPageModel makeProxmoxAmbientPageModel(const ProxmoxAmbientV
   proxmoxAmbientCopy(model.heroValue, sizeof(model.heroValue), proxmoxAmbientHeroValue(view));
   proxmoxAmbientCopy(model.heroDetail, sizeof(model.heroDetail), proxmoxAmbientHeroDetail(view));
   proxmoxAmbientCopy(model.visualClass, sizeof(model.visualClass), proxmoxAmbientVisualClass(view));
-  model.cardCount = 3;
+  model.cardCount = proxmoxAmbientHasLiveData(view) ? 4 : 3;
   fillProxmoxAmbientApiCard(model.cards[0], view);
   fillProxmoxAmbientNodesCard(model.cards[1], view);
   fillProxmoxAmbientGuestsCard(model.cards[2], view);
+  if (model.cardCount > 3) fillProxmoxAmbientStorageCard(model.cards[3], view);
   return model;
 }
