@@ -668,7 +668,7 @@ static void proxmox_summary_tile(lv_obj_t *screen, int x, int y, const ProxmoxAm
   lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
 }
 
-static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view) {
+static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
   ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
   lv_obj_clean(screen);
   lv_obj_set_style_bg_color(screen, C(0x040607), 0);
@@ -676,7 +676,7 @@ static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &v
   set_no_border(screen);
 
   uint32_t accent = visual_class_color(model.visualClass);
-  top_status(screen, LedcardsInterfaceNutView{});
+  top_status(screen, statusView);
   box(screen, 12, 30, 296, 92, 9, state_fill(accent), 0x2a1a3f);
   box(screen, 22, 44, 7, 64, 4, accent, 0);
   label(screen, model.heroTitle, 42, 42, 120, &lv_font_montserrat_14, state_text_color(accent));
@@ -705,10 +705,10 @@ void updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view) {
   render_nut_home(lv_screen_active(), view);
 }
 
-void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view) {
-  render_proxmox_ambient(lv_screen_active(), view);
+void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+  render_proxmox_ambient(lv_screen_active(), view, statusView);
 }
 
-void renderProxmoxAmbientUi(const ProxmoxAmbientView &view) {
-  render_proxmox_ambient(lv_screen_active(), view);
+void renderProxmoxAmbientUi(const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+  render_proxmox_ambient(lv_screen_active(), view, statusView);
 }

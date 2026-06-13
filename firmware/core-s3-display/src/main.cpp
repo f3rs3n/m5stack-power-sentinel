@@ -805,7 +805,7 @@ void updateDisplayFade(uint32_t now) {
 void refreshLedcardsUi() {
   LedcardsInterfaceNutView view = makeLedcardsInterfaceNutView();
   if (currentPageIndex == 1 && proxmoxPageAvailable()) {
-    renderProxmoxAmbientUi(makeProxmoxAmbientView());
+    renderProxmoxAmbientUi(makeProxmoxAmbientView(), view);
   } else {
     updateLedcardsInterfaceUi(view);
   }

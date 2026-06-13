@@ -48,7 +48,7 @@ def main() -> int:
         "makeProxmoxAmbientView()",
         "currentPageIndex",
         "proxmoxPageAvailable() ? 2 : 1",
-        "renderProxmoxAmbientUi(makeProxmoxAmbientView())",
+        "renderProxmoxAmbientUi(makeProxmoxAmbientView(), view)",
         "handleTopBarPageTap",
         "WiFi.status() == WL_CONNECTED",
         "initStatusWiFi()",
