@@ -154,11 +154,13 @@ def test_proxmox_ambient_page_model_healthy_observed_summary_cards():
           if (std::strcmp(model.telemetryState, "observed") != 0) return 2;
           if (std::strcmp(model.heroTitle, "PROXMOX") != 0) return 3;
           if (std::strcmp(model.heroValue, "OK") != 0) return 4;
+          if (std::strcmp(model.heroDisplayValue, "2/2") != 0) return 41;
           if (std::strcmp(model.heroDetail, "Read-only API") != 0) return 5;
           if (std::strcmp(model.visualClass, "green") != 0) return 6;
           if (model.cardCount != 4) return 7;
           if (std::strcmp(model.cards[0].label, "API") != 0) return 8;
-          if (std::strcmp(model.cards[0].value, "OK") != 0) return 9;
+          if (std::strcmp(model.cards[0].value, "1") != 0) return 9;
+          if (std::strcmp(model.cards[0].unit, "live") != 0) return 91;
           if (std::strcmp(model.cards[0].stateText, "OBSERVED") != 0) return 10;
           if (std::strcmp(model.cards[1].label, "Nodes") != 0) return 11;
           if (std::strcmp(model.cards[1].value, "2/2") != 0) return 12;

@@ -657,15 +657,32 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   draw_nut_home_static(screen, view);
 }
 
-static void proxmox_summary_tile(lv_obj_t *screen, int x, int y, const ProxmoxAmbientCard &card) {
-  uint32_t accent = visual_class_color(card.visualClass);
-  lv_obj_t *tileObj = box(screen, x, y, 142, 46, 7, state_fill(accent), 0x141e1b);
-  box(tileObj, 7, 8, 5, 28, 3, accent, 0);
-  label(tileObj, card.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
-  lv_obj_t *name_l = label(tileObj, card.label, 76, 6, 55, &lv_font_montserrat_12, 0xc9d0c9);
-  lv_obj_set_style_text_align(name_l, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_t *unit_l = label(tileObj, card.unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c);
-  lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
+static MetricRender proxmox_metric_for_card(const ProxmoxAmbientCard &card, MetricKind kind) {
+  MetricRender metric{};
+  metric.kind = kind;
+  metric.state = STATE_NOMINAL;
+  metric.accent = visual_class_color(card.visualClass);
+  metric.fill = state_fill(metric.accent);
+  metric.stateColor = state_text_color(metric.accent);
+  proxmoxAmbientCopy(metric.value, sizeof(metric.value), card.value);
+  proxmoxAmbientCopy(metric.label, sizeof(metric.label), card.label);
+  proxmoxAmbientCopy(metric.unit, sizeof(metric.unit), card.unit);
+  proxmoxAmbientCopy(metric.stateText, sizeof(metric.stateText), card.stateText);
+  return metric;
+}
+
+static MetricRender proxmox_hero_metric(const ProxmoxAmbientPageModel &model) {
+  MetricRender metric{};
+  metric.kind = METRIC_NUT;
+  metric.state = STATE_NOMINAL;
+  metric.accent = visual_class_color(model.visualClass);
+  metric.fill = state_fill(metric.accent);
+  metric.stateColor = state_text_color(metric.accent);
+  proxmoxAmbientCopy(metric.value, sizeof(metric.value), model.heroDisplayValue);
+  proxmoxAmbientCopy(metric.label, sizeof(metric.label), model.heroTitle);
+  proxmoxAmbientCopy(metric.unit, sizeof(metric.unit), "nodes");
+  proxmoxAmbientCopy(metric.stateText, sizeof(metric.stateText), model.heroDetail);
+  return metric;
 }
 
 static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
@@ -675,18 +692,14 @@ static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &v
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
   set_no_border(screen);
 
-  uint32_t accent = visual_class_color(model.visualClass);
   top_status(screen, statusView);
-  box(screen, 12, 30, 296, 92, 9, state_fill(accent), 0x2a1a3f);
-  box(screen, 22, 44, 7, 64, 4, accent, 0);
-  label(screen, model.heroTitle, 42, 42, 120, &lv_font_montserrat_14, state_text_color(accent));
-  label(screen, model.heroValue, 42, 60, 150, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
-  label(screen, model.heroDetail, 42, 99, 220, &lv_font_montserrat_12, 0xc9d0c9);
+  hero_card(screen, kHeroCardX, kHeroCardY, proxmox_hero_metric(model), true);
 
-  const int xs[4] = {12, 166, 12, 166};
-  const int ys[4] = {130, 130, 188, 188};
+  const int xs[4] = {166, 166, 12, 12};
+  const int ys[4] = {124, 182, 182, 124};
+  const MetricKind kinds[4] = {METRIC_NUT, METRIC_INPUT, METRIC_LOAD, METRIC_TTE};
   for (uint8_t i = 0; i < model.cardCount && i < 4; ++i) {
-    proxmox_summary_tile(screen, xs[i], ys[i], model.cards[i]);
+    tile(screen, xs[i], ys[i], proxmox_metric_for_card(model.cards[i], kinds[i]), false);
   }
 }
 
