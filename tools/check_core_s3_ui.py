@@ -100,6 +100,17 @@ def main() -> int:
         "start_ring_transition", "on_tile_clicked",
     ], "Ledcards Interface"):
         return 1
+    if require(ledcards, [
+        "char label[12];",
+        "char unit[8];",
+        "char stateText[20];",
+        "nutAmbientCopy(m.label, sizeof(m.label), card.label);",
+        "nutAmbientCopy(m.unit, sizeof(m.unit), compactTte ? card.compactUnit : card.unit);",
+        "nutAmbientCopy(m.stateText, sizeof(m.stateText), card.stateText);",
+    ], "Ledcards metric text ownership"):
+        return 1
+    if "const char *label;" in ledcards or "const char *unit;" in ledcards or "const char *stateText;" in ledcards:
+        return fail("Ledcards MetricRender must not keep pointers into temporary page-model cards")
     if "  }\n  if (view.lowBattery || view.batteryPercent < 20) return \"LOW BATTERY\";" in ledcards:
         return fail("online battery display must not let NUT LB override percent buckets")
     contract = NUT_AMBIENT_CONTRACT.read_text(encoding="utf-8")
