@@ -84,6 +84,8 @@ inline const char *proxmoxAmbientHeroValue(const ProxmoxAmbientView &view) {
   if (strcmp(view.signalKind, "node_down") == 0) return "NODE DOWN";
   if (strcmp(view.signalKind, "node_degraded") == 0) return "NODE DEG";
   if (strcmp(view.signalKind, "watched_guest_down") == 0) return "GUEST DOWN";
+  if (strcmp(view.signalKind, "storage_critical") == 0) return "STOR CRIT";
+  if (strcmp(view.signalKind, "storage_warning") == 0) return "STOR WARN";
   if (strcmp(proxmoxAmbientCondition(view), "healthy") == 0) return "OK";
   return "CHECK";
 }
@@ -145,9 +147,13 @@ inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const Proxmo
   if (valid) snprintf(card.value, sizeof(card.value), "%d", view.maxStorageUsedPercent);
   else snprintf(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "% max");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "OK" : "UNAVAILABLE");
+  if (strcmp(view.signalKind, "storage_critical") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "CRITICAL");
+  else if (strcmp(view.signalKind, "storage_warning") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "WARNING");
+  else proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "OK" : "UNAVAILABLE");
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), valid ? "green" : "purple");
+  if (strcmp(view.signalKind, "storage_critical") == 0) proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), "red");
+  else if (strcmp(view.signalKind, "storage_warning") == 0) proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), "orange");
+  else proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), valid ? "green" : "purple");
 }
 
 inline ProxmoxAmbientPageModel makeProxmoxAmbientPageModel(const ProxmoxAmbientView &view) {

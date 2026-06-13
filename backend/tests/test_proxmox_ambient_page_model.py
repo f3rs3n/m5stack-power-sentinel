@@ -260,3 +260,81 @@ def test_proxmox_ambient_page_model_privileges_watched_guest_down_context():
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_surfaces_storage_warning_context():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.signalKind, sizeof(view.signalKind), "storage_warning");
+          proxmoxAmbientCopy(view.signalSummary, sizeof(view.signalSummary), "Proxmox storage pve-a/local is 86% used");
+          proxmoxAmbientCopy(view.signalContext, sizeof(view.signalContext), "pve-a/local 86%");
+          view.nodeCount = 1;
+          view.onlineNodeCount = 1;
+          view.watchedGuestCount = 0;
+          view.runningWatchedGuestCount = 0;
+          view.storageCount = 2;
+          view.maxStorageUsedPercent = 86;
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.heroValue, "STOR WARN") != 0) return 1;
+          if (std::strcmp(model.heroDetail, "pve-a/local 86%") != 0) return 2;
+          if (std::strcmp(model.visualClass, "orange") != 0) return 3;
+          if (std::strcmp(model.cards[3].value, "86") != 0) return 4;
+          if (std::strcmp(model.cards[3].stateText, "WARNING") != 0) return 5;
+          if (std::strcmp(model.cards[3].visualClass, "orange") != 0) return 6;
+          if (std::strcmp(model.cards[1].stateText, "ONLINE") != 0) return 7;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_storage_critical_outranks_warning():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "critical");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.signalKind, sizeof(view.signalKind), "storage_critical");
+          proxmoxAmbientCopy(view.signalSummary, sizeof(view.signalSummary), "Proxmox storage pve-a/local-lvm is 96% used");
+          proxmoxAmbientCopy(view.signalContext, sizeof(view.signalContext), "pve-a/local-lvm 96%");
+          view.nodeCount = 1;
+          view.onlineNodeCount = 1;
+          view.watchedGuestCount = 0;
+          view.runningWatchedGuestCount = 0;
+          view.storageCount = 2;
+          view.maxStorageUsedPercent = 96;
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.heroValue, "STOR CRIT") != 0) return 1;
+          if (std::strcmp(model.heroDetail, "pve-a/local-lvm 96%") != 0) return 2;
+          if (std::strcmp(model.visualClass, "red") != 0) return 3;
+          if (std::strcmp(model.cards[3].stateText, "CRITICAL") != 0) return 4;
+          if (std::strcmp(model.cards[3].visualClass, "red") != 0) return 5;
+          if (std::strcmp(model.cards[1].visualClass, "green") != 0) return 6;
+          if (std::strcmp(model.cards[2].visualClass, "green") != 0) return 7;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
