@@ -295,6 +295,8 @@ bool missingPayloadDisplayOffActive = false;
 bool displayFadeActive = false;
 bool linkStatusRenderedValid = false;
 bool lastRenderedLinkOk = false;
+uint8_t currentPageIndex = 0;
+bool topBarPageTouchActive = false;
 DisplayMode displayMode = DisplayMode::Awake;
 DisplayMode displayFadeTargetMode = DisplayMode::Awake;
 uint8_t displayBrightnessCurrent = kDisplayAwakeBrightness;
@@ -375,6 +377,19 @@ bool validHhmm(const char *s) {
 
 bool linkOkAt(uint32_t now) {
   return state.lastGoodMillis != 0 && now - state.lastGoodMillis <= kLinkStatusTimeoutMs;
+}
+
+bool proxmoxPageAvailable() {
+  return state.proxmox.enabled && state.proxmox.implemented;
+}
+
+uint8_t ambientPageCount() {
+  return proxmoxPageAvailable() ? 2 : 1;
+}
+
+void clampCurrentPageIndex() {
+  uint8_t pageCount = ambientPageCount();
+  if (currentPageIndex >= pageCount) currentPageIndex = 0;
 }
 
 void parseSummary(const String &json, const char *source) {
@@ -491,8 +506,9 @@ LedcardsInterfaceNutView makeLedcardsInterfaceNutView() {
   view.localBatteryPercent = psBatteryLevel();
   view.localBatteryCharging = psBatteryCharging();
   view.localBatteryKnown = view.localBatteryPercent >= 0;
-  view.pageCount = 1;
-  view.pageIndex = 0;
+  clampCurrentPageIndex();
+  view.pageCount = proxmoxPageAvailable() ? 2 : 1;
+  view.pageIndex = currentPageIndex;
   view.nowMillis = now;
   return view;
 }
@@ -788,9 +804,25 @@ void updateDisplayFade(uint32_t now) {
 
 void refreshLedcardsUi() {
   LedcardsInterfaceNutView view = makeLedcardsInterfaceNutView();
-  updateLedcardsInterfaceUi(view);
+  if (currentPageIndex == 1 && proxmoxPageAvailable()) {
+    renderProxmoxAmbientUi(makeProxmoxAmbientView());
+  } else {
+    updateLedcardsInterfaceUi(view);
+  }
   lastRenderedLinkOk = view.linkOk;
   linkStatusRenderedValid = true;
+}
+
+bool handleTopBarPageTap(int32_t x, int32_t y) {
+  uint8_t pageCount = ambientPageCount();
+  if (pageCount <= 1 || y > 24) return false;
+  if (!topBarPageTouchActive) {
+    currentPageIndex = x < 160 ? 0 : 1;
+    clampCurrentPageIndex();
+    refreshLedcardsUi();
+    topBarPageTouchActive = true;
+  }
+  return true;
 }
 
 void enterDisplayDim(uint32_t now) {
@@ -900,6 +932,8 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
   uint32_t now = millis();
   bool pressed = psTouchPressed(&x, &y);
 
+  if (!pressed) topBarPageTouchActive = false;
+
   if (pressed && (displayMode == DisplayMode::Dim || displayMode == DisplayMode::Off)) {
     recordDisplayActivity(now);
     if (displayMode == DisplayMode::Off && now - displaySleepEnteredMs <= kDisplayWakeCooldownMs) {
@@ -907,6 +941,11 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
       return;
     }
     wakeDisplay();
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
+  if (pressed && handleTopBarPageTap(x, y)) {
+    recordDisplayActivity(now);
     data->state = LV_INDEV_STATE_RELEASED;
     return;
   }
