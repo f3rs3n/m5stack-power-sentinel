@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Power Sentinel API, reframed around modular dashboard pages.
 
-Current clean baseline: NUT Monitor is the only implemented/enabled runtime
-module. Proxmox and Home Assistant are declared as future page modules so the
-installer and contract already have stable names, but they emit no telemetry
-until their module backends are reintroduced.
+Current baseline: NUT Monitor is enabled by default, Proxmox has an initial
+read-only API adapter, and Home Assistant remains a placeholder page module.
 """
 
 from __future__ import annotations
@@ -41,6 +39,17 @@ class ModuleEvaluation(NamedTuple):
     payload: dict[str, Any]
     condition: str | None = None
     problem: str | None = None
+
+
+class ModuleRuntimeResult(NamedTuple):
+    modules: dict[str, Any]
+    condition: str
+    severity: str
+    available_modules: list[str]
+    pages: list[str]
+    problems: list[str]
+    ups: dict[str, Any]
+    nut: dict[str, Any]
 
 
 def iso_utc(ts: float | int | None = None) -> str:
@@ -663,35 +672,60 @@ def module_placeholder(spec: ModuleSpec, enabled: bool) -> dict[str, Any]:
     return payload
 
 
-def evaluate_module(spec: ModuleSpec, enabled: set[str], config: dict[str, Any]) -> ModuleEvaluation:
-    is_enabled = spec.name in enabled
-    if is_enabled and spec.summary_fn:
-        payload = spec.summary_fn(config)
-        return ModuleEvaluation(payload=payload, condition=str(payload.get("condition", "unavailable")))
+class ModuleRuntime:
+    def __init__(self, specs: dict[str, ModuleSpec]) -> None:
+        self.specs = specs
 
-    payload = module_placeholder(spec, is_enabled)
-    if not is_enabled:
-        return ModuleEvaluation(payload=payload)
+    def evaluate_module(self, spec: ModuleSpec, enabled: set[str], config: dict[str, Any]) -> ModuleEvaluation:
+        is_enabled = spec.name in enabled
+        if is_enabled and spec.summary_fn:
+            payload = spec.summary_fn(config)
+            return ModuleEvaluation(payload=payload, condition=str(payload.get("condition", "unavailable")))
 
-    return ModuleEvaluation(
-        payload=payload,
-        condition="unavailable",
-        problem=f"module {spec.name} is enabled but not implemented in this clean baseline",
-    )
+        payload = module_placeholder(spec, is_enabled)
+        if not is_enabled:
+            return ModuleEvaluation(payload=payload)
 
+        return ModuleEvaluation(
+            payload=payload,
+            condition="unavailable",
+            problem=f"module {spec.name} is enabled but not implemented in this clean baseline",
+        )
 
-def evaluate_modules(config: dict[str, Any], enabled: set[str]) -> tuple[dict[str, Any], list[str], list[str]]:
-    modules: dict[str, Any] = {}
-    conditions: list[str] = []
-    problems: list[str] = []
-    for name, spec in MODULES.items():
-        evaluation = evaluate_module(spec, enabled, config)
-        modules[name] = evaluation.payload
-        if evaluation.condition is not None:
-            conditions.append(evaluation.condition)
-        if evaluation.problem is not None:
-            problems.append(evaluation.problem)
-    return modules, conditions, problems
+    def compatibility_aliases(self, modules: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        nut = modules.get("nut", {})
+        return (
+            nut.get("ups", unavailable_ups("NUT module disabled")),
+            nut.get("nut", {"client_count": 0, "would_shutdown": False}),
+        )
+
+    def build(self, config: dict[str, Any], enabled: set[str]) -> ModuleRuntimeResult:
+        modules: dict[str, Any] = {}
+        conditions: list[str] = []
+        problems: list[str] = []
+        pages: list[str] = []
+        for name, spec in self.specs.items():
+            evaluation = self.evaluate_module(spec, enabled, config)
+            modules[name] = evaluation.payload
+            if name in enabled:
+                pages.append(spec.page)
+            if evaluation.condition is not None:
+                conditions.append(evaluation.condition)
+            if evaluation.problem is not None:
+                problems.append(evaluation.problem)
+
+        condition = summary_condition(conditions)
+        ups_alias, nut_alias = self.compatibility_aliases(modules)
+        return ModuleRuntimeResult(
+            modules=modules,
+            condition=condition,
+            severity=severity_for_condition(condition),
+            available_modules=list(self.specs.keys()),
+            pages=pages,
+            problems=problems,
+            ups=ups_alias,
+            nut=nut_alias,
+        )
 
 
 MODULES: dict[str, ModuleSpec] = {
@@ -704,27 +738,24 @@ MODULES: dict[str, ModuleSpec] = {
 def build_summary(config: dict[str, Any] | None = None, *, stackflow_safe: bool = False) -> dict[str, Any]:
     config = config if config is not None else load_json_file(POWER_SENTINEL_CONFIG)
     enabled = enabled_modules(config)
-    modules, conditions, problems = evaluate_modules(config, enabled)
-    condition = summary_condition(conditions)
-    severity = severity_for_condition(condition)
-    nut = modules.get("nut", {})
+    runtime = ModuleRuntime(MODULES).build(config, enabled)
     summary = {
         "schema": SCHEMA_SUMMARY,
         "timestamp": iso_utc(),
         "product": "Power Sentinel",
         "profile": "nut-monitor-clean-baseline",
-        "condition": condition,
-        "severity": severity,
+        "condition": runtime.condition,
+        "severity": runtime.severity,
         "stackflow_safe": bool(stackflow_safe),
         "enabled_modules": sorted(enabled),
-        "available_modules": list(MODULES.keys()),
-        "pages": [MODULES[name].page for name in MODULES if name in enabled],
+        "available_modules": runtime.available_modules,
+        "pages": runtime.pages,
         "module": {**module_lan_status(), "time_hhmm": local_time_hhmm()},
-        "modules": modules,
+        "modules": runtime.modules,
         # Compatibility aliases for the current CoreS3 NUT monitor firmware.
-        "ups": nut.get("ups", unavailable_ups("NUT module disabled")),
-        "nut": nut.get("nut", {"client_count": 0, "would_shutdown": False}),
-        "problems": problems,
+        "ups": runtime.ups,
+        "nut": runtime.nut,
+        "problems": runtime.problems,
     }
     return summary
 

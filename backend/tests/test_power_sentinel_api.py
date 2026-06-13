@@ -185,6 +185,48 @@ def test_condition_aggregation_ignores_disabled_modules_and_critical_wins():
         setattr(api, "systemd_active", old_systemd)
 
 
+def test_module_runtime_concentrates_registry_aggregation_and_compatibility_aliases():
+    runtime = api.ModuleRuntime({
+        "nut": api.ModuleSpec(
+            "nut",
+            "NUT",
+            "implemented",
+            lambda config: {
+                "enabled": True,
+                "page": "NUT",
+                "condition": "healthy",
+                "severity": "ok",
+                "ups": {"available": True},
+                "nut": {"client_count": 1, "would_shutdown": False},
+            },
+        ),
+        "proxmox": api.ModuleSpec(
+            "proxmox",
+            "PROXMOX",
+            "implemented",
+            lambda config: {
+                "enabled": True,
+                "page": "PROXMOX",
+                "condition": "warning",
+                "severity": "warn",
+                "signals": [{"kind": "storage_warning", "condition": "warning", "summary": "local 86%"}],
+            },
+        ),
+        "ha": api.ModuleSpec("ha", "HA", "placeholder"),
+    })
+
+    result = runtime.build({}, {"nut", "proxmox", "ha"})
+
+    assert result.condition == "warning"
+    assert result.severity == "warn"
+    assert result.available_modules == ["nut", "proxmox", "ha"]
+    assert result.pages == ["NUT", "PROXMOX", "HA"]
+    assert result.modules["ha"]["condition"] == "unavailable"
+    assert result.problems == ["module ha is enabled but not implemented in this clean baseline"]
+    assert result.ups == {"available": True}
+    assert result.nut == {"client_count": 1, "would_shutdown": False}
+
+
 def test_health_payload_exposes_condition_and_derives_ok_from_condition():
     healthy = api.build_health_payload({"condition": "healthy", "severity": "ok"})
     critical = api.build_health_payload({"condition": "critical", "severity": "critical"})
