@@ -249,19 +249,19 @@ static void format_tte_minutes(int seconds, char *value, size_t valueLen, const 
 }
 
 static bool telemetry_unavailable(const LedcardsInterfaceNutView &view) {
-  return !view.upsAvailable;
+  return nutAmbientTelemetryUnavailable(view);
 }
 
 static bool telemetry_stale(const LedcardsInterfaceNutView &view) {
-  return view.offline || view.upsStale;
+  return nutAmbientTelemetryStale(view);
 }
 
 static bool telemetry_missing(const LedcardsInterfaceNutView &view) {
-  return telemetry_unavailable(view) || telemetry_stale(view);
+  return nutAmbientTelemetryMissing(view);
 }
 
 static const char *missing_state_text(const LedcardsInterfaceNutView &view) {
-  return telemetry_unavailable(view) ? "UNAVAILABLE" : "STALE";
+  return nutAmbientMissingStateText(view);
 }
 
 static const char *battery_state_text(const LedcardsInterfaceNutView &view) {

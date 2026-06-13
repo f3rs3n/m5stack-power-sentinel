@@ -81,6 +81,8 @@ def main() -> int:
     if require(ledcards, [
         "struct LedcardsInterfaceNutView",
         "struct NutAmbientPageModel",
+        "telemetryState",
+        "hasMissingMetrics",
         "shutdownRelevant",
         "makeNutAmbientPageModel(view)",
         "ps_icon_status_14",

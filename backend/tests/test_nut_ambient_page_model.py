@@ -156,3 +156,103 @@ def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
         }
     '''))
     assert output == "ok\n"
+
+
+def test_nut_ambient_page_model_distinguishes_stale_unavailable_and_missing_metrics():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "nut-ambient-page-model.h"
+
+        static LedcardsInterfaceNutView baseline() {
+          LedcardsInterfaceNutView view{};
+          view.offline = false;
+          view.upsAvailable = true;
+          view.upsStale = false;
+          view.onBattery = false;
+          view.lowBattery = false;
+          view.charging = true;
+          view.batteryPercent = 76;
+          view.runtimeSeconds = 1440;
+          view.loadPercent = 24;
+          view.inputVoltage = 230.0f;
+          view.nutClientCount = 2;
+          return view;
+        }
+
+        static int assert_stale_telemetry_is_not_unavailable() {
+          LedcardsInterfaceNutView view = baseline();
+          view.upsStale = true;
+
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "stale") != 0) return 101;
+          if (std::strcmp(model.telemetryState, "stale") != 0) return 102;
+          if (model.hasMissingMetrics) return 103;
+          if (model.heroMetric != NUT_AMBIENT_METRIC_NUT) return 104;
+          if (std::strcmp(model.cards[0].value, "--") != 0) return 105;
+          if (std::strcmp(model.cards[0].stateText, "STALE") != 0) return 106;
+          if (std::strcmp(model.cards[0].stateClass, "stale") != 0) return 107;
+          if (std::strcmp(model.cards[4].stateText, "STALE") != 0) return 108;
+          return 0;
+        }
+
+        static int assert_unavailable_telemetry_is_honest() {
+          LedcardsInterfaceNutView view = baseline();
+          view.upsAvailable = false;
+          view.batteryPercent = 99;
+          view.runtimeSeconds = 999;
+          view.loadPercent = 1;
+          view.inputVoltage = 240.0f;
+          view.nutClientCount = 9;
+
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "unavailable") != 0) return 201;
+          if (std::strcmp(model.telemetryState, "unavailable") != 0) return 202;
+          if (model.hasMissingMetrics) return 203;
+          if (std::strcmp(model.cards[0].value, "--") != 0) return 204;
+          if (std::strcmp(model.cards[0].stateText, "UNAVAILABLE") != 0) return 205;
+          if (std::strcmp(model.cards[0].stateClass, "unavailable") != 0) return 206;
+          if (std::strcmp(model.cards[4].value, "--") != 0) return 207;
+          if (std::strcmp(model.cards[4].stateText, "UNAVAILABLE") != 0) return 208;
+          return 0;
+        }
+
+        static int assert_missing_metric_values_are_not_healthy() {
+          LedcardsInterfaceNutView view = baseline();
+          view.batteryPercent = -1;
+          view.runtimeSeconds = -1;
+          view.loadPercent = -1;
+          view.inputVoltage = 0.0f;
+          view.nutClientCount = -1;
+
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+
+          if (std::strcmp(model.telemetryState, "partial") != 0) return 301;
+          if (!model.hasMissingMetrics) return 302;
+          if (std::strcmp(model.cards[0].value, "--") != 0) return 303;
+          if (std::strcmp(model.cards[0].stateClass, "unavailable") != 0) return 304;
+          if (std::strcmp(model.cards[1].value, "--") != 0) return 305;
+          if (std::strcmp(model.cards[1].stateClass, "unavailable") != 0) return 306;
+          if (std::strcmp(model.cards[2].value, "--") != 0) return 307;
+          if (std::strcmp(model.cards[2].stateClass, "unavailable") != 0) return 308;
+          if (std::strcmp(model.cards[3].value, "--") != 0) return 309;
+          if (std::strcmp(model.cards[3].stateClass, "unavailable") != 0) return 310;
+          if (std::strcmp(model.cards[4].value, "--") != 0) return 311;
+          if (std::strcmp(model.cards[4].stateClass, "unavailable") != 0) return 312;
+          return 0;
+        }
+
+        int main() {
+          int result = assert_stale_telemetry_is_not_unavailable();
+          if (result != 0) return result;
+          result = assert_unavailable_telemetry_is_honest();
+          if (result != 0) return result;
+          result = assert_missing_metric_values_are_not_healthy();
+          if (result != 0) return result;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

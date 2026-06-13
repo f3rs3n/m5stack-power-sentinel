@@ -25,7 +25,9 @@ struct NutAmbientMetricCard {
 
 struct NutAmbientPageModel {
   char condition[16];
+  char telemetryState[16];
   bool shutdownRelevant;
+  bool hasMissingMetrics;
   NutAmbientMetricKind heroMetric;
   uint8_t cardCount;
   NutAmbientMetricCard cards[5];
@@ -48,6 +50,22 @@ inline bool nutAmbientTelemetryStale(const LedcardsInterfaceNutView &view) {
 
 inline bool nutAmbientTelemetryMissing(const LedcardsInterfaceNutView &view) {
   return nutAmbientTelemetryUnavailable(view) || nutAmbientTelemetryStale(view);
+}
+
+inline bool nutAmbientHasMissingMetrics(const LedcardsInterfaceNutView &view) {
+  if (nutAmbientTelemetryMissing(view)) return false;
+  return view.batteryPercent < 0 ||
+         view.runtimeSeconds < 0 ||
+         view.loadPercent < 0 ||
+         view.inputVoltage <= 0.0f ||
+         view.nutClientCount < 0;
+}
+
+inline const char *nutAmbientTelemetryState(const LedcardsInterfaceNutView &view) {
+  if (nutAmbientTelemetryUnavailable(view)) return "unavailable";
+  if (nutAmbientTelemetryStale(view)) return "stale";
+  if (nutAmbientHasMissingMetrics(view)) return "partial";
+  return "live";
 }
 
 inline const char *nutAmbientCondition(const LedcardsInterfaceNutView &view) {
@@ -124,7 +142,7 @@ inline const char *nutAmbientLoadStateClass(const LedcardsInterfaceNutView &view
 
 inline const char *nutAmbientInputStateText(const LedcardsInterfaceNutView &view) {
   if (nutAmbientTelemetryMissing(view)) return nutAmbientMissingStateText(view);
-  if (view.inputVoltage <= 0.0f) return view.onBattery ? "GRID OFFLINE" : "INPUT LOST";
+  if (view.inputVoltage <= 0.0f) return view.onBattery ? "GRID OFFLINE" : "UNAVAILABLE";
   if (view.inputVoltage < 190.0f) return "INPUT LOW";
   if (view.inputVoltage < 210.0f) return "MARGINAL INPUT";
   return "GRID ONLINE";
@@ -133,7 +151,7 @@ inline const char *nutAmbientInputStateText(const LedcardsInterfaceNutView &view
 inline const char *nutAmbientInputStateClass(const LedcardsInterfaceNutView &view) {
   if (nutAmbientTelemetryUnavailable(view)) return "unavailable";
   if (nutAmbientTelemetryStale(view)) return "stale";
-  if (view.inputVoltage <= 0.0f) return view.onBattery ? "critical" : "stale";
+  if (view.inputVoltage <= 0.0f) return view.onBattery ? "critical" : "unavailable";
   if (view.inputVoltage < 210.0f) return "warning";
   return "healthy";
 }
@@ -192,6 +210,9 @@ inline void fillNutAmbientCard(NutAmbientMetricCard &card, NutAmbientMetricKind 
       } else if (view.onBattery) {
         nutAmbientCopy(card.stateText, sizeof(card.stateText), "ON BATTERY");
         nutAmbientCopy(card.stateClass, sizeof(card.stateClass), "warning");
+      } else if (view.runtimeSeconds < 0) {
+        nutAmbientCopy(card.stateText, sizeof(card.stateText), "UNAVAILABLE");
+        nutAmbientCopy(card.stateClass, sizeof(card.stateClass), "unavailable");
       } else {
         nutAmbientCopy(card.stateText, sizeof(card.stateText), view.runtimeSeconds >= 0 && view.runtimeSeconds < 300 ? "LOW RESERVE" : "RESERVE");
         nutAmbientCopy(card.stateClass, sizeof(card.stateClass), view.runtimeSeconds >= 0 && view.runtimeSeconds < 300 ? "warning" : "healthy");
@@ -227,7 +248,9 @@ inline void fillNutAmbientCard(NutAmbientMetricCard &card, NutAmbientMetricKind 
 inline NutAmbientPageModel makeNutAmbientPageModel(const LedcardsInterfaceNutView &view) {
   NutAmbientPageModel model{};
   nutAmbientCopy(model.condition, sizeof(model.condition), nutAmbientCondition(view));
+  nutAmbientCopy(model.telemetryState, sizeof(model.telemetryState), nutAmbientTelemetryState(view));
   model.shutdownRelevant = nutAmbientShutdownRelevant(view);
+  model.hasMissingMetrics = nutAmbientHasMissingMetrics(view);
   model.heroMetric = chooseNutAmbientHeroMetric(view);
   model.cardCount = 5;
   fillNutAmbientCard(model.cards[0], NUT_AMBIENT_METRIC_BATTERY, view);
