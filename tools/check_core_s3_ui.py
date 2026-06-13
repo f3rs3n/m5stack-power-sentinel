@@ -10,6 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
+NUT_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "nut-ambient-page-model.h"
 NUT_FIXTURE = ROOT / "assets" / "lvgl-spike" / "power-sentinel-nut-ledcards-interface-fixture.c"
 
 
@@ -26,10 +27,10 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
-    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8")
+    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8")
     if require(main, [
         "nut-monitor-clean-baseline",
         "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())",
@@ -79,6 +80,8 @@ def main() -> int:
             return fail(f"clean NUT firmware still contains legacy multi-page marker {needle!r}")
     if require(ledcards, [
         "struct LedcardsInterfaceNutView",
+        "struct NutAmbientPageModel",
+        "makeNutAmbientPageModel(view)",
         "ps_icon_status_14",
         "moduleLanConnected", "wifiConnected", "linkOk", "moduleTimeHhmm", "localBatteryPercent",
         "nf-md-lan_connect", "nf-md-lan_disconnect",
