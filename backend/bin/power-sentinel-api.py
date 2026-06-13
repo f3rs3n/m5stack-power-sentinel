@@ -605,6 +605,8 @@ def proxmox_empty_payload(status: str, signals: list[dict[str, Any]], environmen
     payload["nodes"] = []
     payload["watched_guests"] = []
     return payload
+
+
 def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
     module_config = proxmox_config(config)
     missing = missing_proxmox_config_fields(module_config)

@@ -22,7 +22,7 @@ Stable module/page names:
 | Module | Page | Status |
 | --- | --- | --- |
 | `nut` | `NUT` | implemented baseline |
-| `proxmox` | `PROXMOX` | placeholder, to be reintroduced |
+| `proxmox` | `PROXMOX` | initial read-only API adapter |
 | `ha` | `HA` | placeholder, to be reintroduced |
 
 Each module must be independently installable/updateable and independently testable. A module should provide glanceable value, stay within a lightweight integration boundary, or improve a frequent contextual handoff/action.

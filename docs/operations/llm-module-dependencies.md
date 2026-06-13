@@ -45,4 +45,4 @@ systemctl is-active power-sentinel-stackflow-unit.service
 
 ## Future modules
 
-`proxmox` and `ha` are installer-recognized placeholders only. Add their package/config dependencies here only when the module backend is reintroduced with tests.
+`proxmox` currently uses the Python stdlib Proxmox API adapter and does not add package dependencies. `ha` is still an installer-recognized placeholder only. Add future package/config dependencies here only when a module backend is reintroduced with tests.
