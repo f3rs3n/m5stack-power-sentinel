@@ -2,7 +2,7 @@
 
 ## Reframe
 
-Power Sentinel is now rebuilt around a clean NUT Monitor core. The new Ledcards NUT UI is the design anchor; every other capability returns as an optional page module, not as coupled legacy code.
+Power Sentinel is a local homelab companion. It currently ships as a clean NUT Monitor baseline, with the Ledcards NUT UI as the design anchor; future capabilities return as independently scoped modules, not as coupled legacy dashboard code.
 
 ## Baseline product
 
@@ -25,11 +25,19 @@ Stable module/page names:
 | `proxmox` | `PROXMOX` | placeholder, to be reintroduced |
 | `ha` | `HA` | placeholder, to be reintroduced |
 
-Each module must be independently installable/updateable and independently testable.
+Each module must be independently installable/updateable and independently testable. A module should provide glanceable value, stay within a lightweight integration boundary, or improve a frequent contextual handoff/action.
 
-## Safety boundary
+## Proxmox reintroduction direction
 
-Power Sentinel observes and displays readiness. It does not invent a custom shutdown orchestrator.
+The Proxmox module should return as API-only, read-only observability for one Proxmox Environment. Its first job is cluster/node condition at a glance, with contextual handoff data such as node, storage, guest VMID/name, backup job, timestamp, or concise error context.
+
+The module should not use SSH, run remote commands, control guests, or recreate the Proxmox console. Watched Guests are configured manually by VMID and are expected to be running; a watched guest down is critical. CPU/RAM should affect condition only as sustained node-level pressure. Disk health belongs in scope only when exposed through the Proxmox API with lightweight, actionable signals.
+
+Implementation planning lives in `docs/plans/proxmox-module-v1.md`.
+
+## Integration boundary
+
+Power Sentinel observes and displays conditions. It does not invent a custom shutdown orchestrator or replace specialist consoles.
 
 Real shutdown owner: Standard NUT `upsmon`.
 

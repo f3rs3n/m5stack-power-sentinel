@@ -1,14 +1,15 @@
 # M5Stack Power Sentinel
 
-Power Sentinel riparte da una baseline pulita: NUT Monitor è il prodotto minimo, con UI CoreS3 Ledcards e backend locale dedicato a UPS/NUT.
+Power Sentinel è un homelab companion locale. La baseline corrente è NUT Monitor, con UI CoreS3 Ledcards e backend locale dedicato a UPS/NUT, ma il prodotto non è limitato al solo UPS.
 
-Gli sviluppi precedenti multi-dashboard non sono più parte della baseline corrente. Restano recuperabili dalla storia Git; il repo di lavoro contiene solo il nucleo da cui riaggiungere moduli pagina in modo controllato.
+Gli sviluppi precedenti multi-dashboard non sono più parte della baseline corrente. Restano recuperabili dalla storia Git; il repo di lavoro contiene il nucleo da cui riaggiungere moduli indipendenti in modo controllato.
 
 ## Direzione prodotto
 
 - Baseline implementata: pagina `NUT` con la nuova UI Ledcards fullscreen.
 - Moduli previsti ma non reintrodotti: `proxmox` -> pagina `PROXMOX`, `ha` -> pagina `HA`.
 - Ogni modulo deve avere backend, contratto, test e UI propri, installabili/aggiornabili separatamente.
+- Power Sentinel privilegia integrazioni leggere e handoff contestuali verso gli strumenti autorevoli; non deve diventare una console sostitutiva per sistemi specialistici.
 - NUT resta read-only lato Power Sentinel: lo shutdown reale è Standard NUT/`upsmon`; nessun controllo custom Proxmox/API per spegnimenti.
 - Regola critica: non spegnere se la linea è presente. Solo `OB LB` è intenzione di shutdown; `OL ... LB` è warning/no-shutdown.
 

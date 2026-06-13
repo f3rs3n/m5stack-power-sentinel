@@ -24,3 +24,7 @@ The old HOME/NUT/PVE/HA/M5S tab dashboard is archived out of the active baseline
 ## Future pages
 
 Future `PROXMOX` and `HA` pages should reuse this quality bar but enter as separate modules. Do not reintroduce the old multi-page firmware wholesale; extract only the parts that still match the new design language.
+
+### Future `PROXMOX` page
+
+The `PROXMOX` page should lead with the Proxmox Environment condition, not raw CPU/RAM or inventory counts. Four compact tiles should summarize nodes, Watched Guests, storage, and the most relevant backup/resource/disk signal. When actionable signals exist, the page should privilege the worst signal over neutral metrics. Touch interaction is for focus only, such as promoting a tile or signal to the hero area; it must not trigger Proxmox actions.

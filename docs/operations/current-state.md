@@ -27,7 +27,7 @@ Archived/removed from active baseline:
 - Home Assistant/MQTT/Zigbee2MQTT backend and publisher units.
 - Old broad UI fixtures/results.
 
-These are not lost: recover from Git history when reintroducing each module as a page module.
+These are not lost: recover from Git history when reintroducing each module as a separately scoped module, but do not restore the old dashboard wholesale. Proxmox reintroduction is API-only, read-only observability with contextual handoff, not a Proxmox control surface.
 
 Operational verification:
 
