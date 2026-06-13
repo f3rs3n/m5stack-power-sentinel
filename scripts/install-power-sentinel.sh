@@ -90,7 +90,7 @@ if ! have_module nut; then
   echo "Warning: installing without nut leaves only placeholder modules; no CoreS3 telemetry will be produced." >&2
 fi
 if have_module proxmox; then
-  echo "Note: proxmox module is a placeholder in this clean baseline; installer records it but installs no Proxmox backend yet." >&2
+  echo "Note: proxmox module uses the stdlib API adapter in power-sentinel-api; configure read-only credentials in /etc/power-sentinel.json." >&2
 fi
 if have_module ha; then
   echo "Note: ha module is a placeholder in this clean baseline; installer records it but installs no HA backend yet." >&2
