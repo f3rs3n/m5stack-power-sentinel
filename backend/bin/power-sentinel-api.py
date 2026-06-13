@@ -11,6 +11,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import ssl
 import subprocess
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -383,7 +384,8 @@ def proxmox_api_get(config: dict[str, Any], path: str) -> dict[str, Any]:
     token_secret = str(config["token_secret"])
     url = f"{api_url}/api2/json{path}"
     request = Request(url, headers={"Authorization": f"PVEAPIToken={token_id}={token_secret}"})
-    with urlopen(request, timeout=4.0) as response:  # noqa: S310 - configured local Proxmox URL
+    context = ssl._create_unverified_context() if config.get("verify_ssl") is False else None  # noqa: SLF001,S323 - local PVE can use a self-signed cert
+    with urlopen(request, timeout=4.0, context=context) as response:  # noqa: S310 - configured local Proxmox URL
         payload = json.loads(response.read(512 * 1024).decode("utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("Proxmox API returned non-object JSON")

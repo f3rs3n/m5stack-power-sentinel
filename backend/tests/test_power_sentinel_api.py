@@ -333,6 +333,46 @@ def test_proxmox_api_failure_reports_unavailable_without_exposing_token():
         api.proxmox_api_get = old_get
 
 
+def test_proxmox_api_get_honors_verify_ssl_false_for_self_signed_pve():
+    old_urlopen = api.urlopen
+    captured = {}
+    try:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self, _size):
+                return b'{"data": []}'
+
+        def fake_urlopen(request, timeout, context=None):
+            captured["url"] = request.full_url
+            captured["auth"] = request.get_header("Authorization")
+            captured["timeout"] = timeout
+            captured["context"] = context
+            return FakeResponse()
+
+        api.urlopen = fake_urlopen
+        payload = api.proxmox_api_get({
+            "api_url": "https://pve.example:8006",
+            "token_id": "power-sentinel@pve!monitor",
+            "token_secret": "SECRET",
+            "verify_ssl": False,
+        }, "/nodes")
+
+        assert payload == {"data": []}
+        assert captured["url"] == "https://pve.example:8006/api2/json/nodes"
+        assert captured["auth"].startswith("PVEAPIToken=power-sentinel@pve!monitor=")
+        assert captured["timeout"] == 4.0
+        assert captured["context"] is not None
+        assert captured["context"].check_hostname is False
+        assert captured["context"].verify_mode == api.ssl.CERT_NONE
+    finally:
+        api.urlopen = old_urlopen
+
+
 def test_proxmox_first_healthy_observation_uses_read_only_api_adapter():
     old_get = api.proxmox_api_get
     calls = []
