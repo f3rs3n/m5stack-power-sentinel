@@ -6,6 +6,7 @@
 
 #include "m5_hal.h"
 #include "ledcards-interface-page.h"
+#include "proxmox-ambient-page-model.h"
 
 #if __has_include("power_sentinel_config.h")
 #include "power_sentinel_config.h"
@@ -243,6 +244,20 @@ struct NutState {
   bool wouldShutdown = false;
 };
 
+struct ProxmoxState {
+  bool enabled = false;
+  bool implemented = false;
+  bool hasLiveData = false;
+  char condition[16] = "unavailable";
+  char status[24] = "not_observed";
+  char signalKind[24] = "";
+  char signalSummary[48] = "";
+  int nodeCount = -1;
+  int onlineNodeCount = -1;
+  int watchedGuestCount = -1;
+  int runningWatchedGuestCount = -1;
+};
+
 struct SummaryState {
   char schema[32] = "power-sentinel.summary.v1";
   char severity[12] = "unknown";
@@ -254,6 +269,7 @@ struct SummaryState {
   uint32_t lastGoodMillis = 0;
   UpsState ups;
   NutState nut;
+  ProxmoxState proxmox;
 };
 
 enum class DisplayMode : uint8_t { Awake, Dim, Off };
@@ -388,6 +404,24 @@ void parseSummary(const String &json, const char *source) {
   state.moduleLanConnected = jsonBool(module["lan_connected"], false);
   const char *timeHhmm = module["time_hhmm"] | "--:--";
   safeCopy(state.moduleTimeHhmm, sizeof(state.moduleTimeHhmm), validHhmm(timeHhmm) ? timeHhmm : "--:--");
+  JsonObjectConst proxmox = doc["modules"]["proxmox"].as<JsonObjectConst>();
+  state.proxmox.enabled = jsonBool(proxmox["enabled"], false);
+  state.proxmox.implemented = jsonBool(proxmox["implemented"], false);
+  safeCopy(state.proxmox.condition, sizeof(state.proxmox.condition), proxmox["condition"] | "unavailable");
+  safeCopy(state.proxmox.status, sizeof(state.proxmox.status), proxmox["status"] | "not_observed");
+  JsonObjectConst proxmoxEnvironment = proxmox["environment"].as<JsonObjectConst>();
+  state.proxmox.nodeCount = jsonInt(proxmoxEnvironment["node_count"], -1);
+  state.proxmox.onlineNodeCount = jsonInt(proxmoxEnvironment["online_node_count"], -1);
+  state.proxmox.watchedGuestCount = jsonInt(proxmoxEnvironment["watched_guest_count"], -1);
+  state.proxmox.runningWatchedGuestCount = jsonInt(proxmoxEnvironment["running_watched_guest_count"], -1);
+  JsonArrayConst proxmoxSignals = proxmox["signals"].as<JsonArrayConst>();
+  JsonObjectConst firstProxmoxSignal = proxmoxSignals.size() > 0 ? proxmoxSignals[0].as<JsonObjectConst>() : JsonObjectConst();
+  safeCopy(state.proxmox.signalKind, sizeof(state.proxmox.signalKind), firstProxmoxSignal["kind"] | "");
+  safeCopy(state.proxmox.signalSummary, sizeof(state.proxmox.signalSummary), firstProxmoxSignal["summary"] | "");
+  state.proxmox.hasLiveData = state.proxmox.enabled &&
+                              state.proxmox.implemented &&
+                              strcmp(state.proxmox.status, "observed") == 0 &&
+                              state.proxmox.nodeCount >= 0;
   state.offline = false;
   state.lastGoodMillis = millis();
   snprintf(state.transportStatus, sizeof(state.transportStatus), "%s summary OK", source);
@@ -418,6 +452,22 @@ LedcardsInterfaceNutView makeLedcardsInterfaceNutView() {
   view.pageCount = 1;
   view.pageIndex = 0;
   view.nowMillis = now;
+  return view;
+}
+
+ProxmoxAmbientView makeProxmoxAmbientView() {
+  ProxmoxAmbientView view{};
+  view.enabled = state.proxmox.enabled;
+  view.implemented = state.proxmox.implemented;
+  view.hasLiveData = state.proxmox.hasLiveData;
+  safeCopy(view.condition, sizeof(view.condition), state.proxmox.condition);
+  safeCopy(view.status, sizeof(view.status), state.proxmox.status);
+  safeCopy(view.signalKind, sizeof(view.signalKind), state.proxmox.signalKind);
+  safeCopy(view.signalSummary, sizeof(view.signalSummary), state.proxmox.signalSummary);
+  view.nodeCount = state.proxmox.nodeCount;
+  view.onlineNodeCount = state.proxmox.onlineNodeCount;
+  view.watchedGuestCount = state.proxmox.watchedGuestCount;
+  view.runningWatchedGuestCount = state.proxmox.runningWatchedGuestCount;
   return view;
 }
 

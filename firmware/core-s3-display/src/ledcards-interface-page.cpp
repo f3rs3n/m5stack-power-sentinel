@@ -2,6 +2,7 @@
 // Layout remains synchronized with assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c.
 #include "ledcards-interface-page.h"
 #include "nut-ambient-page-model.h"
+#include "proxmox-ambient-page-model.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -656,6 +657,30 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   draw_nut_home_static(screen, view);
 }
 
+static void render_proxmox_unavailable(lv_obj_t *screen, const ProxmoxAmbientView &view) {
+  ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+  lv_obj_clean(screen);
+  lv_obj_set_style_bg_color(screen, C(0x040607), 0);
+  lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+  set_no_border(screen);
+
+  constexpr uint32_t kProxmoxUnavailableAccent = kPurple;
+  top_status(screen, LedcardsInterfaceNutView{});
+  box(screen, 12, 30, 296, 92, 9, 0x180f26, 0x2a1a3f);
+  box(screen, 22, 44, 7, 64, 4, kProxmoxUnavailableAccent, 0);
+  label(screen, model.heroTitle, 42, 42, 120, &lv_font_montserrat_14, 0xc4b5fd);
+  label(screen, model.heroValue, 42, 60, 150, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
+  label(screen, model.heroDetail, 42, 99, 220, &lv_font_montserrat_12, 0xc9d0c9);
+
+  const int xs[3] = {12, 113, 214};
+  for (uint8_t i = 0; i < model.cardCount && i < 3; ++i) {
+    lv_obj_t *card = box(screen, xs[i], 142, 94, 62, 7, 0x101514, 0x202824);
+    label(card, model.cards[i].label, 8, 7, 70, &lv_font_montserrat_12, 0xc9d0c9);
+    label(card, model.cards[i].value, 8, 23, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
+    label(card, model.cards[i].stateText, 8, 50, 78, &lv_font_montserrat_10, 0xc4b5fd);
+  }
+}
+
 }  // namespace
 
 void createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view) {
@@ -669,4 +694,8 @@ void updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view) {
     return;
   }
   render_nut_home(lv_screen_active(), view);
+}
+
+void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view) {
+  render_proxmox_unavailable(lv_screen_active(), view);
 }

@@ -1,0 +1,128 @@
+import pathlib
+import subprocess
+import textwrap
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+SRC_DIR = ROOT / "firmware" / "core-s3-display" / "src"
+
+
+def compile_and_run(source: str) -> str:
+    build_dir = ROOT / ".tmp-tests"
+    build_dir.mkdir(exist_ok=True)
+    source_path = build_dir / "proxmox_ambient_page_model_test.cpp"
+    binary_path = build_dir / "proxmox_ambient_page_model_test"
+    source_path.write_text(source, encoding="utf-8")
+    cp = subprocess.run(
+        ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(SRC_DIR), str(source_path), "-o", str(binary_path)],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if cp.returncode != 0:
+        raise AssertionError(cp.stdout)
+    run = subprocess.run([str(binary_path)], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+    if run.returncode != 0:
+        raise AssertionError(run.stdout)
+    return run.stdout
+
+
+def test_proxmox_ambient_page_model_unconfigured_and_api_unavailable_states():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        static int assert_unconfigured() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "unavailable");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "unconfigured");
+          proxmoxAmbientCopy(view.signalKind, sizeof(view.signalKind), "unconfigured");
+          proxmoxAmbientCopy(view.signalSummary, sizeof(view.signalSummary), "Proxmox config missing");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "unavailable") != 0) return 101;
+          if (std::strcmp(model.telemetryState, "unconfigured") != 0) return 102;
+          if (std::strcmp(model.heroTitle, "PROXMOX") != 0) return 103;
+          if (std::strcmp(model.heroValue, "SETUP") != 0) return 104;
+          if (std::strcmp(model.heroDetail, "Config missing") != 0) return 105;
+          if (std::strcmp(model.visualClass, "purple") != 0) return 106;
+          if (model.cardCount != 3) return 107;
+          if (std::strcmp(model.cards[0].label, "API") != 0) return 108;
+          if (std::strcmp(model.cards[0].value, "--") != 0) return 109;
+          if (std::strcmp(model.cards[0].stateText, "UNCONFIGURED") != 0) return 110;
+          if (std::strcmp(model.cards[1].label, "Nodes") != 0) return 111;
+          if (std::strcmp(model.cards[1].value, "--") != 0) return 112;
+          if (std::strcmp(model.cards[2].label, "Guests") != 0) return 113;
+          if (std::strcmp(model.cards[2].value, "--") != 0) return 114;
+          return 0;
+        }
+
+        static int assert_api_unavailable() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "unavailable");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "api_unavailable");
+          proxmoxAmbientCopy(view.signalKind, sizeof(view.signalKind), "api_unavailable");
+          proxmoxAmbientCopy(view.signalSummary, sizeof(view.signalSummary), "API auth failed");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "unavailable") != 0) return 201;
+          if (std::strcmp(model.telemetryState, "api_unavailable") != 0) return 202;
+          if (std::strcmp(model.heroValue, "OFFLINE") != 0) return 203;
+          if (std::strcmp(model.heroDetail, "API unavailable") != 0) return 204;
+          if (std::strcmp(model.visualClass, "purple") != 0) return 205;
+          if (std::strcmp(model.cards[0].stateText, "API UNAVAILABLE") != 0) return 206;
+          return 0;
+        }
+
+        int main() {
+          int result = assert_unconfigured();
+          if (result != 0) return result;
+          result = assert_api_unavailable();
+          if (result != 0) return result;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_missing_live_data_never_shows_fake_telemetry():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "unavailable");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "not_observed");
+          proxmoxAmbientCopy(view.signalKind, sizeof(view.signalKind), "api_unavailable");
+          view.nodeCount = 99;
+          view.onlineNodeCount = 88;
+          view.watchedGuestCount = 77;
+          view.runningWatchedGuestCount = 66;
+          view.hasLiveData = false;
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.telemetryState, "not_observed") != 0) return 1;
+          if (std::strcmp(model.heroValue, "WAIT") != 0) return 2;
+          if (std::strcmp(model.cards[1].value, "--") != 0) return 3;
+          if (std::strcmp(model.cards[2].value, "--") != 0) return 4;
+          if (std::strstr(model.cards[1].value, "88") != nullptr) return 5;
+          if (std::strstr(model.cards[2].value, "66") != nullptr) return 6;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

@@ -11,6 +11,7 @@ MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
 NUT_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "nut-ambient-page-model.h"
+PROXMOX_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "proxmox-ambient-page-model.h"
 NUT_AMBIENT_CONTRACT = ROOT / "docs" / "architecture" / "nut-ambient-console-contract.md"
 NUT_FIXTURE = ROOT / "assets" / "lvgl-spike" / "power-sentinel-nut-ledcards-interface-fixture.c"
 
@@ -28,10 +29,10 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
-    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8")
+    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
     if require(main, [
         "nut-monitor-clean-baseline",
         "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())",
@@ -43,6 +44,8 @@ def main() -> int:
         "parseSummary(body, \"stackflow\")",
         "kLinkStatusTimeoutMs = 10000",
         "doc[\"module\"].as<JsonObjectConst>()",
+        "doc[\"modules\"][\"proxmox\"].as<JsonObjectConst>()",
+        "makeProxmoxAmbientView()",
         "WiFi.status() == WL_CONNECTED",
         "initStatusWiFi()",
         "psBatteryLevel()",
@@ -72,7 +75,7 @@ def main() -> int:
         return 1
     forbidden = [
         "renderHome(", "renderProxmox(", "renderHa(", "renderM5s(", "tabview", "PS_ICON_HOME", "Zigbee2MqttState",
-        "ProxmoxState", "WorkloadMetric", "HOME", "M5S", "Running workloads", "HA OK", "PVE OK",
+        "WorkloadMetric", "HOME", "M5S", "Running workloads", "HA OK", "PVE OK",
         "POWER_SENTINEL_HTTP_FALLBACK", "#include <HTTPClient.h>", "fetchHttpSummary", "HTTPClient http",
         "POWER_SENTINEL_SUMMARY_URL", "parseSummary(body, \"http\")",
     ]
@@ -113,6 +116,19 @@ def main() -> int:
         return fail("Ledcards MetricRender must not keep pointers into temporary page-model cards")
     if "  }\n  if (view.lowBattery || view.batteryPercent < 20) return \"LOW BATTERY\";" in ledcards:
         return fail("online battery display must not let NUT LB override percent buckets")
+    if require(ledcards, [
+        "struct ProxmoxAmbientPageModel",
+        "makeProxmoxAmbientPageModel",
+        "renderProxmoxAmbientUnavailableUi",
+        "render_proxmox_unavailable",
+        "PROXMOX",
+        "SETUP",
+        "OFFLINE",
+        "No live data",
+        "UNCONFIGURED",
+        "API UNAVAILABLE",
+    ], "Proxmox unavailable tracer"):
+        return 1
     contract = NUT_AMBIENT_CONTRACT.read_text(encoding="utf-8")
     if require(contract, [
         "first stable Power Sentinel Ambient Console adapter shape",

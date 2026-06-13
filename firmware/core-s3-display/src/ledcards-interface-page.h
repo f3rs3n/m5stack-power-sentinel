@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "proxmox-ambient-page-model.h"
+
 struct LedcardsInterfaceNutView {
   bool offline;
   bool upsAvailable;
@@ -29,3 +31,4 @@ struct LedcardsInterfaceNutView {
 
 void createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view);
 void updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view);
+void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view);
