@@ -1,14 +1,15 @@
 # M5Stack Power Sentinel
 
-Power Sentinel riparte da una baseline pulita: NUT Monitor è il prodotto minimo, con UI CoreS3 Ledcards e backend locale dedicato a UPS/NUT.
+Power Sentinel è un homelab companion locale. La baseline corrente è NUT Monitor, con UI CoreS3 Ledcards e backend locale dedicato a UPS/NUT, ma il prodotto non è limitato al solo UPS.
 
-Gli sviluppi precedenti multi-dashboard non sono più parte della baseline corrente. Restano recuperabili dalla storia Git; il repo di lavoro contiene solo il nucleo da cui riaggiungere moduli pagina in modo controllato.
+Gli sviluppi precedenti multi-dashboard non sono più parte della baseline corrente. Restano recuperabili dalla storia Git; il repo di lavoro contiene il nucleo da cui riaggiungere moduli indipendenti in modo controllato.
 
 ## Direzione prodotto
 
 - Baseline implementata: pagina `NUT` con la nuova UI Ledcards fullscreen.
-- Moduli previsti ma non reintrodotti: `proxmox` -> pagina `PROXMOX`, `ha` -> pagina `HA`.
+- Moduli: `nut` -> pagina `NUT` implementata; `proxmox` -> pagina `PROXMOX` con primo adapter API read-only; `ha` -> pagina `HA` ancora placeholder.
 - Ogni modulo deve avere backend, contratto, test e UI propri, installabili/aggiornabili separatamente.
+- Power Sentinel privilegia integrazioni leggere e handoff contestuali verso gli strumenti autorevoli; non deve diventare una console sostitutiva per sistemi specialistici.
 - NUT resta read-only lato Power Sentinel: lo shutdown reale è Standard NUT/`upsmon`; nessun controllo custom Proxmox/API per spegnimenti.
 - Regola critica: non spegnere se la linea è presente. Solo `OB LB` è intenzione di shutdown; `OL ... LB` è warning/no-shutdown.
 
@@ -46,7 +47,8 @@ Il contratto conserva `schema = power-sentinel.summary.v1`, ma ora espone chiara
 - `available_modules: ["nut", "proxmox", "ha"]`
 - `enabled_modules`, controllati da config o installer
 - `modules.nut`, implementato
-- `modules.proxmox` e `modules.ha`, placeholder fino alla reintroduzione
+- `modules.proxmox`, primo adapter API read-only senza controlli remoti
+- `modules.ha`, placeholder fino alla reintroduzione
 - alias compatibili `ups` e `nut` per il firmware NUT Monitor
 
 Default: solo `nut` è abilitato.
@@ -76,7 +78,7 @@ Override rapido:
 POWER_SENTINEL_MODULES=nut,proxmox ./backend/bin/power-sentinel-api.py --summary
 ```
 
-Nota: abilitare `proxmox` o `ha` oggi mostra placeholder nel contratto, non telemetria live. Questo è voluto: verranno reintrodotti come moduli separati.
+Nota: abilitare `proxmox` con il token esempio `CHANGE_ME` non tenta chiamate live e riporta `status: not_observed`. Con credenziali reali read-only, il modulo legge solo API Proxmox leggere. `ha` resta placeholder.
 
 ## Installer modulare
 
@@ -92,13 +94,13 @@ Install/update API + StackFlow + NUT baseline:
 sudo scripts/install-power-sentinel.sh --modules nut
 ```
 
-Preparazione futura dei placeholder:
+Preparazione moduli aggiuntivi:
 
 ```bash
 sudo scripts/install-power-sentinel.sh --modules nut,proxmox,ha --dry-run
 ```
 
-Lo script accetta `--modules` per installare/aggiornare solo i moduli necessari. Oggi installa solo artefatti comuni e NUT; Proxmox/HA sono dichiarati ma bloccati finché i rispettivi backend non rientrano.
+Lo script accetta `--modules` per installare/aggiornare solo i moduli necessari. Oggi installa artefatti comuni e NUT; Proxmox è configurabile come adapter API read-only, mentre HA resta dichiarato ma non implementato.
 
 ## Verifica locale
 

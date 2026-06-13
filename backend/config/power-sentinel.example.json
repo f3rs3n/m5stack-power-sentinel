@@ -7,5 +7,11 @@
   "nut": {
     "ups": "homelab_ups@localhost",
     "clients_file": "/etc/power-sentinel-nut-clients.json"
+  },
+  "proxmox": {
+    "api_url": "https://pve.example:8006",
+    "token_id": "power-sentinel@pve!monitor",
+    "token_secret": "CHANGE_ME",
+    "watched_guests": []
   }
 }
