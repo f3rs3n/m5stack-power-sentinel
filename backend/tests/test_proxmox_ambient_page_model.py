@@ -175,3 +175,88 @@ def test_proxmox_ambient_page_model_healthy_observed_summary_cards():
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_privileges_critical_node_signals():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        static ProxmoxAmbientView base_view(const char *kind) {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "critical");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.signalKind, sizeof(view.signalKind), kind);
+          proxmoxAmbientCopy(view.signalSummary, sizeof(view.signalSummary), "Proxmox node pve-b is offline");
+          proxmoxAmbientCopy(view.signalContext, sizeof(view.signalContext), "pve-b");
+          view.nodeCount = 3;
+          view.onlineNodeCount = 2;
+          view.watchedGuestCount = 2;
+          view.runningWatchedGuestCount = 2;
+          view.storageCount = 2;
+          view.maxStorageUsedPercent = 64;
+          return view;
+        }
+
+        int main() {
+          ProxmoxAmbientPageModel down = makeProxmoxAmbientPageModel(base_view("node_down"));
+          if (std::strcmp(down.heroValue, "NODE DOWN") != 0) return 1;
+          if (std::strcmp(down.heroDetail, "pve-b") != 0) return 2;
+          if (std::strcmp(down.visualClass, "red") != 0) return 3;
+          if (std::strcmp(down.cards[1].stateText, "NODE DOWN") != 0) return 4;
+          if (std::strcmp(down.cards[1].visualClass, "red") != 0) return 5;
+
+          ProxmoxAmbientView degradedView = base_view("node_degraded");
+          proxmoxAmbientCopy(degradedView.signalSummary, sizeof(degradedView.signalSummary), "Proxmox node pve-c is unknown");
+          proxmoxAmbientCopy(degradedView.signalContext, sizeof(degradedView.signalContext), "pve-c");
+          ProxmoxAmbientPageModel degraded = makeProxmoxAmbientPageModel(degradedView);
+          if (std::strcmp(degraded.heroValue, "NODE DEG") != 0) return 6;
+          if (std::strcmp(degraded.heroDetail, "pve-c") != 0) return 7;
+          if (std::strcmp(degraded.cards[1].stateText, "DEGRADED") != 0) return 8;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_privileges_watched_guest_down_context():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "critical");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.signalKind, sizeof(view.signalKind), "watched_guest_down");
+          proxmoxAmbientCopy(view.signalSummary, sizeof(view.signalSummary), "Watched guest 101 is stopped");
+          proxmoxAmbientCopy(view.signalContext, sizeof(view.signalContext), "haos 101");
+          view.nodeCount = 1;
+          view.onlineNodeCount = 1;
+          view.watchedGuestCount = 2;
+          view.runningWatchedGuestCount = 1;
+          view.storageCount = 2;
+          view.maxStorageUsedPercent = 64;
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.heroValue, "GUEST DOWN") != 0) return 1;
+          if (std::strcmp(model.heroDetail, "haos 101") != 0) return 2;
+          if (std::strcmp(model.visualClass, "red") != 0) return 3;
+          if (std::strcmp(model.cards[2].stateText, "GUEST DOWN") != 0) return 4;
+          if (std::strcmp(model.cards[2].visualClass, "red") != 0) return 5;
+          if (std::strcmp(model.cards[1].stateText, "ONLINE") != 0) return 6;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
