@@ -126,3 +126,52 @@ def test_proxmox_ambient_page_model_missing_live_data_never_shows_fake_telemetry
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_healthy_observed_summary_cards():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "healthy");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          view.nodeCount = 2;
+          view.onlineNodeCount = 2;
+          view.watchedGuestCount = 2;
+          view.runningWatchedGuestCount = 2;
+          view.storageCount = 3;
+          view.maxStorageUsedPercent = 64;
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "healthy") != 0) return 1;
+          if (std::strcmp(model.telemetryState, "observed") != 0) return 2;
+          if (std::strcmp(model.heroTitle, "PROXMOX") != 0) return 3;
+          if (std::strcmp(model.heroValue, "OK") != 0) return 4;
+          if (std::strcmp(model.heroDetail, "Read-only API") != 0) return 5;
+          if (std::strcmp(model.visualClass, "green") != 0) return 6;
+          if (model.cardCount != 4) return 7;
+          if (std::strcmp(model.cards[0].label, "API") != 0) return 8;
+          if (std::strcmp(model.cards[0].value, "OK") != 0) return 9;
+          if (std::strcmp(model.cards[0].stateText, "OBSERVED") != 0) return 10;
+          if (std::strcmp(model.cards[1].label, "Nodes") != 0) return 11;
+          if (std::strcmp(model.cards[1].value, "2/2") != 0) return 12;
+          if (std::strcmp(model.cards[1].stateText, "ONLINE") != 0) return 13;
+          if (std::strcmp(model.cards[2].label, "Guests") != 0) return 14;
+          if (std::strcmp(model.cards[2].value, "2/2") != 0) return 15;
+          if (std::strcmp(model.cards[2].stateText, "RUNNING") != 0) return 16;
+          if (std::strcmp(model.cards[3].label, "Storage") != 0) return 17;
+          if (std::strcmp(model.cards[3].value, "64") != 0) return 18;
+          if (std::strcmp(model.cards[3].unit, "% max") != 0) return 19;
+          if (std::strcmp(model.cards[3].stateText, "OK") != 0) return 20;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

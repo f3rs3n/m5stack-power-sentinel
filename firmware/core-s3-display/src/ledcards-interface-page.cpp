@@ -657,27 +657,36 @@ static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &vi
   draw_nut_home_static(screen, view);
 }
 
-static void render_proxmox_unavailable(lv_obj_t *screen, const ProxmoxAmbientView &view) {
+static void proxmox_summary_tile(lv_obj_t *screen, int x, int y, const ProxmoxAmbientCard &card) {
+  uint32_t accent = visual_class_color(card.visualClass);
+  lv_obj_t *tileObj = box(screen, x, y, 142, 46, 7, state_fill(accent), 0x141e1b);
+  box(tileObj, 7, 8, 5, 28, 3, accent, 0);
+  label(tileObj, card.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
+  lv_obj_t *name_l = label(tileObj, card.label, 76, 6, 55, &lv_font_montserrat_12, 0xc9d0c9);
+  lv_obj_set_style_text_align(name_l, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_t *unit_l = label(tileObj, card.unit, 78, 23, 53, &lv_font_montserrat_12, 0x87918c);
+  lv_obj_set_style_text_align(unit_l, LV_TEXT_ALIGN_RIGHT, 0);
+}
+
+static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view) {
   ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
   lv_obj_clean(screen);
   lv_obj_set_style_bg_color(screen, C(0x040607), 0);
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
   set_no_border(screen);
 
-  constexpr uint32_t kProxmoxUnavailableAccent = kPurple;
+  uint32_t accent = visual_class_color(model.visualClass);
   top_status(screen, LedcardsInterfaceNutView{});
-  box(screen, 12, 30, 296, 92, 9, 0x180f26, 0x2a1a3f);
-  box(screen, 22, 44, 7, 64, 4, kProxmoxUnavailableAccent, 0);
-  label(screen, model.heroTitle, 42, 42, 120, &lv_font_montserrat_14, 0xc4b5fd);
+  box(screen, 12, 30, 296, 92, 9, state_fill(accent), 0x2a1a3f);
+  box(screen, 22, 44, 7, 64, 4, accent, 0);
+  label(screen, model.heroTitle, 42, 42, 120, &lv_font_montserrat_14, state_text_color(accent));
   label(screen, model.heroValue, 42, 60, 150, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
   label(screen, model.heroDetail, 42, 99, 220, &lv_font_montserrat_12, 0xc9d0c9);
 
-  const int xs[3] = {12, 113, 214};
-  for (uint8_t i = 0; i < model.cardCount && i < 3; ++i) {
-    lv_obj_t *card = box(screen, xs[i], 142, 94, 62, 7, 0x101514, 0x202824);
-    label(card, model.cards[i].label, 8, 7, 70, &lv_font_montserrat_12, 0xc9d0c9);
-    label(card, model.cards[i].value, 8, 23, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
-    label(card, model.cards[i].stateText, 8, 50, 78, &lv_font_montserrat_10, 0xc4b5fd);
+  const int xs[4] = {12, 166, 12, 166};
+  const int ys[4] = {130, 130, 188, 188};
+  for (uint8_t i = 0; i < model.cardCount && i < 4; ++i) {
+    proxmox_summary_tile(screen, xs[i], ys[i], model.cards[i]);
   }
 }
 
@@ -697,5 +706,9 @@ void updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view) {
 }
 
 void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view) {
-  render_proxmox_unavailable(lv_screen_active(), view);
+  render_proxmox_ambient(lv_screen_active(), view);
+}
+
+void renderProxmoxAmbientUi(const ProxmoxAmbientView &view) {
+  render_proxmox_ambient(lv_screen_active(), view);
 }
