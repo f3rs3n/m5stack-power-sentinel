@@ -68,3 +68,91 @@ def test_nut_ambient_page_model_interprets_healthy_line_power_baseline():
         }
     '''))
     assert output == "ok\n"
+
+
+def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "nut-ambient-page-model.h"
+
+        static LedcardsInterfaceNutView baseline() {
+          LedcardsInterfaceNutView view{};
+          view.offline = false;
+          view.upsAvailable = true;
+          view.upsStale = false;
+          view.onBattery = false;
+          view.lowBattery = false;
+          view.charging = false;
+          view.batteryPercent = 84;
+          view.runtimeSeconds = 880;
+          view.loadPercent = 22;
+          view.inputVoltage = 231.0f;
+          view.nutClientCount = 2;
+          return view;
+        }
+
+        static int assert_on_battery_warning() {
+          LedcardsInterfaceNutView view = baseline();
+          view.onBattery = true;
+          view.inputVoltage = 0.0f;
+
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "warning") != 0) return 101;
+          if (model.shutdownRelevant) return 102;
+          if (model.heroMetric != NUT_AMBIENT_METRIC_RUNTIME) return 103;
+          if (std::strcmp(model.cards[0].stateText, "ON BATTERY") != 0) return 104;
+          if (std::strcmp(model.cards[0].stateClass, "warning") != 0) return 105;
+          return 0;
+        }
+
+        static int assert_ob_lb_critical_shutdown_relevant() {
+          LedcardsInterfaceNutView view = baseline();
+          view.onBattery = true;
+          view.lowBattery = true;
+          view.batteryPercent = 8;
+          view.runtimeSeconds = 90;
+          view.inputVoltage = 0.0f;
+
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "critical") != 0) return 201;
+          if (!model.shutdownRelevant) return 202;
+          if (model.heroMetric != NUT_AMBIENT_METRIC_RUNTIME) return 203;
+          if (std::strcmp(model.cards[0].stateText, "CRITICAL BATTERY") != 0) return 204;
+          if (std::strcmp(model.cards[0].stateClass, "critical") != 0) return 205;
+          return 0;
+        }
+
+        static int assert_online_low_battery_warning_no_shutdown() {
+          LedcardsInterfaceNutView view = baseline();
+          view.onBattery = false;
+          view.lowBattery = true;
+          view.charging = true;
+          view.batteryPercent = 14;
+          view.runtimeSeconds = 1200;
+          view.inputVoltage = 231.0f;
+
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "warning") != 0) return 301;
+          if (model.shutdownRelevant) return 302;
+          if (model.heroMetric != NUT_AMBIENT_METRIC_BATTERY) return 303;
+          if (std::strcmp(model.cards[0].stateText, "CHARGING") != 0) return 304;
+          if (std::strcmp(model.cards[0].stateClass, "warning") != 0) return 305;
+          return 0;
+        }
+
+        int main() {
+          int result = assert_on_battery_warning();
+          if (result != 0) return result;
+          result = assert_ob_lb_critical_shutdown_relevant();
+          if (result != 0) return result;
+          result = assert_online_low_battery_warning_no_shutdown();
+          if (result != 0) return result;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

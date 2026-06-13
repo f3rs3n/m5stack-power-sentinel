@@ -25,6 +25,7 @@ struct NutAmbientMetricCard {
 
 struct NutAmbientPageModel {
   char condition[16];
+  bool shutdownRelevant;
   NutAmbientMetricKind heroMetric;
   uint8_t cardCount;
   NutAmbientMetricCard cards[5];
@@ -55,6 +56,10 @@ inline const char *nutAmbientCondition(const LedcardsInterfaceNutView &view) {
   if (view.onBattery && view.lowBattery) return "critical";
   if (view.onBattery || view.lowBattery) return "warning";
   return "healthy";
+}
+
+inline bool nutAmbientShutdownRelevant(const LedcardsInterfaceNutView &view) {
+  return !nutAmbientTelemetryMissing(view) && view.onBattery && view.lowBattery;
 }
 
 inline const char *nutAmbientMissingStateText(const LedcardsInterfaceNutView &view) {
@@ -222,6 +227,7 @@ inline void fillNutAmbientCard(NutAmbientMetricCard &card, NutAmbientMetricKind 
 inline NutAmbientPageModel makeNutAmbientPageModel(const LedcardsInterfaceNutView &view) {
   NutAmbientPageModel model{};
   nutAmbientCopy(model.condition, sizeof(model.condition), nutAmbientCondition(view));
+  model.shutdownRelevant = nutAmbientShutdownRelevant(view);
   model.heroMetric = chooseNutAmbientHeroMetric(view);
   model.cardCount = 5;
   fillNutAmbientCard(model.cards[0], NUT_AMBIENT_METRIC_BATTERY, view);
