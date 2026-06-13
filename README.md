@@ -128,3 +128,17 @@ Default firmware:
 - Nessun polling HTTP dal CoreS3 nella baseline corrente.
 - UI unica: NUT Monitor Ledcards.
 - Sleep display con long press; loop/telemetria restano attivi.
+
+## Live-test serial capture
+
+In sessioni non interattive `pio device monitor` può fallire perché richiede un TTY. Per catture bounded dal CoreS3 usare il helper stdlib+pyserial:
+
+```bash
+/home/martino/.platformio/penv/bin/python tools/core_s3_serial_capture.py --port /dev/ttyACM0 --duration 15
+```
+
+Il helper non resetta il CoreS3: è adatto a controllare uno stato già stabile senza contaminare la cattura con boot/mode ramp. Per salvare un log:
+
+```bash
+/home/martino/.platformio/penv/bin/python tools/core_s3_serial_capture.py --output /tmp/power-sentinel-cores3-serial.log --duration 30
+```

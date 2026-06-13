@@ -8,6 +8,16 @@ Clean baseline: NUT Monitor only.
 pio run -e m5stack-cores3-ledcards-interface
 ```
 
+## Live serial capture
+
+For non-interactive agent live tests, prefer the repo helper over `pio device monitor` because PlatformIO's monitor requires a TTY:
+
+```bash
+/home/martino/.platformio/penv/bin/python ../../tools/core_s3_serial_capture.py --port /dev/ttyACM0 --duration 15
+```
+
+The helper intentionally does not reset the CoreS3 by default. Use it after a stable baseline when checking boot markers, display policy logs, StackFlow summary status, or crash/backtrace evidence.
+
 ## Development ALS probe
 
 `m5stack-cores3-als-probe` is a development-only calibration probe for the
