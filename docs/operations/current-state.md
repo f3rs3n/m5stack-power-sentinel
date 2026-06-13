@@ -7,10 +7,12 @@ Implemented now:
 - Backend API `power-sentinel-api.py` with modular registry.
 - `nut` module enabled by default and backed by live `upsc homelab_ups@localhost` plus lightweight NUT service checks.
 - Backend summary includes a `module` status block for the CoreS3 top row: Module LLM LAN state/IP and local `HH:MM` time. The deployed Module LLM host should run in `Europe/Rome` so the display uses local 24-hour time.
+- NUT Ambient Console contract locked in `docs/architecture/nut-ambient-console-contract.md`; the page model owns telemetry completeness, metric cards, hero priority, and touch override policy before rendering.
+- `proxmox` has a first API-only/read-only backend adapter slice, but no CoreS3 page rendering yet.
 - StackFlow custom unit preserved as the only CoreS3 live-data transport; the CoreS3 firmware no longer has an HTTP client/fallback path.
 - CoreS3 firmware simplified to one screen: the new Ledcards NUT Monitor UI with Module LLM LAN, CoreS3 Wi-Fi, serial-link status, page dots, local time, and local battery glyph in the top row.
 - LVGL MCP fixture/results retained only for the NUT Ledcards interface.
-- Installer script supports `--modules nut[,proxmox,ha]`; only `nut` installs telemetry today.
+- Installer script supports `--modules nut[,proxmox,ha]`; `nut` is the active display module, `proxmox` is backend/API-only, and `ha` remains a placeholder.
 
 Hardware notes:
 
@@ -23,7 +25,7 @@ Hardware notes:
 Archived/removed from active baseline:
 
 - HOME/PVE/HA/M5S multi-tab firmware UI.
-- Proxmox live backend.
+- Proxmox CoreS3 page rendering and control surface.
 - Home Assistant/MQTT/Zigbee2MQTT backend and publisher units.
 - Old broad UI fixtures/results.
 

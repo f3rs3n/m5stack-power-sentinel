@@ -5,13 +5,7 @@ Clean baseline: NUT Monitor only.
 ## Build
 
 ```bash
-platformio run -e m5stack-cores3-ledcards-interface
-```
-
-If `platformio` is not on PATH:
-
-```bash
-~/.platformio/penv/bin/platformio run -e m5stack-cores3-ledcards-interface
+pio run -e m5stack-cores3-ledcards-interface
 ```
 
 ## Development ALS probe
@@ -21,8 +15,8 @@ CoreS3 integrated LTR553 ambient-light sensor. It does not change the main
 display firmware behavior.
 
 ```bash
-platformio run -e m5stack-cores3-als-probe -t upload
-platformio device monitor -b 115200
+pio run -e m5stack-cores3-als-probe -t upload
+pio device monitor -b 115200
 ```
 
 Serial output is CSV-like and starts with:

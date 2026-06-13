@@ -11,6 +11,7 @@ MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
 NUT_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "nut-ambient-page-model.h"
+NUT_AMBIENT_CONTRACT = ROOT / "docs" / "architecture" / "nut-ambient-console-contract.md"
 NUT_FIXTURE = ROOT / "assets" / "lvgl-spike" / "power-sentinel-nut-ledcards-interface-fixture.c"
 
 
@@ -27,7 +28,7 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
     ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8")
@@ -81,6 +82,8 @@ def main() -> int:
     if require(ledcards, [
         "struct LedcardsInterfaceNutView",
         "struct NutAmbientPageModel",
+        "telemetryState",
+        "hasMissingMetrics",
         "shutdownRelevant",
         "makeNutAmbientPageModel(view)",
         "ps_icon_status_14",
@@ -90,13 +93,24 @@ def main() -> int:
         "createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
         "updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view)",
         "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT",
-        "format_tte_full", "format_tte_minutes", "CRITICAL RUNTIME", "LOW BATTERY", "UNAVAILABLE",
-        "OL CHRG LB", "avoid flapping between a red",
+        "compactValue", "visualClass", "nutAmbientFormatRuntimeFull", "nutAmbientFormatRuntimeMinutes",
+        "CRITICAL RUNTIME", "LOW BATTERY", "UNAVAILABLE",
+        "visual_class_color", "card_for_metric", "hero_state_for_card",
+        "NutAmbientHeroPolicyInput", "acceptNutAmbientHeroMetric", "makeNutAmbientTouchHeroOverride",
         "start_ring_transition", "on_tile_clicked",
     ], "Ledcards Interface"):
         return 1
     if "  }\n  if (view.lowBattery || view.batteryPercent < 20) return \"LOW BATTERY\";" in ledcards:
         return fail("online battery display must not let NUT LB override percent buckets")
+    contract = NUT_AMBIENT_CONTRACT.read_text(encoding="utf-8")
+    if require(contract, [
+        "first stable Power Sentinel Ambient Console adapter shape",
+        "modules.nut", "Top-level `ups`", "Top-level `nut`",
+        "stackflow_safe", "module.lan_connected", "module.time_hhmm",
+        "NutAmbientPageModel", "acceptNutAmbientHeroMetric", "makeNutAmbientTouchHeroOverride",
+        "Proxmox page rendering", "Overview page rendering", "Telemetry History", "Controls or remediation flows",
+    ], "NUT Ambient Console contract"):
+        return 1
     forbidden_ledcards = [
         "view.offline ? \"STALE\" : \"LIVE\"",
         "top_status(screen, view, hero.accent)",

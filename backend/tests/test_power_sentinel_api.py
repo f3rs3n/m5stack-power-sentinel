@@ -90,6 +90,29 @@ def test_summary_includes_module_lan_status_and_local_time():
         setattr(api, "systemd_active", old_systemd)
 
 
+def test_summary_contract_locks_stackflow_safe_aliases_and_top_row_fields():
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    try:
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
+        setattr(api, "systemd_active", lambda unit: True)
+        summary = api.build_summary({"modules": {"nut": True}}, stackflow_safe=True)
+
+        assert summary["schema"] == api.SCHEMA_SUMMARY
+        assert summary["profile"] == "nut-monitor-clean-baseline"
+        assert summary["stackflow_safe"] is True
+        assert summary["pages"] == ["NUT"]
+        assert summary["modules"]["nut"]["condition"] == "healthy"
+        assert summary["condition"] == "healthy"
+        assert summary["severity"] == "ok"
+        assert summary["ups"] == summary["modules"]["nut"]["ups"]
+        assert summary["nut"] == summary["modules"]["nut"]["nut"]
+        assert set(summary["module"]) >= {"lan_connected", "lan_ip", "time_hhmm"}
+    finally:
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)
+
+
 def test_summary_can_enable_non_nut_pages_without_fake_telemetry():
     def check():
         summary = api.build_summary({"modules": {"nut": True, "proxmox": True, "ha": True}})
