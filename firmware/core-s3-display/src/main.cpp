@@ -252,6 +252,7 @@ struct ProxmoxState {
   char status[24] = "not_observed";
   char signalKind[24] = "";
   char signalSummary[48] = "";
+  char signalContext[32] = "";
   int nodeCount = -1;
   int onlineNodeCount = -1;
   int watchedGuestCount = -1;
@@ -427,6 +428,19 @@ void parseSummary(const String &json, const char *source) {
   JsonObjectConst firstProxmoxSignal = proxmoxSignals.size() > 0 ? proxmoxSignals[0].as<JsonObjectConst>() : JsonObjectConst();
   safeCopy(state.proxmox.signalKind, sizeof(state.proxmox.signalKind), firstProxmoxSignal["kind"] | "");
   safeCopy(state.proxmox.signalSummary, sizeof(state.proxmox.signalSummary), firstProxmoxSignal["summary"] | "");
+  JsonObjectConst firstProxmoxSignalContext = firstProxmoxSignal["context"].as<JsonObjectConst>();
+  const char *signalNode = firstProxmoxSignalContext["node"] | "";
+  const char *signalName = firstProxmoxSignalContext["name"] | "";
+  int signalVmid = jsonInt(firstProxmoxSignalContext["vmid"], -1);
+  if (signalNode[0] != '\0') {
+    safeCopy(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), signalNode);
+  } else if (signalName[0] != '\0' && signalVmid >= 0) {
+    snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "%s %d", signalName, signalVmid);
+  } else if (signalVmid >= 0) {
+    snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "VMID %d", signalVmid);
+  } else {
+    safeCopy(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "");
+  }
   state.proxmox.hasLiveData = state.proxmox.enabled &&
                               state.proxmox.implemented &&
                               strcmp(state.proxmox.status, "observed") == 0 &&
@@ -473,6 +487,7 @@ ProxmoxAmbientView makeProxmoxAmbientView() {
   safeCopy(view.status, sizeof(view.status), state.proxmox.status);
   safeCopy(view.signalKind, sizeof(view.signalKind), state.proxmox.signalKind);
   safeCopy(view.signalSummary, sizeof(view.signalSummary), state.proxmox.signalSummary);
+  safeCopy(view.signalContext, sizeof(view.signalContext), state.proxmox.signalContext);
   view.nodeCount = state.proxmox.nodeCount;
   view.onlineNodeCount = state.proxmox.onlineNodeCount;
   view.watchedGuestCount = state.proxmox.watchedGuestCount;

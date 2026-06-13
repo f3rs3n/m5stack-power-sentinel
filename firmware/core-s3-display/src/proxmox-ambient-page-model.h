@@ -12,6 +12,7 @@ struct ProxmoxAmbientView {
   char status[24];
   char signalKind[24];
   char signalSummary[48];
+  char signalContext[32];
   int nodeCount;
   int onlineNodeCount;
   int watchedGuestCount;
@@ -80,6 +81,9 @@ inline const char *proxmoxAmbientHeroValue(const ProxmoxAmbientView &view) {
   if (strcmp(state, "api_unavailable") == 0) return "OFFLINE";
   if (strcmp(state, "not_observed") == 0) return "WAIT";
   if (strcmp(state, "stale") == 0) return "STALE";
+  if (strcmp(view.signalKind, "node_down") == 0) return "NODE DOWN";
+  if (strcmp(view.signalKind, "node_degraded") == 0) return "NODE DEG";
+  if (strcmp(view.signalKind, "watched_guest_down") == 0) return "GUEST DOWN";
   if (strcmp(proxmoxAmbientCondition(view), "healthy") == 0) return "OK";
   return "CHECK";
 }
@@ -89,6 +93,7 @@ inline const char *proxmoxAmbientHeroDetail(const ProxmoxAmbientView &view) {
   if (strcmp(state, "unconfigured") == 0) return "Config missing";
   if (strcmp(state, "api_unavailable") == 0) return "API unavailable";
   if (strcmp(state, "not_observed") == 0) return "No live data";
+  if (view.signalContext[0] != '\0') return view.signalContext;
   if (view.signalSummary[0] != '\0') return view.signalSummary;
   return "Read-only API";
 }
@@ -115,9 +120,12 @@ inline void fillProxmoxAmbientNodesCard(ProxmoxAmbientCard &card, const ProxmoxA
   proxmoxAmbientCopy(card.label, sizeof(card.label), "Nodes");
   proxmoxAmbientFormatCountPair(proxmoxAmbientHasLiveData(view), view.onlineNodeCount, view.nodeCount, card.value, sizeof(card.value));
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "online");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientHasLiveData(view) ? "ONLINE" : "UNAVAILABLE");
+  if (strcmp(view.signalKind, "node_down") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "NODE DOWN");
+  else if (strcmp(view.signalKind, "node_degraded") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "DEGRADED");
+  else proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientHasLiveData(view) ? "ONLINE" : "UNAVAILABLE");
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), proxmoxAmbientHasLiveData(view) ? "green" : "purple");
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass),
+                     strcmp(view.signalKind, "node_down") == 0 || strcmp(view.signalKind, "node_degraded") == 0 ? "red" : (proxmoxAmbientHasLiveData(view) ? "green" : "purple"));
 }
 
 inline void fillProxmoxAmbientGuestsCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
@@ -125,9 +133,10 @@ inline void fillProxmoxAmbientGuestsCard(ProxmoxAmbientCard &card, const Proxmox
   bool valid = proxmoxAmbientHasLiveData(view) && view.watchedGuestCount >= 0 && view.runningWatchedGuestCount >= 0;
   proxmoxAmbientFormatCountPair(valid, view.runningWatchedGuestCount, view.watchedGuestCount, card.value, sizeof(card.value));
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "running");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "RUNNING" : "UNAVAILABLE");
+  if (strcmp(view.signalKind, "watched_guest_down") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "GUEST DOWN");
+  else proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "RUNNING" : "UNAVAILABLE");
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), valid ? "green" : "purple");
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), strcmp(view.signalKind, "watched_guest_down") == 0 ? "red" : (valid ? "green" : "purple"));
 }
 
 inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
