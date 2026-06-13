@@ -35,6 +35,7 @@ struct ProxmoxAmbientPageModel {
   char telemetryState[24];
   char heroTitle[16];
   char heroValue[16];
+  char heroDisplayValue[16];
   char heroDetail[32];
   char visualClass[16];
   uint8_t cardCount;
@@ -105,10 +106,15 @@ inline void proxmoxAmbientFormatCountPair(bool valid, int numerator, int denomin
   else snprintf(buf, len, "%d/%d", numerator, denominator);
 }
 
+inline void proxmoxAmbientHeroDisplayValue(const ProxmoxAmbientView &view, char *buf, size_t len) {
+  bool valid = proxmoxAmbientHasLiveData(view) && view.nodeCount >= 0 && view.onlineNodeCount >= 0;
+  proxmoxAmbientFormatCountPair(valid, view.onlineNodeCount, view.nodeCount, buf, len);
+}
+
 inline void fillProxmoxAmbientApiCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
   proxmoxAmbientCopy(card.label, sizeof(card.label), "API");
-  proxmoxAmbientCopy(card.value, sizeof(card.value), proxmoxAmbientHasLiveData(view) ? "OK" : "--");
-  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "");
+  proxmoxAmbientCopy(card.value, sizeof(card.value), proxmoxAmbientHasLiveData(view) ? "1" : "--");
+  proxmoxAmbientCopy(card.unit, sizeof(card.unit), proxmoxAmbientHasLiveData(view) ? "live" : "");
   const char *state = proxmoxAmbientTelemetryState(view);
   if (strcmp(state, "unconfigured") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "UNCONFIGURED");
   else if (strcmp(state, "api_unavailable") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "API UNAVAILABLE");
@@ -162,6 +168,7 @@ inline ProxmoxAmbientPageModel makeProxmoxAmbientPageModel(const ProxmoxAmbientV
   proxmoxAmbientCopy(model.telemetryState, sizeof(model.telemetryState), proxmoxAmbientTelemetryState(view));
   proxmoxAmbientCopy(model.heroTitle, sizeof(model.heroTitle), "PROXMOX");
   proxmoxAmbientCopy(model.heroValue, sizeof(model.heroValue), proxmoxAmbientHeroValue(view));
+  proxmoxAmbientHeroDisplayValue(view, model.heroDisplayValue, sizeof(model.heroDisplayValue));
   proxmoxAmbientCopy(model.heroDetail, sizeof(model.heroDetail), proxmoxAmbientHeroDetail(view));
   proxmoxAmbientCopy(model.visualClass, sizeof(model.visualClass), proxmoxAmbientVisualClass(view));
   model.cardCount = proxmoxAmbientHasLiveData(view) ? 4 : 3;
