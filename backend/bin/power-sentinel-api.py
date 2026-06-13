@@ -18,6 +18,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, NamedTuple
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 SCHEMA_SUMMARY = "power-sentinel.summary.v1"
 SCHEMA_HEALTH = "power-sentinel.health.v1"
@@ -34,6 +35,12 @@ class ModuleSpec(NamedTuple):
     page: str
     status: str
     summary_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+
+
+class ModuleEvaluation(NamedTuple):
+    payload: dict[str, Any]
+    condition: str | None = None
+    problem: str | None = None
 
 
 def iso_utc(ts: float | int | None = None) -> str:
@@ -141,6 +148,41 @@ def ups_status_label(raw: str) -> str:
     if "OL" in tokens:
         return "Online"
     return raw or "Unknown"
+
+
+def severity_for_condition(condition: str) -> str:
+    if condition == "healthy":
+        return "ok"
+    if condition == "critical":
+        return "critical"
+    if condition in {"stale", "warning", "unavailable"}:
+        return "warn"
+    return "unknown"
+
+
+def summary_condition(conditions: list[str]) -> str:
+    if "critical" in conditions:
+        return "critical"
+    if "warning" in conditions:
+        return "warning"
+    if "stale" in conditions:
+        return "stale"
+    if "unavailable" in conditions:
+        return "unavailable"
+    if "healthy" in conditions:
+        return "healthy"
+    return "unavailable"
+
+
+def nut_condition(ups: dict[str, Any], services: dict[str, bool | None]) -> str:
+    if ups["would_shutdown"]:
+        return "critical"
+    server_ok = services["server_active"] is not False and services["driver_active"] is not False
+    if ups.get("stale"):
+        return "stale" if ups.get("available") else "unavailable"
+    if not server_ok or ups["on_battery"] or ups["low_battery"]:
+        return "warning"
+    return "healthy"
 
 
 def parse_upsc_output(text: str) -> dict[str, Any]:
@@ -259,11 +301,12 @@ def build_nut_summary(_config: dict[str, Any]) -> dict[str, Any]:
         "monitor_active": systemd_active("nut-monitor.service"),
     }
     clients = [local_nut_client(services), *load_nut_clients()]
-    server_ok = services["server_active"] is not False and services["driver_active"] is not False
-    severity = "critical" if ups["would_shutdown"] else ("warn" if not ups["available"] or not server_ok or ups["on_battery"] or ups["low_battery"] else "ok")
+    condition = nut_condition(ups, services)
+    severity = severity_for_condition(condition)
     return {
         "enabled": True,
         "page": "NUT",
+        "condition": condition,
         "severity": severity,
         "ups": ups,
         "nut": {
@@ -278,19 +321,380 @@ def build_nut_summary(_config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def module_placeholder(spec: ModuleSpec, enabled: bool) -> dict[str, Any]:
+def proxmox_signal(kind: str, condition: str, summary: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    signal: dict[str, Any] = {"kind": kind, "condition": condition, "summary": summary}
+    if context:
+        signal["context"] = context
+    return signal
+
+
+def proxmox_condition_from_signals(signals: list[dict[str, Any]]) -> str:
+    if not signals:
+        return "healthy"
+    return summary_condition([str(signal.get("condition", "unavailable")) for signal in signals])
+
+
+def proxmox_base_payload(condition: str, status: str, signals: list[dict[str, Any]]) -> dict[str, Any]:
     return {
+        "enabled": True,
+        "implemented": True,
+        "page": "PROXMOX",
+        "condition": condition,
+        "severity": severity_for_condition(condition),
+        "status": status,
+        "signals": signals,
+    }
+
+
+def proxmox_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("proxmox")
+    return raw if isinstance(raw, dict) else {}
+
+
+def missing_proxmox_config_fields(config: dict[str, Any]) -> list[str]:
+    return [field for field in ("api_url", "token_id", "token_secret") if not str(config.get(field) or "").strip()]
+
+
+def proxmox_watched_guests(config: dict[str, Any]) -> list[int]:
+    raw = config.get("watched_guests", [])
+    if not isinstance(raw, list):
+        return []
+    guests: list[int] = []
+    for item in raw:
+        try:
+            guests.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return guests
+
+
+def proxmox_api_get(config: dict[str, Any], path: str) -> dict[str, Any]:
+    api_url = str(config["api_url"]).rstrip("/")
+    token_id = str(config["token_id"])
+    token_secret = str(config["token_secret"])
+    url = f"{api_url}/api2/json{path}"
+    request = Request(url, headers={"Authorization": f"PVEAPIToken={token_id}={token_secret}"})
+    with urlopen(request, timeout=4.0) as response:  # noqa: S310 - configured local Proxmox URL
+        payload = json.loads(response.read(512 * 1024).decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Proxmox API returned non-object JSON")
+    return payload
+
+
+def proxmox_api_error_summary(exc: Exception) -> str:
+    text = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+    for marker in ("PVEAPIToken=", "token_secret", "SECRET"):
+        if marker in text:
+            return type(exc).__name__
+    return text[:120]
+
+
+def proxmox_percent(value: Any, maximum: Any | None = None) -> int | None:
+    try:
+        raw = float(value)
+        if maximum is not None:
+            max_value = float(maximum)
+            if max_value > 0:
+                raw = raw / max_value
+        if raw <= 1.0:
+            raw *= 100.0
+        return int(round(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_proxmox_nodes(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return []
+    nodes: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status") or "unknown")
+        condition = "healthy" if status == "online" else "critical"
+        node = {
+            "name": str(item.get("node") or item.get("name") or "unknown"),
+            "condition": condition,
+            "status": status,
+        }
+        cpu = proxmox_percent(item.get("cpu"))
+        mem = proxmox_percent(item.get("mem"), item.get("maxmem"))
+        if cpu is not None:
+            node["cpu_percent"] = cpu
+        if mem is not None:
+            node["memory_percent"] = mem
+        nodes.append(node)
+    return nodes
+
+
+def proxmox_node_signal(node: dict[str, Any]) -> dict[str, Any] | None:
+    if node.get("condition") != "critical":
+        return None
+    name = str(node.get("name") or "unknown")
+    status = str(node.get("status") or "unknown")
+    if status == "offline":
+        return proxmox_signal("node_down", "critical", f"Proxmox node {name} is offline", {"node": name, "status": status})
+    return proxmox_signal("node_degraded", "critical", f"Proxmox node {name} is {status}", {"node": name, "status": status})
+
+
+def proxmox_node_signals(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    signals: list[dict[str, Any]] = []
+    for node in nodes:
+        signal = proxmox_node_signal(node)
+        if signal is not None:
+            signals.append(signal)
+    return signals
+
+
+def parse_proxmox_storage(node_name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return []
+    storage_items: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        if item.get("enabled") in {0, "0", False} or item.get("active") in {0, "0", False}:
+            continue
+        used_percent = proxmox_percent(item.get("used"), item.get("total"))
+        if used_percent is None:
+            continue
+        condition = "critical" if used_percent >= 95 else ("warning" if used_percent >= 85 else "healthy")
+        storage_items.append({
+            "node": node_name,
+            "name": str(item.get("storage") or item.get("name") or "unknown"),
+            "condition": condition,
+            "type": str(item.get("type") or "unknown"),
+            "used_percent": used_percent,
+        })
+    return storage_items
+
+
+def collect_proxmox_storage(config: dict[str, Any], nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    storage_items: list[dict[str, Any]] = []
+    for node in nodes:
+        if node.get("status") != "online":
+            continue
+        node_name = str(node.get("name") or "unknown")
+        storage_items.extend(parse_proxmox_storage(node_name, proxmox_api_get(config, f"/nodes/{node_name}/storage")))
+    return storage_items
+
+
+def proxmox_storage_signals(storage_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    signals: list[dict[str, Any]] = []
+    for item in storage_items:
+        condition = str(item.get("condition") or "healthy")
+        if condition not in {"warning", "critical"}:
+            continue
+        kind = "storage_critical" if condition == "critical" else "storage_warning"
+        node = str(item.get("node") or "unknown")
+        name = str(item.get("name") or "unknown")
+        used_percent = item.get("used_percent")
+        signals.append(proxmox_signal(
+            kind,
+            condition,
+            f"Proxmox storage {node}/{name} is {used_percent}% used",
+            {"node": node, "storage": name, "used_percent": used_percent},
+        ))
+    return signals
+
+
+def parse_proxmox_qemu_guests(node_name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return []
+    guests: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        vmid = as_int(str(item.get("vmid")))
+        if vmid is None:
+            continue
+        status = str(item.get("status") or "unknown")
+        guests.append({
+            "vmid": vmid,
+            "name": str(item.get("name")) if item.get("name") is not None else None,
+            "node": node_name,
+            "condition": "healthy" if status == "running" else "critical",
+            "status": status,
+        })
+    return guests
+
+
+def collect_proxmox_watched_guests(config: dict[str, Any], nodes: list[dict[str, Any]], watched_vmids: list[int]) -> list[dict[str, Any]]:
+    if not watched_vmids:
+        return []
+    all_guests: dict[int, dict[str, Any]] = {}
+    for node in nodes:
+        if node.get("status") != "online":
+            continue
+        node_name = str(node.get("name") or "unknown")
+        for guest in parse_proxmox_qemu_guests(node_name, proxmox_api_get(config, f"/nodes/{node_name}/qemu")):
+            all_guests[int(guest["vmid"])] = guest
+    watched_guests: list[dict[str, Any]] = []
+    for vmid in watched_vmids:
+        watched_guests.append(all_guests.get(vmid) or {
+            "vmid": vmid,
+            "name": None,
+            "node": None,
+            "condition": "critical",
+            "status": "missing",
+        })
+    return watched_guests
+
+
+def proxmox_watched_guest_signals(guests: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    signals: list[dict[str, Any]] = []
+    for guest in guests:
+        if guest.get("condition") != "critical":
+            continue
+        vmid = guest.get("vmid")
+        status = str(guest.get("status") or "unknown")
+        signals.append(proxmox_signal(
+            "watched_guest_down",
+            "critical",
+            f"Watched guest {vmid} is {status}",
+            {"vmid": vmid, "name": guest.get("name"), "node": guest.get("node"), "status": status},
+        ))
+    return signals
+
+
+def proxmox_environment_name(payload: dict[str, Any]) -> str:
+    data = payload.get("data")
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and item.get("type") == "cluster" and item.get("name"):
+                return str(item["name"])
+    return "proxmox"
+
+
+
+
+def proxmox_config_environment(config: dict[str, Any], watched_vmids: list[int]) -> dict[str, Any]:
+    return {
+        "api_url": str(config["api_url"]),
+        "watched_guest_count": len(watched_vmids),
+    }
+
+
+def proxmox_observed_environment(
+    config: dict[str, Any],
+    cluster_payload: dict[str, Any],
+    nodes: list[dict[str, Any]],
+    storage: list[dict[str, Any]],
+    watched_vmids: list[int],
+    watched_guests: list[dict[str, Any]],
+) -> dict[str, Any]:
+    environment = proxmox_config_environment(config, watched_vmids)
+    environment.update({
+        "name": proxmox_environment_name(cluster_payload),
+        "node_count": len(nodes),
+        "online_node_count": len([node for node in nodes if node.get("status") == "online"]),
+        "running_watched_guest_count": len([guest for guest in watched_guests if guest.get("status") == "running"]),
+        "storage_count": len(storage),
+    })
+    return environment
+
+
+def proxmox_empty_payload(status: str, signals: list[dict[str, Any]], environment: dict[str, Any] | None = None) -> dict[str, Any]:
+    condition = proxmox_condition_from_signals(signals)
+    payload = proxmox_base_payload(condition, status, signals)
+    if environment is not None:
+        payload["environment"] = environment
+    payload["nodes"] = []
+    payload["watched_guests"] = []
+    return payload
+def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
+    module_config = proxmox_config(config)
+    missing = missing_proxmox_config_fields(module_config)
+    watched_vmids = proxmox_watched_guests(module_config)
+    if missing:
+        return proxmox_empty_payload(
+            "unconfigured",
+            [proxmox_signal("unconfigured", "unavailable", "missing Proxmox config", {"missing_fields": missing})],
+        )
+
+    environment = proxmox_config_environment(module_config, watched_vmids)
+    if str(module_config.get("token_secret")) == "CHANGE_ME":
+        return proxmox_empty_payload(
+            "not_observed",
+            [proxmox_signal("api_unavailable", "unavailable", "Proxmox API polling not configured with a real token")],
+            environment,
+        )
+
+    try:
+        cluster_payload = proxmox_api_get(module_config, "/cluster/status")
+        nodes = parse_proxmox_nodes(proxmox_api_get(module_config, "/nodes"))
+        storage = collect_proxmox_storage(module_config, nodes)
+        watched_guests = collect_proxmox_watched_guests(module_config, nodes, watched_vmids)
+    except Exception as exc:
+        return proxmox_empty_payload(
+            "api_unavailable",
+            [proxmox_signal("api_unavailable", "unavailable", proxmox_api_error_summary(exc))],
+            environment,
+        )
+
+    signals = [*proxmox_node_signals(nodes), *proxmox_storage_signals(storage), *proxmox_watched_guest_signals(watched_guests)]
+    condition = proxmox_condition_from_signals(signals)
+    payload = proxmox_base_payload(condition, "observed", signals)
+    payload.update({
+        "observed_at": iso_utc(),
+        "age_seconds": 0,
+        "environment": proxmox_observed_environment(module_config, cluster_payload, nodes, storage, watched_vmids, watched_guests),
+        "nodes": nodes,
+        "storage": storage,
+        "watched_guests": watched_guests,
+    })
+    return payload
+
+def module_placeholder(spec: ModuleSpec, enabled: bool) -> dict[str, Any]:
+    payload = {
         "enabled": enabled,
         "page": spec.page,
         "severity": "unknown" if enabled else "disabled",
         "status": spec.status,
         "implemented": False,
     }
+    if enabled:
+        payload["condition"] = "unavailable"
+    return payload
+
+
+def evaluate_module(spec: ModuleSpec, enabled: set[str], config: dict[str, Any]) -> ModuleEvaluation:
+    is_enabled = spec.name in enabled
+    if is_enabled and spec.summary_fn:
+        payload = spec.summary_fn(config)
+        return ModuleEvaluation(payload=payload, condition=str(payload.get("condition", "unavailable")))
+
+    payload = module_placeholder(spec, is_enabled)
+    if not is_enabled:
+        return ModuleEvaluation(payload=payload)
+
+    return ModuleEvaluation(
+        payload=payload,
+        condition="unavailable",
+        problem=f"module {spec.name} is enabled but not implemented in this clean baseline",
+    )
+
+
+def evaluate_modules(config: dict[str, Any], enabled: set[str]) -> tuple[dict[str, Any], list[str], list[str]]:
+    modules: dict[str, Any] = {}
+    conditions: list[str] = []
+    problems: list[str] = []
+    for name, spec in MODULES.items():
+        evaluation = evaluate_module(spec, enabled, config)
+        modules[name] = evaluation.payload
+        if evaluation.condition is not None:
+            conditions.append(evaluation.condition)
+        if evaluation.problem is not None:
+            problems.append(evaluation.problem)
+    return modules, conditions, problems
 
 
 MODULES: dict[str, ModuleSpec] = {
     "nut": ModuleSpec("nut", "NUT", "implemented", build_nut_summary),
-    "proxmox": ModuleSpec("proxmox", "PROXMOX", "placeholder"),
+    "proxmox": ModuleSpec("proxmox", "PROXMOX", "implemented", build_proxmox_summary),
     "ha": ModuleSpec("ha", "HA", "placeholder"),
 }
 
@@ -298,33 +702,16 @@ MODULES: dict[str, ModuleSpec] = {
 def build_summary(config: dict[str, Any] | None = None, *, stackflow_safe: bool = False) -> dict[str, Any]:
     config = config if config is not None else load_json_file(POWER_SENTINEL_CONFIG)
     enabled = enabled_modules(config)
-    modules: dict[str, Any] = {}
-    problems: list[str] = []
-    severities: list[str] = []
-    for name, spec in MODULES.items():
-        is_enabled = name in enabled
-        if is_enabled and spec.summary_fn:
-            modules[name] = spec.summary_fn(config)
-            severities.append(str(modules[name].get("severity", "unknown")))
-        else:
-            modules[name] = module_placeholder(spec, is_enabled)
-            if is_enabled:
-                problems.append(f"module {name} is enabled but not implemented in this clean baseline")
-                severities.append("warn")
-    if "critical" in severities:
-        severity = "critical"
-    elif "warn" in severities:
-        severity = "warn"
-    elif severities:
-        severity = "ok"
-    else:
-        severity = "unknown"
+    modules, conditions, problems = evaluate_modules(config, enabled)
+    condition = summary_condition(conditions)
+    severity = severity_for_condition(condition)
     nut = modules.get("nut", {})
     summary = {
         "schema": SCHEMA_SUMMARY,
         "timestamp": iso_utc(),
         "product": "Power Sentinel",
         "profile": "nut-monitor-clean-baseline",
+        "condition": condition,
         "severity": severity,
         "stackflow_safe": bool(stackflow_safe),
         "enabled_modules": sorted(enabled),
@@ -338,6 +725,18 @@ def build_summary(config: dict[str, Any] | None = None, *, stackflow_safe: bool 
         "problems": problems,
     }
     return summary
+
+
+def build_health_payload(summary: dict[str, Any]) -> dict[str, Any]:
+    condition = str(summary.get("condition", "unavailable"))
+    severity = str(summary.get("severity", severity_for_condition(condition)))
+    return {
+        "schema": SCHEMA_HEALTH,
+        "ok": condition != "critical",
+        "condition": condition,
+        "severity": severity,
+        "timestamp": iso_utc(),
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -363,7 +762,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/v1/health":
             summary = build_summary(stackflow_safe=True)
-            self.send_json({"schema": SCHEMA_HEALTH, "ok": summary["severity"] != "critical", "severity": summary["severity"], "timestamp": iso_utc()})
+            self.send_json(build_health_payload(summary))
             return
         self.send_json({"error": "not_found", "path": parsed.path}, status=404)
 

@@ -90,12 +90,16 @@ def test_summary_includes_module_lan_status_and_local_time():
         setattr(api, "systemd_active", old_systemd)
 
 
-def test_summary_can_enable_placeholder_pages_without_telemetry():
+def test_summary_can_enable_non_nut_pages_without_fake_telemetry():
     def check():
         summary = api.build_summary({"modules": {"nut": True, "proxmox": True, "ha": True}})
         assert summary["pages"] == ["NUT", "PROXMOX", "HA"]
-        assert summary["modules"]["proxmox"]["status"] == "placeholder"
+        assert summary["modules"]["proxmox"]["status"] == "unconfigured"
+        assert summary["modules"]["proxmox"]["condition"] == "unavailable"
+        assert summary["modules"]["proxmox"]["signals"]
+        assert summary["modules"]["ha"]["status"] == "placeholder"
         assert summary["modules"]["ha"]["severity"] == "unknown"
+        assert summary["condition"] == "unavailable"
         assert summary["severity"] == "warn"
     with_fake_nut(check)
 
@@ -117,3 +121,419 @@ def test_nut_summary_payload_counts_local_primary_and_configured_clients():
         setattr(api, "load_nut_clients", old_load)
         setattr(api, "run_text_command", old_run)
         setattr(api, "systemd_active", old_systemd)
+
+
+def test_nut_summary_exposes_condition_and_legacy_severity_alias():
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    try:
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        setattr(api, "systemd_active", lambda unit: True)
+        summary = api.build_summary({"modules": {"nut": True}})
+        assert summary["condition"] == "healthy"
+        assert summary["severity"] == "ok"
+        assert summary["modules"]["nut"]["condition"] == "healthy"
+        assert summary["modules"]["nut"]["severity"] == "ok"
+    finally:
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)
+
+
+def test_nut_condition_maps_power_states_to_legacy_severity_aliases():
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    try:
+        setattr(api, "systemd_active", lambda unit: True)
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OB\nbattery.charge: 70", ""))
+        on_battery = api.build_summary({"modules": {"nut": True}})
+        assert on_battery["modules"]["nut"]["condition"] == "warning"
+        assert on_battery["modules"]["nut"]["severity"] == "warn"
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OB LB\nbattery.charge: 8", ""))
+        low_battery = api.build_summary({"modules": {"nut": True}})
+        assert low_battery["modules"]["nut"]["condition"] == "critical"
+        assert low_battery["modules"]["nut"]["severity"] == "critical"
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (1, "", "no ups"))
+        unavailable = api.build_summary({"modules": {"nut": True}})
+        assert unavailable["modules"]["nut"]["condition"] == "unavailable"
+        assert unavailable["modules"]["nut"]["severity"] == "warn"
+    finally:
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)
+
+
+def test_condition_aggregation_ignores_disabled_modules_and_critical_wins():
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    try:
+        setattr(api, "systemd_active", lambda unit: True)
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        disabled_placeholders = api.build_summary({"modules": {"nut": True, "proxmox": False, "ha": False}})
+        assert disabled_placeholders["condition"] == "healthy"
+        assert disabled_placeholders["severity"] == "ok"
+        assert "condition" not in disabled_placeholders["modules"]["proxmox"]
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OB LB\nbattery.charge: 8", ""))
+        with_enabled_placeholder = api.build_summary({"modules": {"nut": True, "proxmox": True}})
+        assert with_enabled_placeholder["condition"] == "critical"
+        assert with_enabled_placeholder["severity"] == "critical"
+    finally:
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)
+
+
+def test_health_payload_exposes_condition_and_derives_ok_from_condition():
+    healthy = api.build_health_payload({"condition": "healthy", "severity": "ok"})
+    critical = api.build_health_payload({"condition": "critical", "severity": "critical"})
+
+    assert healthy["schema"] == api.SCHEMA_HEALTH
+    assert healthy["condition"] == "healthy"
+    assert healthy["severity"] == "ok"
+    assert healthy["ok"] is True
+    assert critical["condition"] == "critical"
+    assert critical["ok"] is False
+
+
+def test_enabled_proxmox_without_minimum_config_reports_unavailable_condition():
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    try:
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        setattr(api, "systemd_active", lambda unit: True)
+        summary = api.build_summary({"modules": {"nut": True, "proxmox": True}})
+        proxmox = summary["modules"]["proxmox"]
+
+        assert proxmox["enabled"] is True
+        assert proxmox["implemented"] is True
+        assert proxmox["page"] == "PROXMOX"
+        assert proxmox["condition"] == "unavailable"
+        assert proxmox["severity"] == "warn"
+        assert proxmox["status"] == "unconfigured"
+        assert proxmox["signals"][0]["kind"] == "unconfigured"
+        assert summary["condition"] == "unavailable"
+    finally:
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)
+
+
+def test_configured_proxmox_availability_slice_does_not_fake_telemetry():
+    summary = api.build_summary({
+        "modules": {"nut": False, "proxmox": True},
+        "proxmox": {
+            "api_url": "https://pve.example:8006",
+            "token_id": "power-sentinel@pve!monitor",
+            "token_secret": "CHANGE_ME",
+            "watched_guests": [101, 120],
+        },
+    })
+    proxmox = summary["modules"]["proxmox"]
+
+    assert proxmox["implemented"] is True
+    assert proxmox["condition"] == "unavailable"
+    assert proxmox["status"] == "not_observed"
+    assert proxmox["environment"]["api_url"] == "https://pve.example:8006"
+    assert proxmox["environment"]["watched_guest_count"] == 2
+    assert proxmox["signals"][0]["kind"] == "api_unavailable"
+    assert proxmox["nodes"] == []
+    assert proxmox["watched_guests"] == []
+
+
+def test_proxmox_api_failure_reports_unavailable_without_exposing_token():
+    old_get = api.proxmox_api_get
+    try:
+        def broken(*args, **kwargs):
+            raise RuntimeError("401 Unauthorized: SECRET")
+
+        api.proxmox_api_get = broken
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+        payload_text = str(proxmox)
+
+        assert proxmox["condition"] == "unavailable"
+        assert proxmox["status"] == "api_unavailable"
+        assert proxmox["signals"][0]["kind"] == "api_unavailable"
+        assert "SECRET" not in payload_text
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_first_healthy_observation_uses_read_only_api_adapter():
+    old_get = api.proxmox_api_get
+    calls = []
+    try:
+        def fake_get(config, path):
+            calls.append(path)
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [{"node": "pve", "status": "online", "cpu": 0.23, "mem": 61, "maxmem": 100}]}
+            if path == "/nodes/pve/storage":
+                return {"data": []}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+
+        assert calls == ["/cluster/status", "/nodes", "/nodes/pve/storage"]
+        assert proxmox["condition"] == "healthy"
+        assert proxmox["severity"] == "ok"
+        assert proxmox["status"] == "observed"
+        assert proxmox["signals"] == []
+        assert proxmox["environment"]["name"] == "pve"
+        assert proxmox["environment"]["node_count"] == 1
+        assert proxmox["nodes"] == [{"name": "pve", "condition": "healthy", "status": "online", "cpu_percent": 23, "memory_percent": 61}]
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_node_offline_and_degraded_create_critical_signals():
+    old_get = api.proxmox_api_get
+    try:
+        def fake_get(config, path):
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [
+                    {"node": "pve-a", "status": "online", "cpu": 0.12, "mem": 20, "maxmem": 100},
+                    {"node": "pve-b", "status": "offline", "cpu": 0, "mem": 0, "maxmem": 100},
+                    {"node": "pve-c", "status": "unknown", "cpu": 0.05, "mem": 10, "maxmem": 100},
+                ]}
+            if path == "/nodes/pve-a/storage":
+                return {"data": []}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+
+        assert proxmox["condition"] == "critical"
+        assert proxmox["severity"] == "critical"
+        assert proxmox["status"] == "observed"
+        assert proxmox["environment"]["node_count"] == 3
+        assert proxmox["environment"]["online_node_count"] == 1
+        assert proxmox["nodes"][1]["condition"] == "critical"
+        assert proxmox["nodes"][2]["condition"] == "critical"
+        assert [signal["kind"] for signal in proxmox["signals"]] == ["node_down", "node_degraded"]
+        assert proxmox["signals"][0]["context"]["node"] == "pve-b"
+        assert proxmox["signals"][1]["context"]["node"] == "pve-c"
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_watched_guests_running_are_healthy_inventory_only():
+    old_get = api.proxmox_api_get
+    calls = []
+    try:
+        def fake_get(config, path):
+            calls.append(path)
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [{"node": "pve-a", "status": "online"}]}
+            if path == "/nodes/pve-a/storage":
+                return {"data": []}
+            if path == "/nodes/pve-a/qemu":
+                return {"data": [
+                    {"vmid": 101, "name": "ha", "status": "running"},
+                    {"vmid": 120, "name": "db", "status": "running"},
+                    {"vmid": 999, "name": "lab", "status": "stopped"},
+                ]}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [101, 120],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+
+        assert calls == ["/cluster/status", "/nodes", "/nodes/pve-a/storage", "/nodes/pve-a/qemu"]
+        assert proxmox["condition"] == "healthy"
+        assert proxmox["signals"] == []
+        assert proxmox["environment"]["watched_guest_count"] == 2
+        assert proxmox["environment"]["running_watched_guest_count"] == 2
+        assert proxmox["watched_guests"] == [
+            {"vmid": 101, "name": "ha", "node": "pve-a", "condition": "healthy", "status": "running"},
+            {"vmid": 120, "name": "db", "node": "pve-a", "condition": "healthy", "status": "running"},
+        ]
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_watched_guest_stopped_or_missing_is_critical_signal():
+    old_get = api.proxmox_api_get
+    try:
+        def fake_get(config, path):
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [{"node": "pve-a", "status": "online"}, {"node": "pve-b", "status": "offline"}]}
+            if path == "/nodes/pve-a/storage":
+                return {"data": []}
+            if path == "/nodes/pve-a/qemu":
+                return {"data": [{"vmid": 101, "name": "ha", "status": "stopped"}]}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [101, 120],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+
+        assert proxmox["condition"] == "critical"
+        assert proxmox["environment"]["running_watched_guest_count"] == 0
+        assert proxmox["watched_guests"] == [
+            {"vmid": 101, "name": "ha", "node": "pve-a", "condition": "critical", "status": "stopped"},
+            {"vmid": 120, "name": None, "node": None, "condition": "critical", "status": "missing"},
+        ]
+        kinds = [signal["kind"] for signal in proxmox["signals"]]
+        assert kinds == ["node_down", "watched_guest_down", "watched_guest_down"]
+        assert proxmox["signals"][1]["context"]["vmid"] == 101
+        assert proxmox["signals"][2]["context"]["vmid"] == 120
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_storage_warning_and_critical_signals_from_online_nodes():
+    old_get = api.proxmox_api_get
+    calls = []
+    try:
+        def fake_get(config, path):
+            calls.append(path)
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [{"node": "pve-a", "status": "online"}, {"node": "pve-b", "status": "offline"}]}
+            if path == "/nodes/pve-a/storage":
+                return {"data": [
+                    {"storage": "local", "type": "dir", "enabled": 1, "active": 1, "used": 86, "total": 100},
+                    {"storage": "local-lvm", "type": "lvmthin", "enabled": 1, "active": 1, "used": 96, "total": 100},
+                    {"storage": "backup", "type": "nfs", "enabled": 0, "active": 0, "used": 99, "total": 100},
+                ]}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+
+        assert calls == ["/cluster/status", "/nodes", "/nodes/pve-a/storage"]
+        assert proxmox["condition"] == "critical"
+        assert proxmox["environment"]["storage_count"] == 2
+        assert proxmox["storage"] == [
+            {"node": "pve-a", "name": "local", "condition": "warning", "type": "dir", "used_percent": 86},
+            {"node": "pve-a", "name": "local-lvm", "condition": "critical", "type": "lvmthin", "used_percent": 96},
+        ]
+        assert [signal["kind"] for signal in proxmox["signals"]] == ["node_down", "storage_warning", "storage_critical"]
+        assert proxmox["signals"][1]["context"] == {"node": "pve-a", "storage": "local", "used_percent": 86}
+        assert proxmox["signals"][2]["context"] == {"node": "pve-a", "storage": "local-lvm", "used_percent": 96}
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_storage_below_warning_threshold_is_healthy_inventory():
+    old_get = api.proxmox_api_get
+    try:
+        def fake_get(config, path):
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [{"node": "pve-a", "status": "online"}]}
+            if path == "/nodes/pve-a/storage":
+                return {"data": [{"storage": "local", "type": "dir", "enabled": 1, "active": 1, "used": 84, "total": 100}]}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+
+        assert proxmox["condition"] == "healthy"
+        assert proxmox["signals"] == []
+        assert proxmox["storage"] == [{"node": "pve-a", "name": "local", "condition": "healthy", "type": "dir", "used_percent": 84}]
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_storage_warning_only_sets_module_warning_not_critical():
+    old_get = api.proxmox_api_get
+    try:
+        def fake_get(config, path):
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [{"node": "pve-a", "status": "online"}]}
+            if path == "/nodes/pve-a/storage":
+                return {"data": [{"storage": "local", "type": "dir", "enabled": 1, "active": 1, "used": 86, "total": 100}]}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        summary = api.build_summary({
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [],
+            },
+        })
+        proxmox = summary["modules"]["proxmox"]
+
+        assert proxmox["condition"] == "warning"
+        assert proxmox["severity"] == "warn"
+        assert [signal["kind"] for signal in proxmox["signals"]] == ["storage_warning"]
+    finally:
+        api.proxmox_api_get = old_get
