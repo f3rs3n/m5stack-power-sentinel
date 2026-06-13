@@ -67,6 +67,8 @@ When enabled, a placeholder or unobservable module reports `condition: unavailab
 
 `modules.nut.condition` exposes the NUT Monitor condition. `modules.nut.severity` is the legacy alias.
 
+The CoreS3 Ambient Console consumes the NUT module through the stable adapter contract in `docs/architecture/nut-ambient-console-contract.md`. That contract is the first page-model shape for future Ambient Console module pages; it keeps Proxmox page rendering, Overview, Telemetry History, and controls explicitly out of scope.
+
 Current mapping:
 
 - line power normal (`OL`) -> `condition: healthy`, `severity: ok`

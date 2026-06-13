@@ -35,6 +35,8 @@ scripts/install-power-sentinel.sh     install/update modulare
 
 ## Contratto API
 
+Il contratto API v1 è documentato in `docs/architecture/api-contract-v1.md`; il contratto specifico del primo adapter CoreS3 Ambient Console è `docs/architecture/nut-ambient-console-contract.md`.
+
 Endpoint principali:
 
 - `GET /api/v1/summary`
@@ -113,10 +115,8 @@ Build firmware:
 
 ```bash
 cd firmware/core-s3-display
-~/.platformio/penv/bin/platformio run -e m5stack-cores3-ledcards-interface
+pio run -e m5stack-cores3-ledcards-interface
 ```
-
-Se `platformio` è nel PATH, si può usare `platformio run ...`.
 
 ## Flash workflow
 

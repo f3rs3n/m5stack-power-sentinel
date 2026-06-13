@@ -152,276 +152,18 @@ static uint32_t state_text_color(uint32_t c) {
   return 0x9bb2a0;
 }
 
-static uint32_t battery_color(const LedcardsInterfaceNutView &view) {
-  if (!view.upsAvailable) return kPurple;
-  if (view.offline || view.upsStale) return kGray;
-  if (view.batteryPercent < 0) return kPurple;
-  if (view.onBattery) {
-    if (view.batteryPercent < 10) return kRed;
-    if (view.lowBattery || view.batteryPercent < 20) return kOrange;
-    return kYellow;
-  }
-  // NUT can keep LB asserted while line power is back (OL CHRG LB) and the
-  // battery is recovering. In that online state, avoid flapping between a red
-  // LOW BATTERY alarm and the normal percent bucket as LB clears/reasserts.
-  if (view.batteryPercent < 50) return kOrange;
-  if (view.batteryPercent < 90) return kYellow;
+static uint32_t visual_class_color(const char *visualClass) {
+  if (strcmp(visualClass, "red") == 0) return kRed;
+  if (strcmp(visualClass, "orange") == 0) return kOrange;
+  if (strcmp(visualClass, "yellow") == 0) return kYellow;
+  if (strcmp(visualClass, "blue") == 0) return kBlue;
+  if (strcmp(visualClass, "purple") == 0) return kPurple;
+  if (strcmp(visualClass, "gray") == 0) return kGray;
   return kGreen;
 }
 
-static uint32_t battery_fill(const LedcardsInterfaceNutView &view) {
-  return state_fill(battery_color(view));
-}
-
-static uint32_t load_color(const LedcardsInterfaceNutView &view) {
-  if (!view.upsAvailable) return kPurple;
-  if (view.offline || view.upsStale) return kGray;
-  if (view.loadPercent < 0) return kPurple;
-  if (view.loadPercent >= 90) return kRed;
-  if (view.loadPercent >= 70) return kOrange;
-  if (view.loadPercent < 10) return kBlue;
-  return kGreen;
-}
-
-static uint32_t load_fill(const LedcardsInterfaceNutView &view) {
-  return state_fill(load_color(view));
-}
-
-static uint32_t input_color(const LedcardsInterfaceNutView &view) {
-  if (!view.upsAvailable) return kPurple;
-  if (view.offline || view.upsStale) return kGray;
-  if (view.inputVoltage <= 0.0f) return view.onBattery ? kRed : kGray;
-  if (view.inputVoltage < 190.0f) return kOrange;
-  if (view.inputVoltage < 210.0f) return kYellow;
-  return kGreen;
-}
-
-static uint32_t input_fill(const LedcardsInterfaceNutView &view) {
-  return state_fill(input_color(view));
-}
-
-static uint32_t nut_color(const LedcardsInterfaceNutView &view) {
-  if (!view.upsAvailable) return kPurple;
-  if (view.offline || view.upsStale) return kGray;
-  if (view.nutClientCount < 0) return kPurple;
-  if (view.nutClientCount == 0) return kOrange;
-  return kBlue;
-}
-
-static uint32_t nut_fill(const LedcardsInterfaceNutView &view) {
-  return state_fill(nut_color(view));
-}
-
-static void format_int_or_dash(int value, char *buf, size_t len) {
-  if (value < 0) {
-    snprintf(buf, len, "--");
-  } else {
-    snprintf(buf, len, "%d", value);
-  }
-}
-
-static void format_input_voltage(float value, char *buf, size_t len) {
-  if (value <= 0.0f) {
-    snprintf(buf, len, "--");
-  } else {
-    snprintf(buf, len, "%.0f", value);
-  }
-}
-
-static void format_tte_full(int seconds, char *value, size_t valueLen, const char **unit) {
-  if (seconds < 0) {
-    snprintf(value, valueLen, "--");
-    *unit = "mm:ss";
-    return;
-  }
-  snprintf(value, valueLen, "%02d:%02d", seconds / 60, seconds % 60);
-  *unit = "mm:ss";
-}
-
-static void format_tte_minutes(int seconds, char *value, size_t valueLen, const char **unit) {
-  if (seconds < 0) {
-    snprintf(value, valueLen, "--");
-    *unit = "m";
-    return;
-  }
-  snprintf(value, valueLen, "%d", (seconds + 30) / 60);
-  *unit = "m";
-}
-
-static bool telemetry_unavailable(const LedcardsInterfaceNutView &view) {
-  return nutAmbientTelemetryUnavailable(view);
-}
-
-static bool telemetry_stale(const LedcardsInterfaceNutView &view) {
-  return nutAmbientTelemetryStale(view);
-}
-
-static bool telemetry_missing(const LedcardsInterfaceNutView &view) {
-  return nutAmbientTelemetryMissing(view);
-}
-
-static const char *missing_state_text(const LedcardsInterfaceNutView &view) {
-  return nutAmbientMissingStateText(view);
-}
-
-static const char *battery_state_text(const LedcardsInterfaceNutView &view) {
-  return nutAmbientBatteryStateText(view);
-}
-
-static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &view, bool compactTte = false) {
-  MetricRender m{};
-  m.kind = kind;
-  m.state = STATE_NOMINAL;
-  m.label = "";
-  m.unit = "";
-  m.stateText = "";
-  m.accent = kGray;
-  m.fill = 0x101514;
-  m.stateColor = kGrayText;
-  snprintf(m.value, sizeof(m.value), "--");
-
-  if (kind == METRIC_BATTERY) {
-    format_int_or_dash(telemetry_missing(view) ? -1 : view.batteryPercent, m.value, sizeof(m.value));
-    m.label = "Battery";
-    m.unit = "%";
-    m.stateText = battery_state_text(view);
-    m.accent = battery_color(view);
-    m.fill = battery_fill(view);
-    m.stateColor = state_text_color(m.accent);
-    if (m.accent == kRed || m.accent == kOrange) m.state = STATE_LOW_BATTERY;
-    else if (m.accent == kGray || m.accent == kPurple) m.state = STATE_STALE;
-    return m;
-  }
-
-  if (kind == METRIC_TTE) {
-    const char *unit = compactTte ? "m" : "mm:ss";
-    int runtimeSeconds = telemetry_missing(view) ? -1 : view.runtimeSeconds;
-    if (compactTte) {
-      format_tte_minutes(runtimeSeconds, m.value, sizeof(m.value), &unit);
-    } else {
-      format_tte_full(runtimeSeconds, m.value, sizeof(m.value), &unit);
-    }
-    m.label = "Runtime";
-    m.unit = unit;
-    if (telemetry_missing(view)) {
-      m.stateText = missing_state_text(view);
-      m.accent = telemetry_unavailable(view) ? kPurple : kGray;
-      m.fill = state_fill(m.accent);
-      m.stateColor = state_text_color(m.accent);
-      m.state = STATE_STALE;
-    } else if (view.onBattery) {
-      if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) {
-        m.stateText = "CRITICAL RUNTIME";
-        m.accent = kRed;
-        m.fill = state_fill(m.accent);
-        m.stateColor = state_text_color(m.accent);
-      } else if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 300) {
-        m.stateText = "SHORT RUNTIME";
-        m.accent = kOrange;
-        m.fill = state_fill(m.accent);
-        m.stateColor = state_text_color(m.accent);
-      } else {
-        m.stateText = "ON BATTERY";
-        m.accent = kYellow;
-        m.fill = state_fill(m.accent);
-        m.stateColor = state_text_color(m.accent);
-      }
-      m.state = STATE_ON_BATTERY;
-    } else {
-      if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) {
-        m.stateText = "CRITICAL RESERVE";
-        m.accent = kRed;
-      } else if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 300) {
-        m.stateText = "LOW RESERVE";
-        m.accent = kYellow;
-      } else {
-        m.stateText = "RESERVE";
-        m.accent = kBlue;
-      }
-      m.fill = state_fill(m.accent);
-      m.stateColor = state_text_color(m.accent);
-    }
-    return m;
-  }
-
-  if (kind == METRIC_LOAD) {
-    format_int_or_dash(telemetry_missing(view) ? -1 : view.loadPercent, m.value, sizeof(m.value));
-    m.label = "Load";
-    m.unit = "%";
-    m.accent = load_color(view);
-    m.fill = load_fill(view);
-    if (m.accent == kRed) {
-      m.stateText = "OVERLOAD";
-      m.stateColor = kRedText;
-      m.state = STATE_HIGH_LOAD;
-    } else if (m.accent == kOrange) {
-      m.stateText = "HIGH LOAD";
-      m.stateColor = kOrangeText;
-      m.state = STATE_HIGH_LOAD;
-    } else if (m.accent == kBlue) {
-      m.stateText = "LOW";
-      m.stateColor = kBlue;
-    } else if (m.accent == kGray || m.accent == kPurple) {
-      m.stateText = (m.accent == kPurple) ? "UNAVAILABLE" : "STALE";
-      m.stateColor = state_text_color(m.accent);
-      m.state = STATE_STALE;
-    } else {
-      m.stateText = "NORMAL";
-      m.stateColor = 0x9bb2a0;
-    }
-    return m;
-  }
-
-  if (kind == METRIC_INPUT) {
-    format_input_voltage(telemetry_missing(view) ? 0.0f : view.inputVoltage, m.value, sizeof(m.value));
-    m.label = "Input";
-    m.unit = "V";
-    m.accent = input_color(view);
-    m.fill = input_fill(view);
-    if (m.accent == kRed) {
-      m.stateText = view.onBattery ? "GRID OFFLINE" : "INPUT LOST";
-      m.stateColor = kRedText;
-      m.state = STATE_INPUT_LOW;
-    } else if (m.accent == kOrange) {
-      m.stateText = "INPUT LOW";
-      m.stateColor = kOrangeText;
-      m.state = STATE_INPUT_LOW;
-    } else if (m.accent == kYellow) {
-      m.stateText = "MARGINAL INPUT";
-      m.stateColor = kYellow;
-      m.state = STATE_INPUT_LOW;
-    } else if (m.accent == kGray || m.accent == kPurple) {
-      m.stateText = (m.accent == kPurple) ? "UNAVAILABLE" : "STALE";
-      m.stateColor = state_text_color(m.accent);
-      m.state = STATE_STALE;
-    } else {
-      m.stateText = "GRID ONLINE";
-      m.stateColor = 0x9bb2a0;
-    }
-    return m;
-  }
-
-  format_int_or_dash(telemetry_missing(view) ? -1 : view.nutClientCount, m.value, sizeof(m.value));
-  m.label = "NUT";
-  m.unit = "client";
-  m.accent = nut_color(view);
-  m.fill = nut_fill(view);
-  if (m.accent == kOrange) {
-    m.stateText = "NO CLIENTS";
-    m.stateColor = kOrangeText;
-  } else if (m.accent == kGray || m.accent == kPurple) {
-    m.stateText = (m.accent == kPurple) ? "UNAVAILABLE" : "STALE";
-    m.stateColor = state_text_color(m.accent);
-    m.state = STATE_STALE;
-  } else {
-    m.stateText = "CLIENTS";
-    m.stateColor = kBlue;
-  }
-  return m;
-}
-
-static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
-  switch (makeNutAmbientPageModel(view).heroMetric) {
+static MetricKind metric_kind_for_model_kind(NutAmbientMetricKind kind) {
+  switch (kind) {
     case NUT_AMBIENT_METRIC_RUNTIME: return METRIC_TTE;
     case NUT_AMBIENT_METRIC_LOAD: return METRIC_LOAD;
     case NUT_AMBIENT_METRIC_INPUT: return METRIC_INPUT;
@@ -429,6 +171,51 @@ static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
     case NUT_AMBIENT_METRIC_BATTERY:
     default: return METRIC_BATTERY;
   }
+}
+
+static NutAmbientMetricKind model_kind_for_metric_kind(MetricKind kind) {
+  switch (kind) {
+    case METRIC_TTE: return NUT_AMBIENT_METRIC_RUNTIME;
+    case METRIC_LOAD: return NUT_AMBIENT_METRIC_LOAD;
+    case METRIC_INPUT: return NUT_AMBIENT_METRIC_INPUT;
+    case METRIC_NUT: return NUT_AMBIENT_METRIC_NUT;
+    case METRIC_BATTERY:
+    default: return NUT_AMBIENT_METRIC_BATTERY;
+  }
+}
+
+static const NutAmbientMetricCard &card_for_metric(const NutAmbientPageModel &model, MetricKind kind) {
+  NutAmbientMetricKind modelKind = model_kind_for_metric_kind(kind);
+  for (uint8_t i = 0; i < model.cardCount; ++i) {
+    if (model.cards[i].kind == modelKind) return model.cards[i];
+  }
+  return model.cards[0];
+}
+
+static HeroStateMarker hero_state_for_card(const NutAmbientMetricCard &card) {
+  if (strcmp(card.stateClass, "stale") == 0 || strcmp(card.stateClass, "unavailable") == 0) return STATE_STALE;
+  if (card.kind == NUT_AMBIENT_METRIC_RUNTIME && strcmp(card.stateClass, "warning") == 0) return STATE_ON_BATTERY;
+  if (card.kind == NUT_AMBIENT_METRIC_LOAD && (strcmp(card.stateClass, "warning") == 0 || strcmp(card.stateClass, "critical") == 0)) return STATE_HIGH_LOAD;
+  if (card.kind == NUT_AMBIENT_METRIC_INPUT && (strcmp(card.stateClass, "warning") == 0 || strcmp(card.stateClass, "critical") == 0)) return STATE_INPUT_LOW;
+  if (card.kind == NUT_AMBIENT_METRIC_BATTERY && (strcmp(card.stateClass, "warning") == 0 || strcmp(card.stateClass, "critical") == 0)) return STATE_LOW_BATTERY;
+  return STATE_NOMINAL;
+}
+
+static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &view, bool compactTte = false) {
+  NutAmbientPageModel model = makeNutAmbientPageModel(view);
+  const NutAmbientMetricCard &card = card_for_metric(model, kind);
+
+  MetricRender m{};
+  m.kind = kind;
+  m.state = hero_state_for_card(card);
+  m.label = card.label;
+  m.unit = compactTte ? card.compactUnit : card.unit;
+  m.stateText = card.stateText;
+  m.accent = visual_class_color(card.visualClass);
+  m.fill = state_fill(m.accent);
+  m.stateColor = state_text_color(m.accent);
+  nutAmbientCopy(m.value, sizeof(m.value), compactTte ? card.compactValue : card.value);
+  return m;
 }
 
 // Ring order follows the physical device-reference loop, not a list-style
@@ -488,19 +275,19 @@ static void rotate_metric_to_hero(MetricKind kind) {
 }
 
 static MetricKind accepted_hero_metric(const LedcardsInterfaceNutView &view) {
-  if (touchHeroOverrideActive) {
-    if ((int32_t)(touchHeroOverrideUntilMs - view.nowMillis) > 0) {
-      return touchHeroOverrideMetric;
-    }
-    touchHeroOverrideActive = false;
-  }
-  MetricKind candidate = choose_hero_metric(view);
-  if (candidate == metricOrder[0]) return candidate;
-  if (lastHeroSwapMs == 0 || view.nowMillis - lastHeroSwapMs >= kHeroCooldownMs) {
-    lastHeroSwapMs = view.nowMillis;
-    return candidate;
-  }
-  return metricOrder[0];
+  NutAmbientHeroPolicyInput input{};
+  input.currentMetric = model_kind_for_metric_kind(metricOrder[0]);
+  input.touchOverrideActive = touchHeroOverrideActive;
+  input.touchOverrideMetric = model_kind_for_metric_kind(touchHeroOverrideMetric);
+  input.touchOverrideUntilMs = touchHeroOverrideUntilMs;
+  input.lastHeroSwapMs = lastHeroSwapMs;
+  input.nowMillis = view.nowMillis;
+  input.cooldownMs = kHeroCooldownMs;
+
+  NutAmbientHeroPolicyDecision decision = acceptNutAmbientHeroMetric(makeNutAmbientPageModel(view), input);
+  touchHeroOverrideActive = decision.touchOverrideActive;
+  lastHeroSwapMs = decision.lastHeroSwapMs;
+  return metric_kind_for_model_kind(decision.acceptedMetric);
 }
 
 static lv_obj_t *icon_label(lv_obj_t *parent, const char *text, int x, int y, int w, uint32_t color) {
@@ -582,8 +369,10 @@ static void on_tile_clicked(lv_event_t *event) {
   if (raw >= 5) return;
   touchHeroOverrideMetric = static_cast<MetricKind>(raw);
   uint32_t now = millis();
-  touchHeroOverrideUntilMs = now + kTouchHeroOverrideMs;
-  touchHeroOverrideActive = true;
+  NutAmbientTouchHeroOverride touch = makeNutAmbientTouchHeroOverride(model_kind_for_metric_kind(touchHeroOverrideMetric), now, kTouchHeroOverrideMs);
+  touchHeroOverrideMetric = metric_kind_for_model_kind(touch.metric);
+  touchHeroOverrideUntilMs = touch.untilMs;
+  touchHeroOverrideActive = touch.active;
   if (hasLastRenderedView) start_ring_transition(lv_screen_active(), touchHeroOverrideMetric, lastRenderedView);
 }
 
