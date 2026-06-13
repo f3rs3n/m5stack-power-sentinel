@@ -37,9 +37,9 @@ struct MetricRender {
   MetricKind kind;
   HeroStateMarker state;
   char value[16];
-  const char *label;
-  const char *unit;
-  const char *stateText;
+  char label[12];
+  char unit[8];
+  char stateText[20];
   uint32_t accent;
   uint32_t fill;
   uint32_t stateColor;
@@ -208,13 +208,13 @@ static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &
   MetricRender m{};
   m.kind = kind;
   m.state = hero_state_for_card(card);
-  m.label = card.label;
-  m.unit = compactTte ? card.compactUnit : card.unit;
-  m.stateText = card.stateText;
   m.accent = visual_class_color(card.visualClass);
   m.fill = state_fill(m.accent);
   m.stateColor = state_text_color(m.accent);
   nutAmbientCopy(m.value, sizeof(m.value), compactTte ? card.compactValue : card.value);
+  nutAmbientCopy(m.label, sizeof(m.label), card.label);
+  nutAmbientCopy(m.unit, sizeof(m.unit), compactTte ? card.compactUnit : card.unit);
+  nutAmbientCopy(m.stateText, sizeof(m.stateText), card.stateText);
   return m;
 }
 
