@@ -265,17 +265,7 @@ static const char *missing_state_text(const LedcardsInterfaceNutView &view) {
 }
 
 static const char *battery_state_text(const LedcardsInterfaceNutView &view) {
-  if (telemetry_missing(view)) return missing_state_text(view);
-  if (view.batteryPercent < 0) return "UNAVAILABLE";
-  if (view.onBattery) {
-    if (view.batteryPercent < 10) return "CRITICAL BATTERY";
-    if (view.lowBattery || view.batteryPercent < 20) return "LOW BATTERY";
-    return "ON BATTERY";
-  }
-  if (view.batteryPercent < 20) return "CHARGING";
-  if (view.batteryPercent >= 90) return "FULL";
-  if (view.batteryPercent >= 50) return "ALMOST FULL";
-  return "CHARGING";
+  return nutAmbientBatteryStateText(view);
 }
 
 static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &view, bool compactTte = false) {
