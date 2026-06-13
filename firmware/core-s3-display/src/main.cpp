@@ -425,15 +425,34 @@ void parseSummary(const String &json, const char *source) {
     if (used > state.proxmox.maxStorageUsedPercent) state.proxmox.maxStorageUsedPercent = used;
   }
   JsonArrayConst proxmoxSignals = proxmox["signals"].as<JsonArrayConst>();
-  JsonObjectConst firstProxmoxSignal = proxmoxSignals.size() > 0 ? proxmoxSignals[0].as<JsonObjectConst>() : JsonObjectConst();
-  safeCopy(state.proxmox.signalKind, sizeof(state.proxmox.signalKind), firstProxmoxSignal["kind"] | "");
-  safeCopy(state.proxmox.signalSummary, sizeof(state.proxmox.signalSummary), firstProxmoxSignal["summary"] | "");
-  JsonObjectConst firstProxmoxSignalContext = firstProxmoxSignal["context"].as<JsonObjectConst>();
-  const char *signalNode = firstProxmoxSignalContext["node"] | "";
-  const char *signalName = firstProxmoxSignalContext["name"] | "";
-  int signalVmid = jsonInt(firstProxmoxSignalContext["vmid"], -1);
+  JsonObjectConst selectedProxmoxSignal;
+  for (JsonObjectConst signal : proxmoxSignals) {
+    if (selectedProxmoxSignal.isNull()) {
+      selectedProxmoxSignal = signal;
+      continue;
+    }
+    const char *selectedKind = selectedProxmoxSignal["kind"] | "";
+    const char *kind = signal["kind"] | "";
+    if (strcmp(selectedKind, "storage_warning") == 0 && strcmp(kind, "storage_critical") == 0) {
+      selectedProxmoxSignal = signal;
+    }
+  }
+  safeCopy(state.proxmox.signalKind, sizeof(state.proxmox.signalKind), selectedProxmoxSignal["kind"] | "");
+  safeCopy(state.proxmox.signalSummary, sizeof(state.proxmox.signalSummary), selectedProxmoxSignal["summary"] | "");
+  JsonObjectConst selectedProxmoxSignalContext = selectedProxmoxSignal["context"].as<JsonObjectConst>();
+  const char *signalNode = selectedProxmoxSignalContext["node"] | "";
+  const char *signalStorage = selectedProxmoxSignalContext["storage"] | "";
+  const char *signalName = selectedProxmoxSignalContext["name"] | "";
+  int signalUsedPercent = jsonInt(selectedProxmoxSignalContext["used_percent"], -1);
+  int signalVmid = jsonInt(selectedProxmoxSignalContext["vmid"], -1);
   if (signalNode[0] != '\0') {
-    safeCopy(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), signalNode);
+    if (signalStorage[0] != '\0' && signalUsedPercent >= 0) {
+      snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "%s/%s %d%%", signalNode, signalStorage, signalUsedPercent);
+    } else {
+      safeCopy(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), signalNode);
+    }
+  } else if (signalStorage[0] != '\0' && signalUsedPercent >= 0) {
+    snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "%s %d%%", signalStorage, signalUsedPercent);
   } else if (signalName[0] != '\0' && signalVmid >= 0) {
     snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "%s %d", signalName, signalVmid);
   } else if (signalVmid >= 0) {
