@@ -1,6 +1,7 @@
 // Live-data Ledcards Interface NUT/UPS overview.
 // Layout remains synchronized with assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c.
 #include "ledcards-interface-page.h"
+#include "nut-ambient-page-model.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -430,20 +431,14 @@ static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &
 }
 
 static MetricKind choose_hero_metric(const LedcardsInterfaceNutView &view) {
-  if (telemetry_missing(view)) return METRIC_NUT;
-
-  if (view.onBattery) {
-    if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return METRIC_TTE;
-    if (view.lowBattery || (view.batteryPercent >= 0 && view.batteryPercent < 20)) return METRIC_BATTERY;
-    if (view.runtimeSeconds >= 0) return METRIC_TTE;
-    if (view.loadPercent >= 70) return METRIC_LOAD;
-    return METRIC_TTE;
+  switch (makeNutAmbientPageModel(view).heroMetric) {
+    case NUT_AMBIENT_METRIC_RUNTIME: return METRIC_TTE;
+    case NUT_AMBIENT_METRIC_LOAD: return METRIC_LOAD;
+    case NUT_AMBIENT_METRIC_INPUT: return METRIC_INPUT;
+    case NUT_AMBIENT_METRIC_NUT: return METRIC_NUT;
+    case NUT_AMBIENT_METRIC_BATTERY:
+    default: return METRIC_BATTERY;
   }
-
-  if (view.batteryPercent >= 0 && view.batteryPercent < 20) return METRIC_BATTERY;
-  if (view.loadPercent >= 70) return METRIC_LOAD;
-  if (view.inputVoltage > 0.0f && view.inputVoltage < 210.0f) return METRIC_INPUT;
-  return METRIC_BATTERY;
 }
 
 // Ring order follows the physical device-reference loop, not a list-style
