@@ -166,3 +166,69 @@ def test_proxmox_ambient_page_model_cpu_card_uses_latest_percent_and_condition()
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_ram_card_uses_latest_percent_and_condition():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.ramPercent = 91;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.ramCondition, sizeof(view.ramCondition), "warning");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (model.heroCardIndex != 1) return 1;
+          if (std::strcmp(model.heroTitle, "RAM") != 0) return 2;
+          if (std::strcmp(model.heroDisplayValue, "91") != 0) return 3;
+          if (std::strcmp(model.heroDetail, "RAM WARN") != 0) return 4;
+          if (std::strcmp(model.visualClass, "orange") != 0) return 5;
+          if (std::strcmp(model.cards[1].label, "RAM") != 0) return 6;
+          if (std::strcmp(model.cards[1].value, "91") != 0) return 7;
+          if (std::strcmp(model.cards[1].unit, "%") != 0) return 8;
+          if (std::strcmp(model.cards[1].stateText, "RAM WARN") != 0) return 9;
+          if (std::strcmp(model.cards[1].stateClass, "warning") != 0) return 10;
+          if (std::strcmp(model.cards[1].visualClass, "orange") != 0) return 11;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_cpu_has_priority_over_ram_within_same_tier():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.cpuPercent = 86;
+          view.ramPercent = 92;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.cpuCondition, sizeof(view.cpuCondition), "warning");
+          proxmoxAmbientCopy(view.ramCondition, sizeof(view.ramCondition), "warning");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (model.heroCardIndex != 0) return 1;
+          if (std::strcmp(model.heroTitle, "CPU") != 0) return 2;
+          if (std::strcmp(model.heroDetail, "CPU WARN") != 0) return 3;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
