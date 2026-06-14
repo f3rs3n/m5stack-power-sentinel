@@ -458,6 +458,65 @@ def proxmox_node_signals(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return signals
 
 
+def proxmox_configured_node_name(config: dict[str, Any]) -> str | None:
+    node_name = str(config.get("node_name") or "").strip()
+    return node_name or None
+
+
+def proxmox_visible_node_names(nodes: list[dict[str, Any]]) -> list[str]:
+    return [str(node.get("name") or "unknown") for node in nodes]
+
+
+def select_proxmox_single_node(config: dict[str, Any], nodes: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str | None, dict[str, Any] | None]:
+    configured_node_name = proxmox_configured_node_name(config)
+    visible_names = proxmox_visible_node_names(nodes)
+    if configured_node_name is not None:
+        selected = next((node for node in nodes if str(node.get("name") or "") == configured_node_name), None)
+        if selected is None:
+            return [], "selected_node_unavailable", proxmox_signal(
+                "selected_node_unavailable",
+                "unavailable",
+                f"selected Proxmox node {configured_node_name} is not visible",
+                {"node": configured_node_name, "visible_nodes": visible_names},
+            )
+        status = str(selected.get("status") or "unknown")
+        if status != "online":
+            return [], "selected_node_unavailable", proxmox_signal(
+                "selected_node_unavailable",
+                "unavailable",
+                f"selected Proxmox node {configured_node_name} is {status}",
+                {"node": configured_node_name, "status": status},
+            )
+        return [selected], None, None
+
+    if len(nodes) == 1:
+        selected = nodes[0]
+        status = str(selected.get("status") or "unknown")
+        node_name = str(selected.get("name") or "unknown")
+        if status != "online":
+            return [], "selected_node_unavailable", proxmox_signal(
+                "selected_node_unavailable",
+                "unavailable",
+                f"single Proxmox node {node_name} is {status}",
+                {"node": node_name, "status": status},
+            )
+        return [selected], None, None
+
+    if len(nodes) > 1:
+        return [], "node_selection_required", proxmox_signal(
+            "node_selection_required",
+            "unavailable",
+            "multiple Proxmox nodes visible; set proxmox.node_name",
+            {"visible_nodes": visible_names},
+        )
+
+    return [], "selected_node_unavailable", proxmox_signal(
+        "selected_node_unavailable",
+        "unavailable",
+        "no Proxmox nodes visible",
+    )
+
+
 def parse_proxmox_storage(node_name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     data = payload.get("data")
     if not isinstance(data, list):
@@ -583,10 +642,29 @@ def proxmox_environment_name(payload: dict[str, Any]) -> str:
 
 
 def proxmox_config_environment(config: dict[str, Any], watched_vmids: list[int]) -> dict[str, Any]:
-    return {
+    environment = {
         "api_url": str(config["api_url"]),
         "watched_guest_count": len(watched_vmids),
     }
+    node_name = proxmox_configured_node_name(config)
+    if node_name is not None:
+        environment["node_name"] = node_name
+    return environment
+
+
+def proxmox_selection_environment(
+    config: dict[str, Any],
+    cluster_payload: dict[str, Any],
+    nodes: list[dict[str, Any]],
+    watched_vmids: list[int],
+) -> dict[str, Any]:
+    environment = proxmox_config_environment(config, watched_vmids)
+    environment.update({
+        "name": proxmox_environment_name(cluster_payload),
+        "visible_node_count": len(nodes),
+        "visible_nodes": proxmox_visible_node_names(nodes),
+    })
+    return environment
 
 
 def proxmox_observed_environment(
@@ -598,8 +676,10 @@ def proxmox_observed_environment(
     watched_guests: list[dict[str, Any]],
 ) -> dict[str, Any]:
     environment = proxmox_config_environment(config, watched_vmids)
+    selected_node_name = proxmox_visible_node_names(nodes)[0] if nodes else proxmox_configured_node_name(config)
     environment.update({
         "name": proxmox_environment_name(cluster_payload),
+        "node_name": selected_node_name,
         "node_count": len(nodes),
         "online_node_count": len([node for node in nodes if node.get("status") == "online"]),
         "running_watched_guest_count": len([guest for guest in watched_guests if guest.get("status") == "running"]),
@@ -638,7 +718,14 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
 
     try:
         cluster_payload = proxmox_api_get(module_config, "/cluster/status")
-        nodes = parse_proxmox_nodes(proxmox_api_get(module_config, "/nodes"))
+        visible_nodes = parse_proxmox_nodes(proxmox_api_get(module_config, "/nodes"))
+        nodes, selection_status, selection_signal = select_proxmox_single_node(module_config, visible_nodes)
+        if selection_signal is not None:
+            return proxmox_empty_payload(
+                selection_status or "selected_node_unavailable",
+                [selection_signal],
+                proxmox_selection_environment(module_config, cluster_payload, visible_nodes, watched_vmids),
+            )
         storage = collect_proxmox_storage(module_config, nodes)
         watched_guests = collect_proxmox_watched_guests(module_config, nodes, watched_vmids)
     except Exception as exc:
@@ -648,7 +735,7 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
             environment,
         )
 
-    signals = [*proxmox_node_signals(nodes), *proxmox_storage_signals(storage), *proxmox_watched_guest_signals(watched_guests)]
+    signals = [*proxmox_storage_signals(storage), *proxmox_watched_guest_signals(watched_guests)]
     condition = proxmox_condition_from_signals(signals)
     payload = proxmox_base_payload(condition, "observed", signals)
     payload.update({
