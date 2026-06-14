@@ -12,6 +12,8 @@ struct ProxmoxAmbientView {
   char status[24];
   int cpuPercent = -1;
   char cpuCondition[16] = "";
+  int ramPercent = -1;
+  char ramCondition[16] = "";
 };
 
 struct ProxmoxAmbientCard {
@@ -81,6 +83,20 @@ inline const char *proxmoxAmbientCpuStateText(const char *condition, bool hasVal
   return "CPU OK";
 }
 
+inline const char *proxmoxAmbientRamStateText(const char *condition, bool hasValue) {
+  if (!hasValue) return "PLACEHOLDER";
+  if (strcmp(condition, "critical") == 0) return "RAM CRIT";
+  if (strcmp(condition, "warning") == 0) return "RAM WARN";
+  return "RAM OK";
+}
+
+inline uint8_t proxmoxAmbientConditionRank(const char *condition) {
+  if (strcmp(condition, "critical") == 0) return 3;
+  if (strcmp(condition, "warning") == 0) return 2;
+  if (strcmp(condition, "stale") == 0 || strcmp(condition, "unavailable") == 0) return 1;
+  return 0;
+}
+
 inline void fillProxmoxAmbientPlaceholderCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view, const char *label, const char *unit) {
   proxmoxAmbientCopy(card.label, sizeof(card.label), label);
   proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
@@ -102,9 +118,29 @@ inline void fillProxmoxAmbientCpuCard(ProxmoxAmbientCard &card, const ProxmoxAmb
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
 }
 
+inline void fillProxmoxAmbientRamCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
+  bool hasValue = view.ramPercent >= 0;
+  const char *condition = view.ramCondition[0] == '\0' ? "healthy" : view.ramCondition;
+  proxmoxAmbientCopy(card.label, sizeof(card.label), "RAM");
+  if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.ramPercent);
+  else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
+  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientRamStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+}
+
 inline uint8_t proxmoxAmbientDefaultHeroCardIndex(const ProxmoxAmbientPageModel &model) {
-  (void)model;
-  return 0;  // CPU is the default healthy or placeholder-healthy hero.
+  uint8_t bestIndex = 0;
+  uint8_t bestRank = strcmp(model.cards[0].value, "--") == 0 ? 0 : proxmoxAmbientConditionRank(model.cards[0].stateClass);
+  for (uint8_t i = 1; i < model.cardCount; ++i) {
+    uint8_t rank = strcmp(model.cards[i].value, "--") == 0 ? 0 : proxmoxAmbientConditionRank(model.cards[i].stateClass);
+    if (rank > bestRank) {
+      bestRank = rank;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;  // CPU wins ties because it appears first, RAM follows it.
 }
 
 inline void proxmoxAmbientApplyHero(ProxmoxAmbientPageModel &model) {
@@ -123,7 +159,7 @@ inline ProxmoxAmbientPageModel makeProxmoxAmbientPageModel(const ProxmoxAmbientV
   proxmoxAmbientCopy(model.telemetryState, sizeof(model.telemetryState), proxmoxAmbientTelemetryState(view));
   model.cardCount = 5;
   fillProxmoxAmbientCpuCard(model.cards[0], view);
-  fillProxmoxAmbientPlaceholderCard(model.cards[1], view, "RAM", "%");
+  fillProxmoxAmbientRamCard(model.cards[1], view);
   fillProxmoxAmbientPlaceholderCard(model.cards[2], view, "Guests", "run");
   fillProxmoxAmbientPlaceholderCard(model.cards[3], view, "Storage", "%");
   fillProxmoxAmbientPlaceholderCard(model.cards[4], view, "Network", "%");
