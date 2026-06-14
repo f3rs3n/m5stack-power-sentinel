@@ -406,7 +406,60 @@ def test_proxmox_first_healthy_observation_uses_read_only_api_adapter():
         assert proxmox["signals"] == []
         assert proxmox["environment"]["name"] == "pve"
         assert proxmox["environment"]["node_count"] == 1
+        assert proxmox["cards"]["cpu"] == {"value_percent": 23, "condition": "healthy"}
         assert proxmox["nodes"] == [{"name": "pve", "condition": "healthy", "status": "online", "cpu_percent": 23, "memory_percent": 61}]
+    finally:
+        api.proxmox_api_get = old_get
+
+
+def test_proxmox_cpu_pressure_requires_sustained_threshold_crossing():
+    old_get = api.proxmox_api_get
+    try:
+        cpu_values = iter([0.90, 0.90, 0.99, 0.99])
+
+        def fake_get(config, path):
+            if path == "/cluster/status":
+                return {"data": [{"type": "cluster", "name": "pve"}]}
+            if path == "/nodes":
+                return {"data": [{"node": "pve", "status": "online", "cpu": next(cpu_values), "mem": 20, "maxmem": 100}]}
+            if path == "/nodes/pve/storage":
+                return {"data": []}
+            raise AssertionError(path)
+
+        api.proxmox_api_get = fake_get
+        config = {
+            "modules": {"nut": False, "proxmox": True},
+            "proxmox": {
+                "api_url": "https://pve.example:8006",
+                "token_id": "power-sentinel@pve!monitor",
+                "token_secret": "SECRET",
+                "watched_guests": [],
+            },
+        }
+
+        first_warning_sample = api.build_summary(config)["modules"]["proxmox"]
+        sustained_warning = api.build_summary(config)["modules"]["proxmox"]
+        first_critical_sample = api.build_summary(config)["modules"]["proxmox"]
+        sustained_critical = api.build_summary(config)["modules"]["proxmox"]
+
+        assert first_warning_sample["condition"] == "healthy"
+        assert first_warning_sample["cards"]["cpu"] == {"value_percent": 90, "condition": "healthy"}
+        assert first_warning_sample["signals"] == []
+
+        assert sustained_warning["condition"] == "warning"
+        assert sustained_warning["cards"]["cpu"] == {"value_percent": 90, "condition": "warning"}
+        assert sustained_warning["signals"][0]["kind"] == "cpu_pressure"
+        assert sustained_warning["signals"][0]["condition"] == "warning"
+        assert sustained_warning["signals"][0]["context"] == {"node": "pve", "cpu_percent": 90, "threshold_percent": 85}
+
+        assert first_critical_sample["condition"] == "warning"
+        assert first_critical_sample["cards"]["cpu"] == {"value_percent": 99, "condition": "warning"}
+
+        assert sustained_critical["condition"] == "critical"
+        assert sustained_critical["cards"]["cpu"] == {"value_percent": 99, "condition": "critical"}
+        assert sustained_critical["signals"][0]["kind"] == "cpu_pressure"
+        assert sustained_critical["signals"][0]["condition"] == "critical"
+        assert sustained_critical["signals"][0]["context"] == {"node": "pve", "cpu_percent": 99, "threshold_percent": 98}
     finally:
         api.proxmox_api_get = old_get
 
