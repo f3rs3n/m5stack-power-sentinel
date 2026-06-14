@@ -29,6 +29,9 @@
 #ifndef POWER_SENTINEL_TRANSPORT_SERIAL
 #define POWER_SENTINEL_TRANSPORT_SERIAL 1
 #endif
+#ifndef POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
+#define POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY 0
+#endif
 #ifndef POWER_SENTINEL_WIFI_SSID
 #define POWER_SENTINEL_WIFI_SSID ""
 #endif
@@ -255,16 +258,21 @@ struct ProxmoxState {
   char signalContext[32] = "";
   int nodeCount = -1;
   int onlineNodeCount = -1;
-  int watchedGuestCount = -1;
-  int runningWatchedGuestCount = -1;
+  int guestTotalCount = -1;
+  int guestRunningCount = -1;
   int storageCount = -1;
   int maxStorageUsedPercent = -1;
   int cpuPercent = -1;
   char cpuCondition[16] = "healthy";
   int ramPercent = -1;
   char ramCondition[16] = "healthy";
+  int guestRunning = -1;
+  int guestTotal = -1;
+  char guestCondition[16] = "healthy";
   int storagePercent = -1;
   char storageCondition[16] = "healthy";
+  int networkPercent = -1;
+  char networkCondition[16] = "healthy";
 };
 
 struct SummaryState {
@@ -439,14 +447,21 @@ void parseSummary(const String &json, const char *source) {
   JsonObjectConst proxmoxRamCard = proxmox["cards"]["ram"].as<JsonObjectConst>();
   state.proxmox.ramPercent = jsonInt(proxmoxRamCard["value_percent"], -1);
   safeCopy(state.proxmox.ramCondition, sizeof(state.proxmox.ramCondition), proxmoxRamCard["condition"] | "healthy");
+  JsonObjectConst proxmoxGuestCard = proxmox["cards"]["guests"].as<JsonObjectConst>();
+  state.proxmox.guestRunning = jsonInt(proxmoxGuestCard["running"], -1);
+  state.proxmox.guestTotal = jsonInt(proxmoxGuestCard["total"], -1);
+  safeCopy(state.proxmox.guestCondition, sizeof(state.proxmox.guestCondition), proxmoxGuestCard["condition"] | "healthy");
   JsonObjectConst proxmoxStorageCard = proxmox["cards"]["storage"].as<JsonObjectConst>();
   state.proxmox.storagePercent = jsonInt(proxmoxStorageCard["value_percent"], -1);
   safeCopy(state.proxmox.storageCondition, sizeof(state.proxmox.storageCondition), proxmoxStorageCard["condition"] | "healthy");
+  JsonObjectConst proxmoxNetworkCard = proxmox["cards"]["network"].as<JsonObjectConst>();
+  state.proxmox.networkPercent = jsonInt(proxmoxNetworkCard["value_percent"], -1);
+  safeCopy(state.proxmox.networkCondition, sizeof(state.proxmox.networkCondition), proxmoxNetworkCard["condition"] | "healthy");
   JsonObjectConst proxmoxEnvironment = proxmox["environment"].as<JsonObjectConst>();
   state.proxmox.nodeCount = jsonInt(proxmoxEnvironment["node_count"], -1);
   state.proxmox.onlineNodeCount = jsonInt(proxmoxEnvironment["online_node_count"], -1);
-  state.proxmox.watchedGuestCount = jsonInt(proxmoxEnvironment["watched_guest_count"], -1);
-  state.proxmox.runningWatchedGuestCount = jsonInt(proxmoxEnvironment["running_watched_guest_count"], -1);
+  state.proxmox.guestTotalCount = jsonInt(proxmoxEnvironment["guest_total_count"], -1);
+  state.proxmox.guestRunningCount = jsonInt(proxmoxEnvironment["guest_running_count"], -1);
   state.proxmox.storageCount = jsonInt(proxmoxEnvironment["storage_count"], -1);
   state.proxmox.maxStorageUsedPercent = -1;
   JsonArrayConst proxmoxStorage = proxmox["storage"].as<JsonArrayConst>();
@@ -499,6 +514,54 @@ void parseSummary(const String &json, const char *source) {
   snprintf(state.transportStatus, sizeof(state.transportStatus), "%s summary OK", source);
 }
 
+#if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
+static const char kLedcardsInterfaceVisualFixtureJson[] = R"JSON({
+  "schema": "power-sentinel.summary.v1",
+  "severity": "ok",
+  "module": {"lan_connected": true, "time_hhmm": "14:32"},
+  "ups": {
+    "available": true,
+    "stale": false,
+    "status": "OL CHRG",
+    "battery_percent": 96,
+    "runtime_seconds": 5400,
+    "load_percent": 18,
+    "input_voltage": 232.1,
+    "age_seconds": 3
+  },
+  "nut": {"client_count": 2, "would_shutdown": false},
+  "modules": {
+    "proxmox": {
+      "enabled": true,
+      "implemented": true,
+      "condition": "warning",
+      "status": "observed",
+      "environment": {
+        "node_count": 1,
+        "online_node_count": 1,
+        "guest_running_count": 5,
+        "guest_total_count": 6,
+        "storage_count": 3
+      },
+      "cards": {
+        "cpu": {"value_percent": 38, "condition": "healthy"},
+        "ram": {"value_percent": 64, "condition": "healthy"},
+        "guests": {"running": 5, "total": 6, "condition": "warning"},
+        "storage": {"value_percent": 72, "condition": "healthy"},
+        "network": {"value_percent": 41, "condition": "healthy"}
+      },
+      "signals": [
+        {"kind": "guest_down", "condition": "warning", "summary": "Proxmox guests running 5/6", "context": {"running": 5, "total": 6, "stopped": 1}}
+      ]
+    }
+  }
+})JSON";
+
+void applyLedcardsInterfaceVisualFixture() {
+  parseSummary(kLedcardsInterfaceVisualFixtureJson, "fixture");
+}
+#endif
+
 LedcardsInterfaceNutView makeLedcardsInterfaceNutView() {
   LedcardsInterfaceNutView view{};
   view.offline = state.offline;
@@ -539,8 +602,13 @@ ProxmoxAmbientView makeProxmoxAmbientView() {
   safeCopy(view.cpuCondition, sizeof(view.cpuCondition), state.proxmox.cpuCondition);
   view.ramPercent = state.proxmox.ramPercent;
   safeCopy(view.ramCondition, sizeof(view.ramCondition), state.proxmox.ramCondition);
+  view.guestRunning = state.proxmox.guestRunning;
+  view.guestTotal = state.proxmox.guestTotal;
+  safeCopy(view.guestCondition, sizeof(view.guestCondition), state.proxmox.guestCondition);
   view.storagePercent = state.proxmox.storagePercent;
   safeCopy(view.storageCondition, sizeof(view.storageCondition), state.proxmox.storageCondition);
+  view.networkPercent = state.proxmox.networkPercent;
+  safeCopy(view.networkCondition, sizeof(view.networkCondition), state.proxmox.networkCondition);
   return view;
 }
 
@@ -1094,6 +1162,9 @@ void setup() {
   psDisplaySetRotation(1);
   applyDisplayBrightness(kDisplayAwakeBrightness);
   initLvgl();
+#if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
+  applyLedcardsInterfaceVisualFixture();
+#endif
   createLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
   alsSensorReady = psAmbientLightBegin();
   Serial.printf("ALS sensor: %s adaptive=%u poll=%lu ms\n",
@@ -1127,7 +1198,9 @@ void loop() {
   }
   if (now - lastFetchMs >= kSummaryPollMs || lastFetchMs == 0) {
     lastFetchMs = now;
+#if !POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
     fetchLiveSummary();
+#endif
     now = millis();
     if (displayMode != DisplayMode::Off) refreshLedcardsUi();
   }

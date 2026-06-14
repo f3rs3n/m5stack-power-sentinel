@@ -27,4 +27,4 @@ Future `PROXMOX` and `HA` pages should reuse this quality bar but enter as separ
 
 ### Future `PROXMOX` page
 
-The `PROXMOX` page should lead with the Proxmox Environment condition, not raw CPU/RAM or inventory counts. Four compact tiles should summarize nodes, Watched Guests, storage, and the most relevant backup/resource/disk signal. When actionable signals exist, the page should privilege the worst signal over neutral metrics. Touch interaction is for focus only, such as promoting a tile or signal to the hero area; it must not trigger Proxmox actions.
+The `PROXMOX` page should use five single-purpose Ambient Cards: CPU, RAM, Guests, Storage, and Network. Guests is the Guest Inventory Summary (`running/total`) for visible QEMU VMs and LXC containers, not a configured allowlist. When actionable signals exist, the page should privilege the worst signal over neutral metrics. Touch interaction is for focus only, such as promoting a card to the hero area; it must not trigger Proxmox actions.

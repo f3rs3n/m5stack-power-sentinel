@@ -11,7 +11,6 @@
   "proxmox": {
     "api_url": "https://pve.example:8006",
     "token_id": "power-sentinel@pve!monitor",
-    "token_secret": "CHANGE_ME",
-    "watched_guests": []
+    "token_secret": "CHANGE_ME"
   }
 }

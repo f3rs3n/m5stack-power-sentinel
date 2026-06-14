@@ -300,3 +300,134 @@ def test_proxmox_ambient_page_model_storage_outranks_cpu_and_ram_within_same_tie
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_guests_card_renders_running_over_total():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.guestRunning = 2;
+          view.guestTotal = 3;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.guestCondition, sizeof(view.guestCondition), "warning");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.cards[2].label, "Guests") != 0) return 1;
+          if (std::strcmp(model.cards[2].value, "2/3") != 0) return 2;
+          if (std::strcmp(model.cards[2].unit, "") != 0) return 3;
+          if (std::strcmp(model.cards[2].stateText, "GUEST WARN") != 0) return 4;
+          if (std::strcmp(model.cards[2].stateClass, "warning") != 0) return 5;
+          if (std::strcmp(model.cards[2].visualClass, "orange") != 0) return 6;
+          if (model.heroCardIndex != 2) return 7;
+          if (std::strcmp(model.heroTitle, "Guests") != 0) return 8;
+          if (std::strcmp(model.heroDisplayValue, "2/3") != 0) return 9;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_guests_zero_zero_is_healthy_blue():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.guestRunning = 0;
+          view.guestTotal = 0;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "healthy");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.guestCondition, sizeof(view.guestCondition), "healthy");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (std::strcmp(model.cards[2].value, "0/0") != 0) return 1;
+          if (std::strcmp(model.cards[2].stateText, "GUEST OK") != 0) return 2;
+          if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 3;
+          if (std::strcmp(model.cards[2].visualClass, "blue") != 0) return 4;
+          if (model.heroCardIndex != 0) return 5;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_network_card_uses_saturation_and_condition():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.networkPercent = 85;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.networkCondition, sizeof(view.networkCondition), "warning");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (model.heroCardIndex != 4) return 1;
+          if (std::strcmp(model.heroTitle, "Network") != 0) return 2;
+          if (std::strcmp(model.heroDisplayValue, "85") != 0) return 3;
+          if (std::strcmp(model.heroDetail, "NET WARN") != 0) return 4;
+          if (std::strcmp(model.cards[4].label, "Network") != 0) return 5;
+          if (std::strcmp(model.cards[4].value, "85") != 0) return 6;
+          if (std::strcmp(model.cards[4].unit, "%") != 0) return 7;
+          if (std::strcmp(model.cards[4].stateText, "NET WARN") != 0) return 8;
+          if (std::strcmp(model.cards[4].stateClass, "warning") != 0) return 9;
+          if (std::strcmp(model.cards[4].visualClass, "orange") != 0) return 10;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_network_unavailable_promotes_when_no_critical_card_exists():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.networkCondition, sizeof(view.networkCondition), "unavailable");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (model.heroCardIndex != 4) return 1;
+          if (std::strcmp(model.heroTitle, "Network") != 0) return 2;
+          if (std::strcmp(model.heroDisplayValue, "--") != 0) return 3;
+          if (std::strcmp(model.heroDetail, "NET UNAVAIL") != 0) return 4;
+          if (std::strcmp(model.cards[4].stateClass, "unavailable") != 0) return 5;
+          if (std::strcmp(model.cards[4].visualClass, "purple") != 0) return 6;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

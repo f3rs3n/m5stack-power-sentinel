@@ -108,9 +108,10 @@ Minimum config:
 - `proxmox.token_id`
 - `proxmox.token_secret`
 
-Optional config:
+Optional Network card config:
 
-- `proxmox.watched_guests`: list of Proxmox VMIDs expected to be running in later slices
+- `proxmox.network_uplink`: physical uplink interface when API auto-selection is ambiguous
+- `proxmox.network_uplink_speed_mbps`: uplink speed when API data does not expose reliable speed
 
 If enabled without minimum config, `modules.proxmox` reports:
 
@@ -126,14 +127,17 @@ If minimum config exists but the token is still the example placeholder `CHANGE_
 - `status: not_observed`
 - `signals[0].kind: api_unavailable`
 - `nodes: []`
-- `watched_guests: []`
+- `guests: []`
 
 With real credentials, this slice reads:
 
 - `/api2/json/cluster/status`
 - `/api2/json/nodes`
 - `/api2/json/nodes/{node}/storage` for online nodes
-- `/api2/json/nodes/{node}/qemu` only for online nodes, and only when `proxmox.watched_guests` is non-empty
+- `/api2/json/nodes/{node}/qemu` for online nodes
+- `/api2/json/nodes/{node}/lxc` for online nodes
+- `/api2/json/nodes/{node}/network` for physical uplink selection and speed when available
+- `/api2/json/nodes/{node}/netstat` for latest uplink traffic rates
 
 First healthy observation reports:
 
@@ -144,12 +148,13 @@ First healthy observation reports:
 - `environment.name`
 - `environment.node_count`
 - `environment.online_node_count`
-- `environment.watched_guest_count`
-- `environment.running_watched_guest_count`
+- `environment.guest_total_count`
+- `environment.guest_running_count`
+- `environment.network_uplink` when selected and observable
 - `environment.storage_count`
 - `nodes[]` with `name`, `condition`, `status`, and best-effort `cpu_percent` / `memory_percent`
 - `storage[]` with active/enabled storage entries only
-- `watched_guests[]` with configured VMIDs only
+- `guests[]` with visible QEMU VMs and LXC containers
 
 Node condition and signals:
 
@@ -158,13 +163,13 @@ Node condition and signals:
 - any other non-online node status -> node `condition: critical`, signal `node_degraded`
 - any node signal makes `modules.proxmox.condition: critical`
 
-Watched Guest condition and signals:
+Guest Inventory Summary condition and signals:
 
-- configured VMID present with `status: running` -> guest `condition: healthy`
-- configured VMID present with any other status -> guest `condition: critical`, signal `watched_guest_down`
-- configured VMID missing from online-node inventory -> guest `condition: critical`, `status: missing`, signal `watched_guest_down`
-- unwatched guests do not affect condition and are not emitted in `watched_guests[]`
-- any watched guest signal makes `modules.proxmox.condition: critical`
+- no visible guests (`0/0`) -> guest card `condition: healthy`
+- all visible guests running -> guest card `condition: healthy`
+- some visible guests stopped -> guest card `condition: warning`, signal `guest_down`
+- zero running out of a non-zero total -> guest card `condition: critical`, signal `guest_down`
+- guest signals participate in worst-condition aggregation for `modules.proxmox.condition`
 
 Storage condition and signals:
 
@@ -173,6 +178,16 @@ Storage condition and signals:
 - `used/total >= 85%` -> storage `condition: warning`, signal `storage_warning`
 - `used/total >= 95%` -> storage `condition: critical`, signal `storage_critical`
 - storage signals participate in worst-condition aggregation for `modules.proxmox.condition`
+
+Network condition and signals:
+
+- one active physical uplink can be auto-selected; multiple active physical uplinks require `proxmox.network_uplink`
+- API-provided `speed_mbps`/`speed` is preferred; otherwise `proxmox.network_uplink_speed_mbps` is required
+- latest saturation is the greater of inbound/outbound bps as a percentage of uplink speed
+- one sample at or above 80%/95% does not change condition
+- sustained saturation at or above 80% -> network card `condition: warning`, signal `network_pressure`
+- sustained saturation at or above 95% -> network card `condition: critical`, signal `network_pressure`
+- unavailable Network card data while the selected node is observable -> `network_unavailable` warning-level attention, not global Proxmox unavailable
 
 API/auth failure reports:
 

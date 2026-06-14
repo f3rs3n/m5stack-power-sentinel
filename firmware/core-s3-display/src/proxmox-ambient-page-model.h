@@ -14,8 +14,13 @@ struct ProxmoxAmbientView {
   char cpuCondition[16] = "";
   int ramPercent = -1;
   char ramCondition[16] = "";
+  int guestRunning = -1;
+  int guestTotal = -1;
+  char guestCondition[16] = "";
   int storagePercent = -1;
   char storageCondition[16] = "";
+  int networkPercent = -1;
+  char networkCondition[16] = "";
 };
 
 struct ProxmoxAmbientCard {
@@ -99,6 +104,21 @@ inline const char *proxmoxAmbientStorageStateText(const char *condition, bool ha
   return "STOR OK";
 }
 
+inline const char *proxmoxAmbientGuestStateText(const char *condition, bool hasValue) {
+  if (!hasValue) return "PLACEHOLDER";
+  if (strcmp(condition, "critical") == 0) return "GUEST CRIT";
+  if (strcmp(condition, "warning") == 0) return "GUEST WARN";
+  return "GUEST OK";
+}
+
+inline const char *proxmoxAmbientNetworkStateText(const char *condition, bool hasValue) {
+  if (strcmp(condition, "unavailable") == 0) return "NET UNAVAIL";
+  if (!hasValue) return "PLACEHOLDER";
+  if (strcmp(condition, "critical") == 0) return "NET CRIT";
+  if (strcmp(condition, "warning") == 0) return "NET WARN";
+  return "NET OK";
+}
+
 inline uint8_t proxmoxAmbientConditionRank(const char *condition) {
   if (strcmp(condition, "critical") == 0) return 3;
   if (strcmp(condition, "warning") == 0) return 2;
@@ -139,6 +159,30 @@ inline void fillProxmoxAmbientRamCard(ProxmoxAmbientCard &card, const ProxmoxAmb
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
 }
 
+inline void fillProxmoxAmbientGuestCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
+  bool hasValue = view.guestRunning >= 0 && view.guestTotal >= 0;
+  const char *condition = view.guestCondition[0] == '\0' ? "healthy" : view.guestCondition;
+  proxmoxAmbientCopy(card.label, sizeof(card.label), "Guests");
+  if (hasValue) snprintf(card.value, sizeof(card.value), "%d/%d", view.guestRunning, view.guestTotal);
+  else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
+  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "");
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientGuestStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+}
+
+inline void fillProxmoxAmbientNetworkCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
+  bool hasValue = view.networkPercent >= 0;
+  const char *condition = view.networkCondition[0] == '\0' ? "healthy" : view.networkCondition;
+  proxmoxAmbientCopy(card.label, sizeof(card.label), "Network");
+  if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.networkPercent);
+  else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
+  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientNetworkStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue || strcmp(condition, "unavailable") == 0 ? condition : proxmoxAmbientCondition(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue || strcmp(condition, "unavailable") == 0 ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+}
+
 inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
   bool hasValue = view.storagePercent >= 0;
   const char *condition = view.storageCondition[0] == '\0' ? "healthy" : view.storageCondition;
@@ -163,7 +207,8 @@ inline uint8_t proxmoxAmbientDefaultHeroCardIndex(const ProxmoxAmbientPageModel 
   uint8_t bestIndex = 0;
   uint8_t bestRank = strcmp(model.cards[0].value, "--") == 0 ? 0 : proxmoxAmbientConditionRank(model.cards[0].stateClass);
   for (uint8_t i = 1; i < model.cardCount; ++i) {
-    uint8_t rank = strcmp(model.cards[i].value, "--") == 0 ? 0 : proxmoxAmbientConditionRank(model.cards[i].stateClass);
+    uint8_t rank = proxmoxAmbientConditionRank(model.cards[i].stateClass);
+    if (rank > 1 && strcmp(model.cards[i].value, "--") == 0) rank = 0;
     if (rank > bestRank || (rank > 0 && rank == bestRank && proxmoxAmbientHeroPriority(i) > proxmoxAmbientHeroPriority(bestIndex))) {
       bestRank = rank;
       bestIndex = i;
@@ -189,9 +234,9 @@ inline ProxmoxAmbientPageModel makeProxmoxAmbientPageModel(const ProxmoxAmbientV
   model.cardCount = 5;
   fillProxmoxAmbientCpuCard(model.cards[0], view);
   fillProxmoxAmbientRamCard(model.cards[1], view);
-  fillProxmoxAmbientPlaceholderCard(model.cards[2], view, "Guests", "run");
+  fillProxmoxAmbientGuestCard(model.cards[2], view);
   fillProxmoxAmbientStorageCard(model.cards[3], view);
-  fillProxmoxAmbientPlaceholderCard(model.cards[4], view, "Network", "%");
+  fillProxmoxAmbientNetworkCard(model.cards[4], view);
   model.heroCardIndex = proxmoxAmbientDefaultHeroCardIndex(model);
   proxmoxAmbientApplyHero(model);
   return model;

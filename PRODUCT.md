@@ -31,7 +31,7 @@ Each module must be independently installable/updateable and independently testa
 
 The Proxmox module should return as API-only, read-only observability for one Proxmox Environment. Its first job is cluster/node condition at a glance, with contextual handoff data such as node, storage, guest VMID/name, backup job, timestamp, or concise error context.
 
-The module should not use SSH, run remote commands, control guests, or recreate the Proxmox console. Watched Guests are configured manually by VMID and are expected to be running; a watched guest down is critical. CPU/RAM should affect condition only as sustained node-level pressure. Disk health belongs in scope only when exposed through the Proxmox API with lightweight, actionable signals.
+The module should not use SSH, run remote commands, control guests, or recreate the Proxmox console. Guest Inventory Summary counts visible QEMU VMs and LXC containers, showing running over total and raising attention when visible guests are not running. CPU/RAM should affect condition only as sustained node-level pressure. Disk health belongs in scope only when exposed through the Proxmox API with lightweight, actionable signals.
 
 Implementation planning lives in `docs/plans/proxmox-module-v1.md`.
 

@@ -42,8 +42,7 @@ config is:
   "proxmox": {
     "api_url": "https://pve.example:8006",
     "token_id": "power-sentinel@pve!monitor",
-    "token_secret": "CHANGE_ME",
-    "watched_guests": [101]
+    "token_secret": "CHANGE_ME"
   }
 }
 ```
@@ -55,13 +54,20 @@ reports `status: api_unavailable`. Token secrets must not appear in payloads.
 Node status is interpreted conservatively: `offline` emits `node_down`, any
 other non-`online` status emits `node_degraded`, and either makes the Proxmox
 module critical.
-For online nodes the backend also reads `/nodes/{node}/storage`. Active/enabled
-storage entries at or above 85% emit `storage_warning`; at or above 95% emit
-`storage_critical`.
-When `proxmox.watched_guests` is configured, the backend reads
-`/nodes/{node}/qemu` for online nodes only. Watched guests must be `running`;
-stopped or missing VMIDs emit `watched_guest_down` and make the Proxmox module
-critical. Unwatched guests are ignored for condition.
+For online nodes the backend also reads `/nodes/{node}/storage`,
+`/nodes/{node}/qemu`, `/nodes/{node}/lxc`, `/nodes/{node}/network`, and
+`/nodes/{node}/netstat`. Active/enabled storage entries at or above 85% emit
+`storage_warning`; at or above 95% emit `storage_critical`. Guest inventory
+summarizes all visible QEMU VMs and LXC containers as running over total. A
+partial guest inventory outage emits `guest_down` warning; zero running out of a
+non-zero total is critical; `0/0` is healthy.
+
+The Network card auto-selects the physical uplink only when exactly one active
+physical interface is visible. If there are multiple candidates, set
+`proxmox.network_uplink`. If API data does not expose uplink speed, set
+`proxmox.network_uplink_speed_mbps`; speed is not guessed. Network saturation is
+latest max inbound/outbound throughput as a percent of uplink speed and only
+raises `network_pressure` after sustained threshold crossings.
 
 ## Install/update
 

@@ -365,19 +365,6 @@ def missing_proxmox_config_fields(config: dict[str, Any]) -> list[str]:
     return [field for field in ("api_url", "token_id", "token_secret") if not str(config.get(field) or "").strip()]
 
 
-def proxmox_watched_guests(config: dict[str, Any]) -> list[int]:
-    raw = config.get("watched_guests", [])
-    if not isinstance(raw, list):
-        return []
-    guests: list[int] = []
-    for item in raw:
-        try:
-            guests.append(int(item))
-        except (TypeError, ValueError):
-            continue
-    return guests
-
-
 def proxmox_api_get(config: dict[str, Any], path: str) -> dict[str, Any]:
     api_url = str(config["api_url"]).rstrip("/")
     token_id = str(config["token_id"])
@@ -418,9 +405,12 @@ PROXMOX_CPU_WARNING_PERCENT = 85
 PROXMOX_CPU_CRITICAL_PERCENT = 98
 PROXMOX_MEMORY_WARNING_PERCENT = 90
 PROXMOX_MEMORY_CRITICAL_PERCENT = 98
+PROXMOX_NETWORK_WARNING_PERCENT = 80
+PROXMOX_NETWORK_CRITICAL_PERCENT = 95
 PROXMOX_CPU_SUSTAINED_SAMPLES = 2
 _PROXMOX_CPU_STREAKS: dict[str, dict[str, int]] = {}
 _PROXMOX_MEMORY_STREAKS: dict[str, dict[str, int]] = {}
+_PROXMOX_NETWORK_STREAKS: dict[str, dict[str, int]] = {}
 
 
 def proxmox_cpu_card_and_signal(node: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
@@ -672,7 +662,7 @@ def proxmox_storage_card(storage_items: list[dict[str, Any]]) -> dict[str, Any]:
     return card
 
 
-def parse_proxmox_qemu_guests(node_name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+def parse_proxmox_guests(node_name: str, kind: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     data = payload.get("data")
     if not isinstance(data, list):
         return []
@@ -688,48 +678,158 @@ def parse_proxmox_qemu_guests(node_name: str, payload: dict[str, Any]) -> list[d
             "vmid": vmid,
             "name": str(item.get("name")) if item.get("name") is not None else None,
             "node": node_name,
-            "condition": "healthy" if status == "running" else "critical",
+            "kind": kind,
             "status": status,
         })
     return guests
 
 
-def collect_proxmox_watched_guests(config: dict[str, Any], nodes: list[dict[str, Any]], watched_vmids: list[int]) -> list[dict[str, Any]]:
-    if not watched_vmids:
-        return []
-    all_guests: dict[int, dict[str, Any]] = {}
+def collect_proxmox_guests(config: dict[str, Any], nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    guests: list[dict[str, Any]] = []
     for node in nodes:
         if node.get("status") != "online":
             continue
         node_name = str(node.get("name") or "unknown")
-        for guest in parse_proxmox_qemu_guests(node_name, proxmox_api_get(config, f"/nodes/{node_name}/qemu")):
-            all_guests[int(guest["vmid"])] = guest
-    watched_guests: list[dict[str, Any]] = []
-    for vmid in watched_vmids:
-        watched_guests.append(all_guests.get(vmid) or {
-            "vmid": vmid,
-            "name": None,
-            "node": None,
-            "condition": "critical",
-            "status": "missing",
-        })
-    return watched_guests
+        guests.extend(parse_proxmox_guests(node_name, "qemu", proxmox_api_get(config, f"/nodes/{node_name}/qemu")))
+        guests.extend(parse_proxmox_guests(node_name, "lxc", proxmox_api_get(config, f"/nodes/{node_name}/lxc")))
+    return guests
 
 
-def proxmox_watched_guest_signals(guests: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    signals: list[dict[str, Any]] = []
-    for guest in guests:
-        if guest.get("condition") != "critical":
-            continue
-        vmid = guest.get("vmid")
-        status = str(guest.get("status") or "unknown")
-        signals.append(proxmox_signal(
-            "watched_guest_down",
-            "critical",
-            f"Watched guest {vmid} is {status}",
-            {"vmid": vmid, "name": guest.get("name"), "node": guest.get("node"), "status": status},
-        ))
-    return signals
+def proxmox_guest_card(guests: list[dict[str, Any]]) -> dict[str, Any]:
+    total = len(guests)
+    running = len([guest for guest in guests if guest.get("status") == "running"])
+    if total == 0 or running == total:
+        condition = "healthy"
+    elif running == 0:
+        condition = "critical"
+    else:
+        condition = "warning"
+    return {"running": running, "total": total, "condition": condition}
+
+
+def proxmox_guest_signal(card: dict[str, Any]) -> dict[str, Any] | None:
+    condition = str(card.get("condition") or "healthy")
+    if condition not in {"warning", "critical"}:
+        return None
+    running = int(card.get("running") or 0)
+    total = int(card.get("total") or 0)
+    return proxmox_signal(
+        "guest_down",
+        condition,
+        f"Proxmox guests running {running}/{total}",
+        {"running": running, "total": total, "stopped": total - running},
+    )
+
+
+def proxmox_network_iface_name(item: dict[str, Any]) -> str:
+    return str(item.get("iface") or item.get("name") or item.get("interface") or "")
+
+
+def proxmox_network_active(item: dict[str, Any]) -> bool:
+    return item.get("active") in {1, "1", True}
+
+
+def proxmox_network_is_physical(item: dict[str, Any]) -> bool:
+    iface = proxmox_network_iface_name(item)
+    iface_type = str(item.get("type") or "").lower()
+    if not iface or not proxmox_network_active(item):
+        return False
+    if iface_type in {"bridge", "vlan", "alias"}:
+        return False
+    if iface.startswith(("vmbr", "tap", "veth", "fw", "lo")):
+        return False
+    return iface_type in {"eth", "bond", ""}
+
+
+def proxmox_network_speed_mbps(config: dict[str, Any], iface: dict[str, Any]) -> int | None:
+    for key in ("speed_mbps", "speed"):
+        speed = as_int(str(iface.get(key)))
+        if speed is not None and speed > 0:
+            return speed
+    configured = as_int(str(config.get("network_uplink_speed_mbps")))
+    return configured if configured is not None and configured > 0 else None
+
+
+def proxmox_select_network_uplink(config: dict[str, Any], network_items: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, str | None]:
+    configured = str(config.get("network_uplink") or "").strip()
+    physical = [item for item in network_items if proxmox_network_is_physical(item)]
+    if configured:
+        selected = next((item for item in physical if proxmox_network_iface_name(item) == configured), None)
+        return selected, None if selected is not None else "network_uplink_unavailable"
+    if len(physical) == 1:
+        return physical[0], None
+    return None, "network_uplink_required" if physical else "network_uplink_unavailable"
+
+
+def parse_proxmox_network_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    data = payload.get("data")
+    return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+
+
+def proxmox_netstat_rate_bps(item: dict[str, Any], *keys: str) -> int:
+    for key in keys:
+        value = as_int(str(item.get(key)))
+        if value is not None and value >= 0:
+            return value
+    return 0
+
+
+def proxmox_network_unavailable_signal(node_name: str, reason: str, iface: str | None = None) -> dict[str, Any]:
+    context: dict[str, Any] = {"node": node_name, "reason": reason}
+    if iface:
+        context["iface"] = iface
+    return proxmox_signal("network_unavailable", "warning", "Proxmox Network card is unavailable", context)
+
+
+def proxmox_network_card_and_signal(config: dict[str, Any], node_name: str) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any] | None]:
+    try:
+        network_items = parse_proxmox_network_items(proxmox_api_get(config, f"/nodes/{node_name}/network"))
+        uplink, selection_problem = proxmox_select_network_uplink(config, network_items)
+        if uplink is None:
+            reason = selection_problem or "network_unavailable"
+            return {"condition": "unavailable", "reason": reason}, proxmox_network_unavailable_signal(node_name, reason), None
+        iface = proxmox_network_iface_name(uplink)
+        speed_mbps = proxmox_network_speed_mbps(config, uplink)
+        if speed_mbps is None:
+            reason = "network_uplink_speed_required"
+            return {"condition": "unavailable", "iface": iface, "reason": reason}, proxmox_network_unavailable_signal(node_name, reason, iface), None
+        stats = parse_proxmox_network_items(proxmox_api_get(config, f"/nodes/{node_name}/netstat"))
+        stat = next((item for item in stats if proxmox_network_iface_name(item) == iface), {})
+        rx_bps = proxmox_netstat_rate_bps(stat, "rx_bps", "rate_in_bps", "netin_bps")
+        tx_bps = proxmox_netstat_rate_bps(stat, "tx_bps", "rate_out_bps", "netout_bps")
+        saturation_percent = int(round(max(rx_bps, tx_bps) * 100 / (speed_mbps * 1_000_000)))
+    except Exception:
+        reason = "network_unavailable"
+        return {"condition": "unavailable", "reason": reason}, proxmox_network_unavailable_signal(node_name, reason), None
+
+    streak = _PROXMOX_NETWORK_STREAKS.setdefault(f"{node_name}:{iface}", {"warning": 0, "critical": 0})
+    if saturation_percent >= PROXMOX_NETWORK_WARNING_PERCENT:
+        streak["warning"] += 1
+    else:
+        streak["warning"] = 0
+    if saturation_percent >= PROXMOX_NETWORK_CRITICAL_PERCENT:
+        streak["critical"] += 1
+    else:
+        streak["critical"] = 0
+
+    condition = "healthy"
+    threshold = PROXMOX_NETWORK_WARNING_PERCENT
+    if streak["critical"] >= PROXMOX_CPU_SUSTAINED_SAMPLES:
+        condition = "critical"
+        threshold = PROXMOX_NETWORK_CRITICAL_PERCENT
+    elif streak["warning"] >= PROXMOX_CPU_SUSTAINED_SAMPLES:
+        condition = "warning"
+
+    card = {"value_percent": saturation_percent, "condition": condition}
+    network = {"node": node_name, "iface": iface, "speed_mbps": speed_mbps, "rx_bps": rx_bps, "tx_bps": tx_bps, "saturation_percent": saturation_percent, "condition": condition}
+    if condition == "healthy":
+        return card, None, network
+    return card, proxmox_signal(
+        "network_pressure",
+        condition,
+        f"Proxmox network {node_name}/{iface} is {saturation_percent}% saturated",
+        {"node": node_name, "iface": iface, "saturation_percent": saturation_percent, "threshold_percent": threshold},
+    ), network
 
 
 def proxmox_environment_name(payload: dict[str, Any]) -> str:
@@ -743,10 +843,9 @@ def proxmox_environment_name(payload: dict[str, Any]) -> str:
 
 
 
-def proxmox_config_environment(config: dict[str, Any], watched_vmids: list[int]) -> dict[str, Any]:
+def proxmox_config_environment(config: dict[str, Any]) -> dict[str, Any]:
     environment = {
         "api_url": str(config["api_url"]),
-        "watched_guest_count": len(watched_vmids),
     }
     node_name = proxmox_configured_node_name(config)
     if node_name is not None:
@@ -758,9 +857,8 @@ def proxmox_selection_environment(
     config: dict[str, Any],
     cluster_payload: dict[str, Any],
     nodes: list[dict[str, Any]],
-    watched_vmids: list[int],
 ) -> dict[str, Any]:
-    environment = proxmox_config_environment(config, watched_vmids)
+    environment = proxmox_config_environment(config)
     environment.update({
         "name": proxmox_environment_name(cluster_payload),
         "visible_node_count": len(nodes),
@@ -774,19 +872,23 @@ def proxmox_observed_environment(
     cluster_payload: dict[str, Any],
     nodes: list[dict[str, Any]],
     storage: list[dict[str, Any]],
-    watched_vmids: list[int],
-    watched_guests: list[dict[str, Any]],
+    guests: list[dict[str, Any]],
+    network: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    environment = proxmox_config_environment(config, watched_vmids)
+    environment = proxmox_config_environment(config)
     selected_node_name = proxmox_visible_node_names(nodes)[0] if nodes else proxmox_configured_node_name(config)
+    guest_card = proxmox_guest_card(guests)
     environment.update({
         "name": proxmox_environment_name(cluster_payload),
         "node_name": selected_node_name,
         "node_count": len(nodes),
         "online_node_count": len([node for node in nodes if node.get("status") == "online"]),
-        "running_watched_guest_count": len([guest for guest in watched_guests if guest.get("status") == "running"]),
+        "guest_running_count": guest_card["running"],
+        "guest_total_count": guest_card["total"],
         "storage_count": len(storage),
     })
+    if network is not None:
+        environment["network_uplink"] = network.get("iface")
     return environment
 
 
@@ -796,21 +898,20 @@ def proxmox_empty_payload(status: str, signals: list[dict[str, Any]], environmen
     if environment is not None:
         payload["environment"] = environment
     payload["nodes"] = []
-    payload["watched_guests"] = []
+    payload["guests"] = []
     return payload
 
 
 def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
     module_config = proxmox_config(config)
     missing = missing_proxmox_config_fields(module_config)
-    watched_vmids = proxmox_watched_guests(module_config)
     if missing:
         return proxmox_empty_payload(
             "unconfigured",
             [proxmox_signal("unconfigured", "unavailable", "missing Proxmox config", {"missing_fields": missing})],
         )
 
-    environment = proxmox_config_environment(module_config, watched_vmids)
+    environment = proxmox_config_environment(module_config)
     if str(module_config.get("token_secret")) == "CHANGE_ME":
         return proxmox_empty_payload(
             "not_observed",
@@ -826,13 +927,15 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
             return proxmox_empty_payload(
                 selection_status or "selected_node_unavailable",
                 [selection_signal],
-                proxmox_selection_environment(module_config, cluster_payload, visible_nodes, watched_vmids),
+                proxmox_selection_environment(module_config, cluster_payload, visible_nodes),
             )
         cpu_card, cpu_signal = proxmox_cpu_card_and_signal(nodes[0])
         ram_card, ram_signal = proxmox_memory_card_and_signal(nodes[0])
         storage = collect_proxmox_storage(module_config, nodes)
         storage_card = proxmox_storage_card(storage)
-        watched_guests = collect_proxmox_watched_guests(module_config, nodes, watched_vmids)
+        guests = collect_proxmox_guests(module_config, nodes)
+        guest_card = proxmox_guest_card(guests)
+        network_card, network_signal, network = proxmox_network_card_and_signal(module_config, str(nodes[0].get("name") or "unknown"))
     except Exception as exc:
         return proxmox_empty_payload(
             "api_unavailable",
@@ -840,18 +943,19 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
             environment,
         )
 
-    signals = [signal for signal in [cpu_signal, ram_signal] if signal is not None]
-    signals.extend([*proxmox_storage_signals(storage), *proxmox_watched_guest_signals(watched_guests)])
+    signals = [signal for signal in [cpu_signal, ram_signal, proxmox_guest_signal(guest_card), network_signal] if signal is not None]
+    signals.extend(proxmox_storage_signals(storage))
     condition = proxmox_condition_from_signals(signals)
     payload = proxmox_base_payload(condition, "observed", signals)
     payload.update({
         "observed_at": iso_utc(),
         "age_seconds": 0,
-        "environment": proxmox_observed_environment(module_config, cluster_payload, nodes, storage, watched_vmids, watched_guests),
-        "cards": {"cpu": cpu_card, "ram": ram_card, "storage": storage_card},
+        "environment": proxmox_observed_environment(module_config, cluster_payload, nodes, storage, guests, network),
+        "cards": {"cpu": cpu_card, "ram": ram_card, "guests": guest_card, "storage": storage_card, "network": network_card},
         "nodes": nodes,
         "storage": storage,
-        "watched_guests": watched_guests,
+        "guests": guests,
+        "network": network,
     })
     return payload
 
