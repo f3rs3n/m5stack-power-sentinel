@@ -1,0 +1,5 @@
+# Use five single-purpose ambient cards for Proxmox v1
+
+Proxmox v1 is aimed at typical single-node homelab installations and uses five single-purpose Ambient Cards: CPU, RAM, Guests, Storage, and Network. The hero is a position occupied by one of those cards according to condition priority, default policy, or touch focus; it is not a sixth card or a generic signal/status surface. This deliberately excludes API, Nodes, Signal, Backup, and Disk Health cards from v1 so the small CoreS3 display stays monovalore/monofunzione and avoids becoming a Proxmox dashboard or cluster console.
+
+Unavailable partial cards remain module-visible and aggregate as at least warning-level attention, while global unavailable is reserved for cases where the single-node Proxmox environment cannot be observed coherently. CPU, RAM, and Network show latest observed values but only become warning or critical after sustained threshold crossings; Storage is immediate because capacity usage is slow-moving. Guests summarizes running QEMU VM and LXC containers over total visible guests, with `0/0` treated as visually neutral but condition-healthy.

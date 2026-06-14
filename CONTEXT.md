@@ -40,6 +40,14 @@ _Avoid_: Generic instruction, embedded admin console, full remediation flow
 The CoreS3 display surface for glanceable status and lightweight interaction. Touch interactions belong here only when they are frequent, convenient, and meaningfully simpler than using the authoritative tool.
 _Avoid_: Primary workstation, full configuration UI
 
+**Ambient Card**:
+A glanceable module signal with one responsibility and one compact value. An ambient card can be shown in reduced form or promoted into the hero position when its condition is the most relevant signal.
+_Avoid_: Dashboard widget, multi-metric panel
+
+**Hero Position**:
+The prominent Ambient Console position occupied by the ambient card currently selected by condition priority, default policy, or touch focus. The hero position may add short explanatory or handoff context, but it is not a separate signal from the promoted card.
+_Avoid_: Separate status card, page title
+
 **Module Candidate**:
 A proposed module that earns product scope by offering glanceable value, staying within the integration boundary, or improving a frequent contextual handoff or lightweight action. Weak candidates should not be added just because data is technically available.
 _Avoid_: Data source, integration idea
@@ -69,7 +77,7 @@ A candidate module for glanceable home or homelab state and lightweight controls
 _Avoid_: Home Assistant replacement, automation editor
 
 **Proxmox Module**:
-A candidate module for synthetic Proxmox observability and contextual handoff. Its first job is cluster and node condition at a glance, with enough context to know where to investigate, without becoming a Proxmox control surface.
+A candidate module for synthetic Proxmox observability and contextual handoff, initially aimed at typical single-node homelab installations. Its first job is host-level health at a glance, with enough context to know where to investigate, without becoming a Proxmox control surface.
 _Avoid_: Proxmox console, VM control panel
 
 **API-Only Integration**:
@@ -81,20 +89,24 @@ Credentials that allow observation but not mutation in the authoritative system.
 _Avoid_: Admin token, write-capable token
 
 **Proxmox Environment**:
-The Proxmox area observed by Power Sentinel, composed of one or more nodes. It may be a single-node installation or a clustered installation.
-_Avoid_: Cluster when single-node also applies
+The Proxmox area observed by Power Sentinel. In v1 this normally means one single-node homelab installation rather than a clustered installation.
+_Avoid_: Cluster-first model, multi-node dashboard
 
 **Guest**:
 A Proxmox workload observed by Power Sentinel, covering both virtual machines and containers. Guest state may contribute to a Proxmox condition, but Power Sentinel should not become the guest control surface.
 _Avoid_: VM when containers also apply
 
-**Watched Guest**:
-A guest explicitly marked by Proxmox VMID as important enough to influence the Proxmox condition. A watched guest is expected to be running; if it is down, the Proxmox condition is critical.
-_Avoid_: Every guest, inventory item
+**Guest Inventory Summary**:
+A compact Proxmox observation of how many guests are running out of the total guests visible to Power Sentinel. It is a summary signal for ambient status, not a configured allowlist of important guests.
+_Avoid_: Watched Guest, per-guest dashboard, VM-only summary
 
 **Sustained Resource Pressure**:
 A Proxmox condition input where CPU or memory pressure remains high long enough to matter. Brief spikes should not affect the user-facing condition.
 _Avoid_: Transient spike, instantaneous load
+
+**Physical Network Throughput**:
+A compact Proxmox observation of current traffic on physical network interfaces. It excludes virtual guest interfaces and bridge-only noise unless the physical uplink cannot be observed directly.
+_Avoid_: Network configuration, virtual NIC inventory, bridge dashboard
 
 **Disk Health**:
 A Proxmox condition input for storage or disk problems that are exposed through a lightweight and reliable integration. Disk health should influence condition only when the signal is actionable enough for contextual handoff.
