@@ -680,7 +680,9 @@ static MetricRender proxmox_hero_metric(const ProxmoxAmbientPageModel &model) {
   metric.stateColor = state_text_color(metric.accent);
   proxmoxAmbientCopy(metric.value, sizeof(metric.value), model.heroDisplayValue);
   proxmoxAmbientCopy(metric.label, sizeof(metric.label), model.heroTitle);
-  proxmoxAmbientCopy(metric.unit, sizeof(metric.unit), "nodes");
+  if (model.heroCardIndex < model.cardCount) {
+    proxmoxAmbientCopy(metric.unit, sizeof(metric.unit), model.cards[model.heroCardIndex].unit);
+  }
   proxmoxAmbientCopy(metric.stateText, sizeof(metric.stateText), model.heroDetail);
   return metric;
 }
@@ -698,8 +700,9 @@ static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &v
   const int xs[4] = {166, 166, 12, 12};
   const int ys[4] = {124, 182, 182, 124};
   const MetricKind kinds[4] = {METRIC_NUT, METRIC_INPUT, METRIC_LOAD, METRIC_TTE};
-  for (uint8_t i = 0; i < model.cardCount && i < 4; ++i) {
-    tile(screen, xs[i], ys[i], proxmox_metric_for_card(model.cards[i], kinds[i]), false);
+  for (uint8_t i = 0; i < proxmoxReducedCardCount(model) && i < 4; ++i) {
+    const ProxmoxAmbientCard *card = proxmoxReducedCardAt(model, i);
+    if (card) tile(screen, xs[i], ys[i], proxmox_metric_for_card(*card, kinds[i]), false);
   }
 }
 

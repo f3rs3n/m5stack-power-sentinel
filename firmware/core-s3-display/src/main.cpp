@@ -520,15 +520,6 @@ ProxmoxAmbientView makeProxmoxAmbientView() {
   view.hasLiveData = state.proxmox.hasLiveData;
   safeCopy(view.condition, sizeof(view.condition), state.proxmox.condition);
   safeCopy(view.status, sizeof(view.status), state.proxmox.status);
-  safeCopy(view.signalKind, sizeof(view.signalKind), state.proxmox.signalKind);
-  safeCopy(view.signalSummary, sizeof(view.signalSummary), state.proxmox.signalSummary);
-  safeCopy(view.signalContext, sizeof(view.signalContext), state.proxmox.signalContext);
-  view.nodeCount = state.proxmox.nodeCount;
-  view.onlineNodeCount = state.proxmox.onlineNodeCount;
-  view.watchedGuestCount = state.proxmox.watchedGuestCount;
-  view.runningWatchedGuestCount = state.proxmox.runningWatchedGuestCount;
-  view.storageCount = state.proxmox.storageCount;
-  view.maxStorageUsedPercent = state.proxmox.maxStorageUsedPercent;
   return view;
 }
 

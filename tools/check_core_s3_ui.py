@@ -128,26 +128,23 @@ def main() -> int:
         "render_proxmox_ambient",
         "proxmox_metric_for_card",
         "proxmox_hero_metric",
+        "heroCardIndex",
         "heroDisplayValue",
-        "PROXMOX",
+        "proxmoxReducedCardCount",
+        "proxmoxReducedCardAt",
+        "CPU",
+        "RAM",
+        "Guests",
         "Storage",
-        "% max",
-        "signalContext",
-        "NODE DOWN",
-        "NODE DEG",
-        "GUEST DOWN",
-        "storage_critical",
-        "storage_warning",
-        "STOR CRIT",
-        "STOR WARN",
-        "SETUP",
-        "OK",
-        "OFFLINE",
-        "No live data",
-        "UNCONFIGURED",
-        "API UNAVAILABLE",
-    ], "Proxmox unavailable tracer"):
+        "Network",
+        "PLACEHOLDER",
+    ], "Proxmox five-card Ambient Page skeleton"):
         return 1
+    proxmox_page_model = PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
+    forbidden_proxmox_page_model = ["\"API\"", "\"Nodes\"", "\"Signal\"", "watched", "nodeCount"]
+    for needle in forbidden_proxmox_page_model:
+        if needle in proxmox_page_model:
+            return fail(f"Proxmox page model still requires legacy page vocabulary {needle!r}")
     contract = NUT_AMBIENT_CONTRACT.read_text(encoding="utf-8")
     if require(contract, [
         "first stable Power Sentinel Ambient Console adapter shape",

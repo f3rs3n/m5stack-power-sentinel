@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -10,15 +9,6 @@ struct ProxmoxAmbientView {
   bool hasLiveData;
   char condition[16];
   char status[24];
-  char signalKind[24];
-  char signalSummary[48];
-  char signalContext[32];
-  int nodeCount;
-  int onlineNodeCount;
-  int watchedGuestCount;
-  int runningWatchedGuestCount;
-  int storageCount;
-  int maxStorageUsedPercent;
 };
 
 struct ProxmoxAmbientCard {
@@ -39,7 +29,8 @@ struct ProxmoxAmbientPageModel {
   char heroDetail[32];
   char visualClass[16];
   uint8_t cardCount;
-  ProxmoxAmbientCard cards[4];
+  uint8_t heroCardIndex;
+  ProxmoxAmbientCard cards[5];
 };
 
 inline void proxmoxAmbientCopy(char *dst, size_t dstSize, const char *src) {
@@ -47,10 +38,6 @@ inline void proxmoxAmbientCopy(char *dst, size_t dstSize, const char *src) {
   if (!src) src = "";
   strncpy(dst, src, dstSize - 1);
   dst[dstSize - 1] = '\0';
-}
-
-inline bool proxmoxAmbientHasLiveData(const ProxmoxAmbientView &view) {
-  return view.hasLiveData && view.nodeCount >= 0 && view.onlineNodeCount >= 0;
 }
 
 inline const char *proxmoxAmbientCondition(const ProxmoxAmbientView &view) {
@@ -63,118 +50,70 @@ inline const char *proxmoxAmbientTelemetryState(const ProxmoxAmbientView &view) 
   if (!view.enabled) return "disabled";
   if (!view.implemented) return "unavailable";
   if (view.status[0] != '\0') return view.status;
-  if (!proxmoxAmbientHasLiveData(view)) return "not_observed";
+  if (!view.hasLiveData) return "not_observed";
   return "observed";
 }
 
-inline const char *proxmoxAmbientVisualClass(const ProxmoxAmbientView &view) {
+inline const char *proxmoxAmbientCardVisualClass(const ProxmoxAmbientView &view) {
   const char *condition = proxmoxAmbientCondition(view);
   if (strcmp(condition, "critical") == 0) return "red";
   if (strcmp(condition, "warning") == 0) return "orange";
   if (strcmp(condition, "stale") == 0) return "gray";
-  if (strcmp(condition, "healthy") == 0) return "green";
-  return "purple";
+  if (strcmp(condition, "unavailable") == 0) return "purple";
+  return "blue";
 }
 
-inline const char *proxmoxAmbientHeroValue(const ProxmoxAmbientView &view) {
-  const char *state = proxmoxAmbientTelemetryState(view);
-  if (strcmp(state, "unconfigured") == 0) return "SETUP";
-  if (strcmp(state, "api_unavailable") == 0) return "OFFLINE";
-  if (strcmp(state, "not_observed") == 0) return "WAIT";
-  if (strcmp(state, "stale") == 0) return "STALE";
-  if (strcmp(view.signalKind, "node_down") == 0) return "NODE DOWN";
-  if (strcmp(view.signalKind, "node_degraded") == 0) return "NODE DEG";
-  if (strcmp(view.signalKind, "watched_guest_down") == 0) return "GUEST DOWN";
-  if (strcmp(view.signalKind, "storage_critical") == 0) return "STOR CRIT";
-  if (strcmp(view.signalKind, "storage_warning") == 0) return "STOR WARN";
-  if (strcmp(proxmoxAmbientCondition(view), "healthy") == 0) return "OK";
-  return "CHECK";
-}
-
-inline const char *proxmoxAmbientHeroDetail(const ProxmoxAmbientView &view) {
-  const char *state = proxmoxAmbientTelemetryState(view);
-  if (strcmp(state, "unconfigured") == 0) return "Config missing";
-  if (strcmp(state, "api_unavailable") == 0) return "API unavailable";
-  if (strcmp(state, "not_observed") == 0) return "No live data";
-  if (view.signalContext[0] != '\0') return view.signalContext;
-  if (view.signalSummary[0] != '\0') return view.signalSummary;
-  return "Read-only API";
-}
-
-inline void proxmoxAmbientFormatCountPair(bool valid, int numerator, int denominator, char *buf, size_t len) {
-  if (!valid) snprintf(buf, len, "--");
-  else snprintf(buf, len, "%d/%d", numerator, denominator);
-}
-
-inline void proxmoxAmbientHeroDisplayValue(const ProxmoxAmbientView &view, char *buf, size_t len) {
-  bool valid = proxmoxAmbientHasLiveData(view) && view.nodeCount >= 0 && view.onlineNodeCount >= 0;
-  proxmoxAmbientFormatCountPair(valid, view.onlineNodeCount, view.nodeCount, buf, len);
-}
-
-inline void fillProxmoxAmbientApiCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  proxmoxAmbientCopy(card.label, sizeof(card.label), "API");
-  proxmoxAmbientCopy(card.value, sizeof(card.value), proxmoxAmbientHasLiveData(view) ? "1" : "--");
-  proxmoxAmbientCopy(card.unit, sizeof(card.unit), proxmoxAmbientHasLiveData(view) ? "live" : "");
-  const char *state = proxmoxAmbientTelemetryState(view);
-  if (strcmp(state, "unconfigured") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "UNCONFIGURED");
-  else if (strcmp(state, "api_unavailable") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "API UNAVAILABLE");
-  else if (strcmp(state, "not_observed") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "NOT OBSERVED");
-  else proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "OBSERVED");
+inline void fillProxmoxAmbientPlaceholderCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view, const char *label, const char *unit) {
+  proxmoxAmbientCopy(card.label, sizeof(card.label), label);
+  proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
+  proxmoxAmbientCopy(card.unit, sizeof(card.unit), unit);
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "PLACEHOLDER");
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), proxmoxAmbientVisualClass(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), proxmoxAmbientCardVisualClass(view));
 }
 
-inline void fillProxmoxAmbientNodesCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  proxmoxAmbientCopy(card.label, sizeof(card.label), "Nodes");
-  proxmoxAmbientFormatCountPair(proxmoxAmbientHasLiveData(view), view.onlineNodeCount, view.nodeCount, card.value, sizeof(card.value));
-  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "online");
-  if (strcmp(view.signalKind, "node_down") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "NODE DOWN");
-  else if (strcmp(view.signalKind, "node_degraded") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "DEGRADED");
-  else proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientHasLiveData(view) ? "ONLINE" : "UNAVAILABLE");
-  proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass),
-                     strcmp(view.signalKind, "node_down") == 0 || strcmp(view.signalKind, "node_degraded") == 0 ? "red" : (proxmoxAmbientHasLiveData(view) ? "green" : "purple"));
+inline uint8_t proxmoxAmbientDefaultHeroCardIndex(const ProxmoxAmbientPageModel &model) {
+  (void)model;
+  return 0;  // CPU is the default healthy or placeholder-healthy hero.
 }
 
-inline void fillProxmoxAmbientGuestsCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  proxmoxAmbientCopy(card.label, sizeof(card.label), "Guests");
-  bool valid = proxmoxAmbientHasLiveData(view) && view.watchedGuestCount >= 0 && view.runningWatchedGuestCount >= 0;
-  proxmoxAmbientFormatCountPair(valid, view.runningWatchedGuestCount, view.watchedGuestCount, card.value, sizeof(card.value));
-  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "running");
-  if (strcmp(view.signalKind, "watched_guest_down") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "GUEST DOWN");
-  else proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "RUNNING" : "UNAVAILABLE");
-  proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), strcmp(view.signalKind, "watched_guest_down") == 0 ? "red" : (valid ? "green" : "purple"));
-}
-
-inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  proxmoxAmbientCopy(card.label, sizeof(card.label), "Storage");
-  bool valid = proxmoxAmbientHasLiveData(view) && view.storageCount >= 0 && view.maxStorageUsedPercent >= 0;
-  if (valid) snprintf(card.value, sizeof(card.value), "%d", view.maxStorageUsedPercent);
-  else snprintf(card.value, sizeof(card.value), "--");
-  proxmoxAmbientCopy(card.unit, sizeof(card.unit), "% max");
-  if (strcmp(view.signalKind, "storage_critical") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "CRITICAL");
-  else if (strcmp(view.signalKind, "storage_warning") == 0) proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), "WARNING");
-  else proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), valid ? "OK" : "UNAVAILABLE");
-  proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), proxmoxAmbientCondition(view));
-  if (strcmp(view.signalKind, "storage_critical") == 0) proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), "red");
-  else if (strcmp(view.signalKind, "storage_warning") == 0) proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), "orange");
-  else proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), valid ? "green" : "purple");
+inline void proxmoxAmbientApplyHero(ProxmoxAmbientPageModel &model) {
+  if (model.cardCount == 0 || model.heroCardIndex >= model.cardCount) return;
+  const ProxmoxAmbientCard &hero = model.cards[model.heroCardIndex];
+  proxmoxAmbientCopy(model.heroTitle, sizeof(model.heroTitle), hero.label);
+  proxmoxAmbientCopy(model.heroValue, sizeof(model.heroValue), hero.value);
+  proxmoxAmbientCopy(model.heroDisplayValue, sizeof(model.heroDisplayValue), hero.value);
+  proxmoxAmbientCopy(model.heroDetail, sizeof(model.heroDetail), hero.stateText);
+  proxmoxAmbientCopy(model.visualClass, sizeof(model.visualClass), hero.visualClass);
 }
 
 inline ProxmoxAmbientPageModel makeProxmoxAmbientPageModel(const ProxmoxAmbientView &view) {
   ProxmoxAmbientPageModel model{};
   proxmoxAmbientCopy(model.condition, sizeof(model.condition), proxmoxAmbientCondition(view));
   proxmoxAmbientCopy(model.telemetryState, sizeof(model.telemetryState), proxmoxAmbientTelemetryState(view));
-  proxmoxAmbientCopy(model.heroTitle, sizeof(model.heroTitle), "PROXMOX");
-  proxmoxAmbientCopy(model.heroValue, sizeof(model.heroValue), proxmoxAmbientHeroValue(view));
-  proxmoxAmbientHeroDisplayValue(view, model.heroDisplayValue, sizeof(model.heroDisplayValue));
-  proxmoxAmbientCopy(model.heroDetail, sizeof(model.heroDetail), proxmoxAmbientHeroDetail(view));
-  proxmoxAmbientCopy(model.visualClass, sizeof(model.visualClass), proxmoxAmbientVisualClass(view));
-  model.cardCount = proxmoxAmbientHasLiveData(view) ? 4 : 3;
-  fillProxmoxAmbientApiCard(model.cards[0], view);
-  fillProxmoxAmbientNodesCard(model.cards[1], view);
-  fillProxmoxAmbientGuestsCard(model.cards[2], view);
-  if (model.cardCount > 3) fillProxmoxAmbientStorageCard(model.cards[3], view);
+  model.cardCount = 5;
+  fillProxmoxAmbientPlaceholderCard(model.cards[0], view, "CPU", "%");
+  fillProxmoxAmbientPlaceholderCard(model.cards[1], view, "RAM", "%");
+  fillProxmoxAmbientPlaceholderCard(model.cards[2], view, "Guests", "run");
+  fillProxmoxAmbientPlaceholderCard(model.cards[3], view, "Storage", "%");
+  fillProxmoxAmbientPlaceholderCard(model.cards[4], view, "Network", "%");
+  model.heroCardIndex = proxmoxAmbientDefaultHeroCardIndex(model);
+  proxmoxAmbientApplyHero(model);
   return model;
+}
+
+inline uint8_t proxmoxReducedCardCount(const ProxmoxAmbientPageModel &model) {
+  if (model.cardCount == 0) return 0;
+  if (model.heroCardIndex >= model.cardCount) return model.cardCount;
+  return static_cast<uint8_t>(model.cardCount - 1);
+}
+
+inline const ProxmoxAmbientCard *proxmoxReducedCardAt(const ProxmoxAmbientPageModel &model, uint8_t reducedIndex) {
+  uint8_t seen = 0;
+  for (uint8_t i = 0; i < model.cardCount; ++i) {
+    if (i == model.heroCardIndex) continue;
+    if (seen == reducedIndex) return &model.cards[i];
+    ++seen;
+  }
+  return nullptr;
 }
