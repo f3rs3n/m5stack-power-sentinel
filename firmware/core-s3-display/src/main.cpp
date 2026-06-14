@@ -263,6 +263,8 @@ struct ProxmoxState {
   char cpuCondition[16] = "healthy";
   int ramPercent = -1;
   char ramCondition[16] = "healthy";
+  int storagePercent = -1;
+  char storageCondition[16] = "healthy";
 };
 
 struct SummaryState {
@@ -437,6 +439,9 @@ void parseSummary(const String &json, const char *source) {
   JsonObjectConst proxmoxRamCard = proxmox["cards"]["ram"].as<JsonObjectConst>();
   state.proxmox.ramPercent = jsonInt(proxmoxRamCard["value_percent"], -1);
   safeCopy(state.proxmox.ramCondition, sizeof(state.proxmox.ramCondition), proxmoxRamCard["condition"] | "healthy");
+  JsonObjectConst proxmoxStorageCard = proxmox["cards"]["storage"].as<JsonObjectConst>();
+  state.proxmox.storagePercent = jsonInt(proxmoxStorageCard["value_percent"], -1);
+  safeCopy(state.proxmox.storageCondition, sizeof(state.proxmox.storageCondition), proxmoxStorageCard["condition"] | "healthy");
   JsonObjectConst proxmoxEnvironment = proxmox["environment"].as<JsonObjectConst>();
   state.proxmox.nodeCount = jsonInt(proxmoxEnvironment["node_count"], -1);
   state.proxmox.onlineNodeCount = jsonInt(proxmoxEnvironment["online_node_count"], -1);
@@ -534,6 +539,8 @@ ProxmoxAmbientView makeProxmoxAmbientView() {
   safeCopy(view.cpuCondition, sizeof(view.cpuCondition), state.proxmox.cpuCondition);
   view.ramPercent = state.proxmox.ramPercent;
   safeCopy(view.ramCondition, sizeof(view.ramCondition), state.proxmox.ramCondition);
+  view.storagePercent = state.proxmox.storagePercent;
+  safeCopy(view.storageCondition, sizeof(view.storageCondition), state.proxmox.storageCondition);
   return view;
 }
 

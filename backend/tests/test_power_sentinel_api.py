@@ -789,6 +789,7 @@ def test_proxmox_storage_warning_and_critical_signals_from_online_nodes():
             {"node": "pve-a", "name": "local", "condition": "warning", "type": "dir", "used_percent": 86},
             {"node": "pve-a", "name": "local-lvm", "condition": "critical", "type": "lvmthin", "used_percent": 96},
         ]
+        assert proxmox["cards"]["storage"] == {"value_percent": 96, "condition": "critical"}
         assert [signal["kind"] for signal in proxmox["signals"]] == ["storage_warning", "storage_critical"]
         assert proxmox["signals"][0]["context"] == {"node": "pve-a", "storage": "local", "used_percent": 86}
         assert proxmox["signals"][1]["context"] == {"node": "pve-a", "storage": "local-lvm", "used_percent": 96}
@@ -822,6 +823,7 @@ def test_proxmox_storage_below_warning_threshold_is_healthy_inventory():
 
         assert proxmox["condition"] == "healthy"
         assert proxmox["signals"] == []
+        assert proxmox["cards"]["storage"] == {"value_percent": 84, "condition": "healthy"}
         assert proxmox["storage"] == [{"node": "pve-a", "name": "local", "condition": "healthy", "type": "dir", "used_percent": 84}]
     finally:
         api.proxmox_api_get = old_get
@@ -853,6 +855,7 @@ def test_proxmox_storage_warning_only_sets_module_warning_not_critical():
 
         assert proxmox["condition"] == "warning"
         assert proxmox["severity"] == "warn"
+        assert proxmox["cards"]["storage"] == {"value_percent": 86, "condition": "warning"}
         assert [signal["kind"] for signal in proxmox["signals"]] == ["storage_warning"]
     finally:
         api.proxmox_api_get = old_get

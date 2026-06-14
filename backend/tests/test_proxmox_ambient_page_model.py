@@ -232,3 +232,71 @@ def test_proxmox_ambient_page_model_cpu_has_priority_over_ram_within_same_tier()
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_storage_card_uses_worst_percent_and_condition():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.storagePercent = 96;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "critical");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.storageCondition, sizeof(view.storageCondition), "critical");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (model.heroCardIndex != 3) return 1;
+          if (std::strcmp(model.heroTitle, "Storage") != 0) return 2;
+          if (std::strcmp(model.heroDisplayValue, "96") != 0) return 3;
+          if (std::strcmp(model.heroDetail, "STOR CRIT") != 0) return 4;
+          if (std::strcmp(model.visualClass, "red") != 0) return 5;
+          if (std::strcmp(model.cards[3].label, "Storage") != 0) return 6;
+          if (std::strcmp(model.cards[3].value, "96") != 0) return 7;
+          if (std::strcmp(model.cards[3].unit, "%") != 0) return 8;
+          if (std::strcmp(model.cards[3].stateText, "STOR CRIT") != 0) return 9;
+          if (std::strcmp(model.cards[3].stateClass, "critical") != 0) return 10;
+          if (std::strcmp(model.cards[3].visualClass, "red") != 0) return 11;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_storage_outranks_cpu_and_ram_within_same_tier():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.cpuPercent = 90;
+          view.ramPercent = 92;
+          view.storagePercent = 86;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.cpuCondition, sizeof(view.cpuCondition), "warning");
+          proxmoxAmbientCopy(view.ramCondition, sizeof(view.ramCondition), "warning");
+          proxmoxAmbientCopy(view.storageCondition, sizeof(view.storageCondition), "warning");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (model.heroCardIndex != 3) return 1;
+          if (std::strcmp(model.heroTitle, "Storage") != 0) return 2;
+          if (std::strcmp(model.heroDetail, "STOR WARN") != 0) return 3;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
