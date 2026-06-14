@@ -414,6 +414,51 @@ def proxmox_percent(value: Any, maximum: Any | None = None) -> int | None:
         return None
 
 
+PROXMOX_CPU_WARNING_PERCENT = 85
+PROXMOX_CPU_CRITICAL_PERCENT = 98
+PROXMOX_CPU_SUSTAINED_SAMPLES = 2
+_PROXMOX_CPU_STREAKS: dict[str, dict[str, int]] = {}
+
+
+def proxmox_cpu_card_and_signal(node: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    node_name = str(node.get("name") or "unknown")
+    cpu_percent = node.get("cpu_percent")
+    card: dict[str, Any] = {"condition": "healthy"}
+    if isinstance(cpu_percent, int):
+        card["value_percent"] = cpu_percent
+    else:
+        _PROXMOX_CPU_STREAKS.pop(node_name, None)
+        return card, None
+
+    streak = _PROXMOX_CPU_STREAKS.setdefault(node_name, {"warning": 0, "critical": 0})
+    if cpu_percent >= PROXMOX_CPU_WARNING_PERCENT:
+        streak["warning"] += 1
+    else:
+        streak["warning"] = 0
+    if cpu_percent >= PROXMOX_CPU_CRITICAL_PERCENT:
+        streak["critical"] += 1
+    else:
+        streak["critical"] = 0
+
+    condition = "healthy"
+    threshold = PROXMOX_CPU_WARNING_PERCENT
+    if streak["critical"] >= PROXMOX_CPU_SUSTAINED_SAMPLES:
+        condition = "critical"
+        threshold = PROXMOX_CPU_CRITICAL_PERCENT
+    elif streak["warning"] >= PROXMOX_CPU_SUSTAINED_SAMPLES:
+        condition = "warning"
+
+    card["condition"] = condition
+    if condition == "healthy":
+        return card, None
+    return card, proxmox_signal(
+        "cpu_pressure",
+        condition,
+        f"Proxmox CPU on {node_name} is {cpu_percent}%",
+        {"node": node_name, "cpu_percent": cpu_percent, "threshold_percent": threshold},
+    )
+
+
 def parse_proxmox_nodes(payload: dict[str, Any]) -> list[dict[str, Any]]:
     data = payload.get("data")
     if not isinstance(data, list):
@@ -726,6 +771,7 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
                 [selection_signal],
                 proxmox_selection_environment(module_config, cluster_payload, visible_nodes, watched_vmids),
             )
+        cpu_card, cpu_signal = proxmox_cpu_card_and_signal(nodes[0])
         storage = collect_proxmox_storage(module_config, nodes)
         watched_guests = collect_proxmox_watched_guests(module_config, nodes, watched_vmids)
     except Exception as exc:
@@ -735,13 +781,15 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
             environment,
         )
 
-    signals = [*proxmox_storage_signals(storage), *proxmox_watched_guest_signals(watched_guests)]
+    signals = [signal for signal in [cpu_signal] if signal is not None]
+    signals.extend([*proxmox_storage_signals(storage), *proxmox_watched_guest_signals(watched_guests)])
     condition = proxmox_condition_from_signals(signals)
     payload = proxmox_base_payload(condition, "observed", signals)
     payload.update({
         "observed_at": iso_utc(),
         "age_seconds": 0,
         "environment": proxmox_observed_environment(module_config, cluster_payload, nodes, storage, watched_vmids, watched_guests),
+        "cards": {"cpu": cpu_card},
         "nodes": nodes,
         "storage": storage,
         "watched_guests": watched_guests,

@@ -130,3 +130,39 @@ def test_proxmox_ambient_page_model_renders_reduced_cards_without_duplicate_hero
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_cpu_card_uses_latest_percent_and_condition():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.cpuPercent = 90;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.cpuCondition, sizeof(view.cpuCondition), "warning");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+
+          if (model.heroCardIndex != 0) return 1;
+          if (std::strcmp(model.heroTitle, "CPU") != 0) return 2;
+          if (std::strcmp(model.heroDisplayValue, "90") != 0) return 3;
+          if (std::strcmp(model.heroDetail, "CPU WARN") != 0) return 4;
+          if (std::strcmp(model.visualClass, "orange") != 0) return 5;
+          if (std::strcmp(model.cards[0].label, "CPU") != 0) return 6;
+          if (std::strcmp(model.cards[0].value, "90") != 0) return 7;
+          if (std::strcmp(model.cards[0].unit, "%") != 0) return 8;
+          if (std::strcmp(model.cards[0].stateText, "CPU WARN") != 0) return 9;
+          if (std::strcmp(model.cards[0].stateClass, "warning") != 0) return 10;
+          if (std::strcmp(model.cards[0].visualClass, "orange") != 0) return 11;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

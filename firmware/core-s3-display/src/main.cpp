@@ -259,6 +259,8 @@ struct ProxmoxState {
   int runningWatchedGuestCount = -1;
   int storageCount = -1;
   int maxStorageUsedPercent = -1;
+  int cpuPercent = -1;
+  char cpuCondition[16] = "healthy";
 };
 
 struct SummaryState {
@@ -427,6 +429,9 @@ void parseSummary(const String &json, const char *source) {
   state.proxmox.implemented = jsonBool(proxmox["implemented"], false);
   safeCopy(state.proxmox.condition, sizeof(state.proxmox.condition), proxmox["condition"] | "unavailable");
   safeCopy(state.proxmox.status, sizeof(state.proxmox.status), proxmox["status"] | "not_observed");
+  JsonObjectConst proxmoxCpuCard = proxmox["cards"]["cpu"].as<JsonObjectConst>();
+  state.proxmox.cpuPercent = jsonInt(proxmoxCpuCard["value_percent"], -1);
+  safeCopy(state.proxmox.cpuCondition, sizeof(state.proxmox.cpuCondition), proxmoxCpuCard["condition"] | "healthy");
   JsonObjectConst proxmoxEnvironment = proxmox["environment"].as<JsonObjectConst>();
   state.proxmox.nodeCount = jsonInt(proxmoxEnvironment["node_count"], -1);
   state.proxmox.onlineNodeCount = jsonInt(proxmoxEnvironment["online_node_count"], -1);
@@ -520,6 +525,8 @@ ProxmoxAmbientView makeProxmoxAmbientView() {
   view.hasLiveData = state.proxmox.hasLiveData;
   safeCopy(view.condition, sizeof(view.condition), state.proxmox.condition);
   safeCopy(view.status, sizeof(view.status), state.proxmox.status);
+  view.cpuPercent = state.proxmox.cpuPercent;
+  safeCopy(view.cpuCondition, sizeof(view.cpuCondition), state.proxmox.cpuCondition);
   return view;
 }
 
