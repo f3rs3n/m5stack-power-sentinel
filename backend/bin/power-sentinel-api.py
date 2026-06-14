@@ -657,6 +657,21 @@ def proxmox_storage_signals(storage_items: list[dict[str, Any]]) -> list[dict[st
     return signals
 
 
+def proxmox_storage_card(storage_items: list[dict[str, Any]]) -> dict[str, Any]:
+    card: dict[str, Any] = {"condition": "healthy"}
+    worst = max(
+        (item for item in storage_items if isinstance(item.get("used_percent"), int)),
+        key=lambda item: int(item["used_percent"]),
+        default=None,
+    )
+    if worst is None:
+        return card
+    used_percent = int(worst["used_percent"])
+    card["value_percent"] = used_percent
+    card["condition"] = "critical" if used_percent >= 95 else ("warning" if used_percent >= 85 else "healthy")
+    return card
+
+
 def parse_proxmox_qemu_guests(node_name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     data = payload.get("data")
     if not isinstance(data, list):
@@ -816,6 +831,7 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
         cpu_card, cpu_signal = proxmox_cpu_card_and_signal(nodes[0])
         ram_card, ram_signal = proxmox_memory_card_and_signal(nodes[0])
         storage = collect_proxmox_storage(module_config, nodes)
+        storage_card = proxmox_storage_card(storage)
         watched_guests = collect_proxmox_watched_guests(module_config, nodes, watched_vmids)
     except Exception as exc:
         return proxmox_empty_payload(
@@ -832,7 +848,7 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
         "observed_at": iso_utc(),
         "age_seconds": 0,
         "environment": proxmox_observed_environment(module_config, cluster_payload, nodes, storage, watched_vmids, watched_guests),
-        "cards": {"cpu": cpu_card, "ram": ram_card},
+        "cards": {"cpu": cpu_card, "ram": ram_card, "storage": storage_card},
         "nodes": nodes,
         "storage": storage,
         "watched_guests": watched_guests,

@@ -144,6 +144,10 @@ def main() -> int:
         "RAM CRIT",
         "Guests",
         "Storage",
+        "storagePercent",
+        "storageCondition",
+        "STOR WARN",
+        "STOR CRIT",
         "Network",
         "PLACEHOLDER",
     ], "Proxmox five-card Ambient Page skeleton"):
