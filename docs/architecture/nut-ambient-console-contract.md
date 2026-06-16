@@ -84,6 +84,27 @@ The migrated contract preserves the current Ledcards appearance by keeping visua
 - Unavailable telemetry remains visually purple.
 - Missing individual metric values render as `--` and do not synthesize healthy values.
 
+## Display standby and brightness policy
+
+The CoreS3 page remains visible by default and treats `DIM` as the automatic sleep state:
+
+- After the first valid summary payload, 5 minutes (`POWER_SENTINEL_DISPLAY_STANDBY_MS=300000UL`) without touch or meaningful state change fades `AWAKE` to `DIM`.
+- The hardware brightness fade is about 900 ms in the shipped config example.
+- Automatic standby stops at `DIM`; it does not continue to `OFF` while valid payloads are present.
+- `OFF` is reserved for deliberate 3-second long-press snooze or for a prolonged missing-payload condition after 15 minutes (`POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS=900000UL`).
+- Meaningful state changes, not noisy telemetry values, reset the standby timer: condition/severity, UPS availability/staleness, on-battery, low-battery, charging, normalized UPS status, and NUT client count.
+
+Current brightness defaults:
+
+- Static fallback: `AWAKE=120`, `DIM=36`.
+- Adaptive ALS raw breakpoints: `0/12/45/70/95/135`.
+- Adaptive `DIM` Backlight Level curve: `20/20/21/21/22/22`.
+- Adaptive `AWAKE` Backlight Level curve: `21/22/23/24/25/25`.
+- The firmware encodes each selected Backlight Level as a center-band nominal CoreS3 brightness value before calling M5GFX (`20->15`, `21->46`, `22->78`, `23->110`, `24->142`, `25->174`).
+- Adaptive slew stays at `step=1`, but the step is now a physical Backlight Level step. Intervals remain `high=96 ms`, `mid_high=136 ms`, `mid_low=160 ms`, and `low=192 ms`. This keeps the existing reaction delay/debounce while avoiding fake 0-255 transitions that collapse to the same physical output.
+
+The brightness policy should be hardware-aware: choose the target `Backlight Level` first, then encode it as a nominal CoreS3 brightness value for the hardware driver. Nominal 0-255 brightness values are not a behavioral contract because the CoreS3 backlight maps them into coarse physical levels. Adaptive transitions should smooth target changes between physical levels rather than animate through nominal values that collapse to the same Backlight Level.
+
 ## Validation
 
 Regression coverage lives in:

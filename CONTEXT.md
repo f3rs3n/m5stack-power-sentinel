@@ -40,6 +40,10 @@ _Avoid_: Generic instruction, embedded admin console, full remediation flow
 The CoreS3 display surface for glanceable status and lightweight interaction. Touch interactions belong here only when they are frequent, convenient, and meaningfully simpler than using the authoritative tool.
 _Avoid_: Primary workstation, full configuration UI
 
+**Backlight Level**:
+A physical brightness step that the CoreS3 display backlight can actually render after display hardware maps requested brightness values to its available output levels. Backlight levels are coarser than the firmware's nominal brightness values.
+_Avoid_: PWM step, brightness value, ALS level
+
 **Ambient Card**:
 A glanceable module signal with one responsibility and one compact value. An ambient card can be shown in reduced form or promoted into the hero position when its condition is the most relevant signal.
 _Avoid_: Dashboard widget, multi-metric panel

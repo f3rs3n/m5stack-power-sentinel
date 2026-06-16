@@ -54,10 +54,10 @@
 #define POWER_SENTINEL_DISPLAY_NO_PAYLOAD_OFF_MS 900000UL
 #endif
 #ifndef POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS
-#define POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS 160
+#define POWER_SENTINEL_DISPLAY_AWAKE_BRIGHTNESS 120
 #endif
 #ifndef POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS
-#define POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS 48
+#define POWER_SENTINEL_DISPLAY_DIM_BRIGHTNESS 36
 #endif
 #ifndef POWER_SENTINEL_DISPLAY_FADE_MS
 #define POWER_SENTINEL_DISPLAY_FADE_MS 400UL
@@ -90,16 +90,16 @@
 #define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_STEP 1
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_HIGH_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_HIGH_MS 24UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_HIGH_MS 96UL
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_HIGH_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_HIGH_MS 34UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_HIGH_MS 136UL
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_LOW_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_LOW_MS 40UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_MID_LOW_MS 160UL
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_LOW_MS
-#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_LOW_MS 48UL
+#define POWER_SENTINEL_ALS_BRIGHTNESS_SLEW_LOW_MS 192UL
 #endif
 #ifndef POWER_SENTINEL_ALS_BRIGHTENING_DEBOUNCE_MS
 #define POWER_SENTINEL_ALS_BRIGHTENING_DEBOUNCE_MS 300UL
@@ -129,41 +129,52 @@
 #define POWER_SENTINEL_ALS_INTERPOLATION_RAW_2 45
 #endif
 #ifndef POWER_SENTINEL_ALS_INTERPOLATION_RAW_3
-#define POWER_SENTINEL_ALS_INTERPOLATION_RAW_3 95
+#define POWER_SENTINEL_ALS_INTERPOLATION_RAW_3 70
+#endif
+#ifndef POWER_SENTINEL_ALS_INTERPOLATION_RAW_4
+#define POWER_SENTINEL_ALS_INTERPOLATION_RAW_4 95
 #endif
 #ifndef POWER_SENTINEL_ALS_INTERPOLATION_MAX_RAW
 #define POWER_SENTINEL_ALS_INTERPOLATION_MAX_RAW 135
 #endif
-#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_0
-#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_0 32
+#ifndef POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_0
+#define POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_0 20
 #endif
-#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_1
-#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_1 48
+#ifndef POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_1
+#define POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_1 20
 #endif
-#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_2
-#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_2 64
+#ifndef POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_2
+#define POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_2 21
 #endif
-#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_3
-#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_3 80
+#ifndef POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_3
+#define POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_3 21
 #endif
-#ifndef POWER_SENTINEL_ALS_DIM_BRIGHTNESS_4
-#define POWER_SENTINEL_ALS_DIM_BRIGHTNESS_4 96
+#ifndef POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_4
+#define POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_4 22
 #endif
-#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_0
-#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_0 80
+#ifndef POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_5
+#define POWER_SENTINEL_ALS_DIM_BACKLIGHT_LEVEL_5 22
 #endif
-#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_1
-#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_1 112
+#ifndef POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_0
+#define POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_0 21
 #endif
-#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_2
-#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_2 144
+#ifndef POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_1
+#define POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_1 22
 #endif
-#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_3
-#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_3 176
+#ifndef POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_2
+#define POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_2 23
 #endif
-#ifndef POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_4
-#define POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_4 208
+#ifndef POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_3
+#define POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_3 24
 #endif
+#ifndef POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_4
+#define POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_4 25
+#endif
+#ifndef POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_5
+#define POWER_SENTINEL_ALS_AWAKE_BACKLIGHT_LEVEL_5 25
+#endif
+
+#include "display-brightness-policy.h"
 
 #if POWER_SENTINEL_ALS_EMA_ALPHA_DEN == 0
 #error "POWER_SENTINEL_ALS_EMA_ALPHA_DEN must be greater than 0"
@@ -206,27 +217,6 @@ constexpr uint32_t kAlsBrighteningDebounceMs = POWER_SENTINEL_ALS_BRIGHTENING_DE
 constexpr uint32_t kAlsDarkeningDebounceMs = POWER_SENTINEL_ALS_DARKENING_DEBOUNCE_MS;
 constexpr uint8_t kAlsTargetFilterShift = POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT;
 constexpr uint8_t kAlsTargetDeadband = POWER_SENTINEL_ALS_TARGET_DEADBAND;
-constexpr uint16_t kAlsInterpolationRaw[5] = {
-  0,
-  POWER_SENTINEL_ALS_INTERPOLATION_RAW_1,
-  POWER_SENTINEL_ALS_INTERPOLATION_RAW_2,
-  POWER_SENTINEL_ALS_INTERPOLATION_RAW_3,
-  POWER_SENTINEL_ALS_INTERPOLATION_MAX_RAW,
-};
-constexpr uint8_t kAlsDimBrightness[5] = {
-  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_0,
-  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_1,
-  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_2,
-  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_3,
-  POWER_SENTINEL_ALS_DIM_BRIGHTNESS_4,
-};
-constexpr uint8_t kAlsAwakeBrightness[5] = {
-  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_0,
-  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_1,
-  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_2,
-  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_3,
-  POWER_SENTINEL_ALS_AWAKE_BRIGHTNESS_4,
-};
 
 struct UpsState {
   bool available = false;
@@ -656,36 +646,17 @@ uint8_t staticBrightnessForMode(DisplayMode mode) {
   return 0;
 }
 
-uint8_t interpolateAdaptiveBrightness(const uint8_t curve[5], uint16_t raw) {
-  if (raw <= kAlsInterpolationRaw[0]) return curve[0];
-  for (uint8_t i = 1; i < 5; ++i) {
-    uint16_t lowerRaw = kAlsInterpolationRaw[i - 1];
-    uint16_t upperRaw = kAlsInterpolationRaw[i];
-    if (upperRaw <= lowerRaw) continue;
-    if (raw <= upperRaw) {
-      int32_t lowerBrightness = curve[i - 1];
-      int32_t upperBrightness = curve[i];
-      int32_t span = static_cast<int32_t>(upperRaw - lowerRaw);
-      int32_t position = static_cast<int32_t>(raw - lowerRaw);
-      int32_t value = lowerBrightness + ((upperBrightness - lowerBrightness) * position + (span / 2)) / span;
-      if (value < 0) return 0;
-      if (value > 255) return 255;
-      return static_cast<uint8_t>(value);
-    }
-  }
-  return curve[4];
-}
-
 uint8_t adaptiveBrightnessForMode(DisplayMode mode) {
   uint16_t raw = alsEmaValid ? alsEmaCurrent : alsRawCurrent;
-  if (mode == DisplayMode::Dim) return interpolateAdaptiveBrightness(kAlsDimBrightness, raw);
-  if (mode == DisplayMode::Awake) return interpolateAdaptiveBrightness(kAlsAwakeBrightness, raw);
+  if (mode == DisplayMode::Dim) return psBrightnessForRaw(raw, PsBrightnessMode::Dim);
+  if (mode == DisplayMode::Awake) return psBrightnessForRaw(raw, PsBrightnessMode::Awake);
   return 0;
 }
 
 bool adaptiveBrightnessIsEndpointTarget(DisplayMode mode, uint8_t target) {
-  if (mode == DisplayMode::Dim) return target <= kAlsDimBrightness[0] || target >= kAlsDimBrightness[4];
-  if (mode == DisplayMode::Awake) return target <= kAlsAwakeBrightness[0] || target >= kAlsAwakeBrightness[4];
+  uint8_t level = psCoreS3BacklightLevelForBrightness(target);
+  if (mode == DisplayMode::Dim) return level <= psMinBacklightLevelForMode(PsBrightnessMode::Dim) || level >= psMaxBacklightLevelForMode(PsBrightnessMode::Dim);
+  if (mode == DisplayMode::Awake) return level <= psMinBacklightLevelForMode(PsBrightnessMode::Awake) || level >= psMaxBacklightLevelForMode(PsBrightnessMode::Awake);
   return target == 0;
 }
 
@@ -833,14 +804,22 @@ void updateAdaptiveBrightnessSlew(uint32_t now) {
   if (lastAlsBrightnessSlewMs != 0 && now - lastAlsBrightnessSlewMs < intervalMs) return;
   lastAlsBrightnessSlewMs = now;
 
-  uint8_t step = kAlsBrightnessSlewStep == 0 ? 1 : kAlsBrightnessSlewStep;
-  uint8_t next = displayBrightnessCurrent;
-  if (displayBrightnessCurrent < target) {
-    uint16_t raised = static_cast<uint16_t>(displayBrightnessCurrent) + step;
-    next = raised >= target ? target : static_cast<uint8_t>(raised);
-  } else {
-    next = displayBrightnessCurrent - target <= step ? target : static_cast<uint8_t>(displayBrightnessCurrent - step);
+  uint8_t currentLevel = psCoreS3BacklightLevelForBrightness(displayBrightnessCurrent);
+  uint8_t targetLevel = psCoreS3BacklightLevelForBrightness(target);
+  if (currentLevel == targetLevel) {
+    applyDisplayBrightness(target);
+    return;
   }
+
+  uint8_t levelStep = kAlsBrightnessSlewStep == 0 ? 1 : kAlsBrightnessSlewStep;
+  uint8_t nextLevel = currentLevel;
+  if (currentLevel < targetLevel) {
+    uint16_t raised = static_cast<uint16_t>(currentLevel) + levelStep;
+    nextLevel = raised >= targetLevel ? targetLevel : static_cast<uint8_t>(raised);
+  } else {
+    nextLevel = currentLevel - targetLevel <= levelStep ? targetLevel : static_cast<uint8_t>(currentLevel - levelStep);
+  }
+  uint8_t next = nextLevel == targetLevel ? target : psBrightnessForCoreS3BacklightLevel(nextLevel);
   applyDisplayBrightness(next);
 }
 
@@ -1179,6 +1158,31 @@ void setup() {
                 static_cast<unsigned long>(kDisplayNoPayloadOffMs),
                 static_cast<unsigned>(kDisplayAwakeBrightness),
                 static_cast<unsigned>(kDisplayDimBrightness));
+  Serial.printf("ALS brightness slew: high=%lu mid_high=%lu mid_low=%lu low=%lu step=%u\n",
+                static_cast<unsigned long>(kAlsBrightnessSlewHighMs),
+                static_cast<unsigned long>(kAlsBrightnessSlewMidHighMs),
+                static_cast<unsigned long>(kAlsBrightnessSlewMidLowMs),
+                static_cast<unsigned long>(kAlsBrightnessSlewLowMs),
+                static_cast<unsigned>(kAlsBrightnessSlewStep));
+  Serial.printf("ALS backlight levels: raw=%u,%u,%u,%u,%u,%u dim=%u,%u,%u,%u,%u,%u awake=%u,%u,%u,%u,%u,%u\n",
+                static_cast<unsigned>(kPsAlsInterpolationRaw[0]),
+                static_cast<unsigned>(kPsAlsInterpolationRaw[1]),
+                static_cast<unsigned>(kPsAlsInterpolationRaw[2]),
+                static_cast<unsigned>(kPsAlsInterpolationRaw[3]),
+                static_cast<unsigned>(kPsAlsInterpolationRaw[4]),
+                static_cast<unsigned>(kPsAlsInterpolationRaw[5]),
+                static_cast<unsigned>(kPsDimBacklightLevels[0]),
+                static_cast<unsigned>(kPsDimBacklightLevels[1]),
+                static_cast<unsigned>(kPsDimBacklightLevels[2]),
+                static_cast<unsigned>(kPsDimBacklightLevels[3]),
+                static_cast<unsigned>(kPsDimBacklightLevels[4]),
+                static_cast<unsigned>(kPsDimBacklightLevels[5]),
+                static_cast<unsigned>(kPsAwakeBacklightLevels[0]),
+                static_cast<unsigned>(kPsAwakeBacklightLevels[1]),
+                static_cast<unsigned>(kPsAwakeBacklightLevels[2]),
+                static_cast<unsigned>(kPsAwakeBacklightLevels[3]),
+                static_cast<unsigned>(kPsAwakeBacklightLevels[4]),
+                static_cast<unsigned>(kPsAwakeBacklightLevels[5]));
 }
 
 void loop() {

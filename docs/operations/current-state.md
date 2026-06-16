@@ -11,6 +11,7 @@ Implemented now:
 - `proxmox` has a first API-only/read-only backend adapter slice, but no CoreS3 page rendering yet.
 - StackFlow custom unit preserved as the only CoreS3 live-data transport; the CoreS3 firmware no longer has an HTTP client/fallback path.
 - CoreS3 firmware simplified to one screen: the new Ledcards NUT Monitor UI with Module LLM LAN, CoreS3 Wi-Fi, serial-link status, page dots, local time, and local battery glyph in the top row.
+- CoreS3 display standby policy is production-timed: after the first valid payload, 5 minutes without touch or meaningful state change fades `AWAKE` to `DIM`; the fade is about 900 ms. Automatic standby stops at `DIM`; `OFF` remains reserved for 3-second long-press snooze or 15 minutes without a valid payload. Current static brightness defaults are `AWAKE=120` and `DIM=36`; adaptive ALS is hardware-aware and targets physical Backlight Level curves `DIM 20/20/21/21/22/22` and `AWAKE 21/22/23/24/25/25` over raw breakpoints `0/12/45/70/95/135`, encoded as center-band nominal brightness values before calling M5GFX. Adaptive slew uses `step=1` with intervals `96/136/160/192 ms` from high to low brightness bands.
 - LVGL MCP fixture/results retained only for the NUT Ledcards interface.
 - Installer script supports `--modules nut[,proxmox,ha]`; `nut` is the active display module, `proxmox` is backend/API-only, and `ha` remains a placeholder.
 

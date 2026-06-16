@@ -44,7 +44,7 @@ def test_capture_serial_stream_decodes_lines_and_stops_at_max_lines():
     output = io.StringIO()
     serial_obj = FakeSerial([
         b"Power Sentinel nut-monitor-clean-baseline-2026-06-08 clean NUT monitor baseline\r\n",
-        b"Display policy: standby=300000 no_payload_off=900000 awake=160 dim=48\n",
+        b"Display policy: standby=300000 no_payload_off=900000 awake=120 dim=36\n",
         b"this third line should not be read\n",
     ])
 
