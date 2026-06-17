@@ -71,6 +71,49 @@ def test_proxmox_ambient_page_model_exposes_five_card_vocabulary_and_cpu_default
     assert output == "ok\n"
 
 
+def test_proxmox_ambient_page_model_healthy_observed_cards_use_health_positive_green_except_empty_guests():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.cpuPercent = 12;
+          view.ramPercent = 34;
+          view.guestRunning = 2;
+          view.guestTotal = 2;
+          view.storagePercent = 40;
+          view.networkPercent = 5;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "healthy");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.cpuCondition, sizeof(view.cpuCondition), "healthy");
+          proxmoxAmbientCopy(view.ramCondition, sizeof(view.ramCondition), "healthy");
+          proxmoxAmbientCopy(view.guestCondition, sizeof(view.guestCondition), "healthy");
+          proxmoxAmbientCopy(view.storageCondition, sizeof(view.storageCondition), "healthy");
+          proxmoxAmbientCopy(view.networkCondition, sizeof(view.networkCondition), "healthy");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+          for (int i = 0; i < 5; ++i) {
+            if (std::strcmp(model.cards[i].stateClass, "healthy") != 0) return 1 + i;
+            if (std::strcmp(model.cards[i].visualClass, "green") != 0) return 10 + i;
+          }
+
+          view.guestRunning = 0;
+          view.guestTotal = 0;
+          model = makeProxmoxAmbientPageModel(view);
+          if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 20;
+          if (std::strcmp(model.cards[2].visualClass, "blue") != 0) return 21;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
 def test_proxmox_ambient_page_model_legacy_api_nodes_signal_vocabulary_is_absent():
     output = compile_and_run(textwrap.dedent(r'''
         #include <cstring>

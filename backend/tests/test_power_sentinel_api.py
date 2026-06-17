@@ -94,7 +94,7 @@ def test_summary_contract_locks_stackflow_safe_aliases_and_top_row_fields():
     old_run = api.run_text_command
     old_systemd = api.systemd_active
     try:
-        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
         setattr(api, "systemd_active", lambda unit: True)
         summary = api.build_summary({"modules": {"nut": True}}, stackflow_safe=True)
 
@@ -135,7 +135,7 @@ def test_nut_summary_payload_counts_local_primary_and_configured_clients():
         setattr(api, "load_nut_clients", lambda: [
             {"name": "pve", "host": "192.168.2.99", "role": "secondary", "enabled": True}
         ])
-        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         setattr(api, "systemd_active", lambda unit: True)
         summary = api.build_summary({"modules": {"nut": True}})
         assert summary["nut"]["client_count"] == 2
@@ -150,7 +150,7 @@ def test_nut_summary_exposes_condition_and_legacy_severity_alias():
     old_run = api.run_text_command
     old_systemd = api.systemd_active
     try:
-        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         setattr(api, "systemd_active", lambda unit: True)
         summary = api.build_summary({"modules": {"nut": True}})
         assert summary["condition"] == "healthy"
@@ -187,13 +187,49 @@ def test_nut_condition_maps_power_states_to_legacy_severity_aliases():
         setattr(api, "systemd_active", old_systemd)
 
 
+def test_nut_condition_reflects_power_readiness_and_ambient_card_warnings():
+    old_run = api.run_text_command
+    old_systemd = api.systemd_active
+    old_load = api.load_nut_clients
+    try:
+        setattr(api, "systemd_active", lambda unit: True)
+        setattr(api, "load_nut_clients", lambda: [])
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL CHRG\nbattery.charge: 89\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
+        charging = api.build_summary({"modules": {"nut": True}})
+        assert charging["modules"]["nut"]["condition"] == "warning"
+        assert charging["modules"]["nut"]["severity"] == "warn"
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 72\ninput.voltage: 231", ""))
+        high_load = api.build_summary({"modules": {"nut": True}})
+        assert high_load["modules"]["nut"]["condition"] == "warning"
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 205", ""))
+        marginal_input = api.build_summary({"modules": {"nut": True}})
+        assert marginal_input["modules"]["nut"]["condition"] == "warning"
+
+        setattr(api, "systemd_active", lambda unit: False if unit == "nut-monitor.service" else True)
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
+        no_clients = api.build_summary({"modules": {"nut": True}})
+        assert no_clients["modules"]["nut"]["condition"] == "warning"
+
+        setattr(api, "systemd_active", lambda unit: True)
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 90\nups.load: 20\ninput.voltage: 231", ""))
+        critical_reserve = api.build_summary({"modules": {"nut": True}})
+        assert critical_reserve["modules"]["nut"]["condition"] == "critical"
+    finally:
+        setattr(api, "run_text_command", old_run)
+        setattr(api, "systemd_active", old_systemd)
+        setattr(api, "load_nut_clients", old_load)
+
+
 def test_condition_aggregation_ignores_disabled_modules_and_critical_wins():
     old_run = api.run_text_command
     old_systemd = api.systemd_active
     try:
         setattr(api, "systemd_active", lambda unit: True)
 
-        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         disabled_placeholders = api.build_summary({"modules": {"nut": True, "proxmox": False, "ha": False}})
         assert disabled_placeholders["condition"] == "healthy"
         assert disabled_placeholders["severity"] == "ok"
@@ -266,7 +302,7 @@ def test_enabled_proxmox_without_minimum_config_reports_unavailable_condition():
     old_run = api.run_text_command
     old_systemd = api.systemd_active
     try:
-        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 70", ""))
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         setattr(api, "systemd_active", lambda unit: True)
         summary = api.build_summary({"modules": {"nut": True, "proxmox": True}})
         proxmox = summary["modules"]["proxmox"]

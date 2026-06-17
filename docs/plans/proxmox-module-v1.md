@@ -166,7 +166,7 @@ Observation state is evaluated before observed problems:
 - If the module cannot observe Proxmox and has never had a successful observation, condition is `unavailable`.
 - If the last successful observation is older than the stale threshold, condition is `stale`.
 - If one ambient card is unavailable but the single-node host and the rest of the page can be observed, keep the module available and aggregate that card as at least warning-level attention rather than failing the whole module.
-- Otherwise aggregate fresh signals with worst condition wins: `critical` beats `warning`, and no signals means `healthy`.
+- Otherwise aggregate fresh actionable card/signal conditions with worst condition wins: `critical` beats `warning`, and no signals means `healthy`. Each card applies its own actionability rule before participating in module aggregation, such as sustained thresholds for CPU, RAM, and Network.
 
 ## Condition Inputs
 
@@ -203,11 +203,12 @@ Network pressure:
 - Do not warn on a single traffic burst.
 
 Guests:
-
 - Count both QEMU virtual machines and LXC containers.
 - The Guests card is an inventory summary, not a configured watched-guest allowlist.
 - `0/0` is neutral, not warning or critical, and should use the same neutral/blue visual language used by NUT for connected clients.
 - Neutral is a visual treatment only: `0/0` remains a healthy condition for aggregation and compatibility aliases.
+- Healthy observed CPU, RAM, Storage, and Network cards use green because they communicate health-positive operational state.
+- Guests with all visible guests running and total greater than zero uses green because it communicates health-positive workload state.
 - Guest start/stop/reboot control is out of scope.
 
 ## Test Cases

@@ -184,13 +184,31 @@ def summary_condition(conditions: list[str]) -> str:
     return "unavailable"
 
 
-def nut_condition(ups: dict[str, Any], services: dict[str, bool | None]) -> str:
+def nut_condition(ups: dict[str, Any], services: dict[str, bool | None], clients: list[dict[str, Any]] | None = None) -> str:
     if ups["would_shutdown"]:
         return "critical"
     server_ok = services["server_active"] is not False and services["driver_active"] is not False
     if ups.get("stale"):
         return "stale" if ups.get("available") else "unavailable"
-    if not server_ok or ups["on_battery"] or ups["low_battery"]:
+    battery_percent = ups.get("battery_percent")
+    runtime_seconds = ups.get("runtime_seconds")
+    load_percent = ups.get("load_percent")
+    input_voltage = ups.get("input_voltage")
+    if isinstance(runtime_seconds, int) and runtime_seconds < 120:
+        return "critical"
+    if isinstance(load_percent, int) and load_percent >= 90:
+        return "critical"
+    enabled_client_count = len([client for client in clients or [] if client.get("enabled")])
+    if (
+        not server_ok
+        or services["monitor_active"] is False
+        or enabled_client_count == 0
+        or ups["on_battery"]
+        or ups["low_battery"]
+        or (isinstance(battery_percent, int) and battery_percent < 90)
+        or (isinstance(load_percent, int) and load_percent >= 70)
+        or (isinstance(input_voltage, (int, float)) and input_voltage < 210.0)
+    ):
         return "warning"
     return "healthy"
 
@@ -311,7 +329,7 @@ def build_nut_summary(_config: dict[str, Any]) -> dict[str, Any]:
         "monitor_active": systemd_active("nut-monitor.service"),
     }
     clients = [local_nut_client(services), *load_nut_clients()]
-    condition = nut_condition(ups, services)
+    condition = nut_condition(ups, services, clients)
     severity = severity_for_condition(condition)
     return {
         "enabled": True,

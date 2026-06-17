@@ -71,7 +71,8 @@ The CoreS3 Ambient Console consumes the NUT module through the stable adapter co
 
 Current mapping:
 
-- line power normal (`OL`) -> `condition: healthy`, `severity: ok`
+- line power normal (`OL`) with battery at or above the full threshold -> `condition: healthy`, `severity: ok`
+- line power normal (`OL`) with battery below the full threshold -> `condition: warning`, `severity: warn`
 - on battery (`OB`) -> `condition: warning`, `severity: warn`
 - shutdown condition (`OB LB`) -> `condition: critical`, `severity: critical`
 - NUT/UPS unavailable -> `condition: unavailable`, `severity: warn`
@@ -88,6 +89,8 @@ Current mapping:
 - `beeper_status`, `transfer_reason`, `driver`
 
 Shutdown rule: `would_shutdown` is true only when `ups.status` contains both `OB` and `LB`. `OL ... LB` is warning/no-shutdown.
+
+Battery full threshold: battery charge at or above 90% is treated as full/ready for condition purposes, matching the existing visual threshold and avoiding permanent false warnings on UPS units that do not report exactly 100%.
 
 `modules.nut.nut` and top-level `nut` expose:
 

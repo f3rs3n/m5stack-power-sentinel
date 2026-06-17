@@ -80,7 +80,7 @@ inline const char *proxmoxAmbientConditionVisualClass(const char *condition) {
   if (strcmp(condition, "warning") == 0) return "orange";
   if (strcmp(condition, "stale") == 0) return "gray";
   if (strcmp(condition, "unavailable") == 0) return "purple";
-  return "blue";
+  return "green";
 }
 
 inline const char *proxmoxAmbientCpuStateText(const char *condition, bool hasValue) {
@@ -168,7 +168,11 @@ inline void fillProxmoxAmbientGuestCard(ProxmoxAmbientCard &card, const ProxmoxA
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "");
   proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientGuestStateText(condition, hasValue));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+  if (hasValue && view.guestRunning == 0 && view.guestTotal == 0 && strcmp(condition, "healthy") == 0) {
+    proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), "blue");
+  } else {
+    proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+  }
 }
 
 inline void fillProxmoxAmbientNetworkCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {

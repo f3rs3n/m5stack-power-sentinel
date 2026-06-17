@@ -124,6 +124,10 @@ _Avoid_: Readiness, status when meaning interpreted severity
 A condition where the module or homelab area does not require attention.
 _Avoid_: OK
 
+**Neutral Visual Treatment**:
+A visual treatment for healthy observations that are informational rather than health-positive. Neutral is a subset of healthy observations for presentation only; it is not a canonical condition and does not participate separately in condition aggregation.
+_Avoid_: Neutral condition, OK, unknown
+
 **Stale**:
 A condition where previously useful data is no longer fresh enough to trust. Stale points to a recency or data-flow problem, not necessarily a problem in the observed system.
 _Avoid_: Unavailable, offline

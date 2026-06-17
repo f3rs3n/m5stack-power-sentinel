@@ -96,8 +96,14 @@ inline const char *nutAmbientTelemetryState(const LedcardsInterfaceNutView &view
 inline const char *nutAmbientCondition(const LedcardsInterfaceNutView &view) {
   if (nutAmbientTelemetryUnavailable(view)) return "unavailable";
   if (nutAmbientTelemetryStale(view)) return "stale";
+  if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return "critical";
+  if (view.loadPercent >= 90) return "critical";
   if (view.onBattery && view.lowBattery) return "critical";
   if (view.onBattery || view.lowBattery) return "warning";
+  if (view.batteryPercent >= 0 && view.batteryPercent < 90) return "warning";
+  if (view.loadPercent >= 70) return "warning";
+  if (view.inputVoltage > 0.0f && view.inputVoltage < 210.0f) return "warning";
+  if (view.nutClientCount == 0) return "warning";
   return "healthy";
 }
 
@@ -137,10 +143,9 @@ inline const char *nutAmbientBatteryStateText(const LedcardsInterfaceNutView &vi
     if (view.lowBattery || view.batteryPercent < 20) return "LOW BATTERY";
     return "ON BATTERY";
   }
-  if (view.batteryPercent < 20) return "CHARGING";
   if (view.batteryPercent >= 90) return "FULL";
-  if (view.batteryPercent >= 50) return "ALMOST FULL";
-  return "CHARGING";
+  if (view.batteryPercent < 20) return "LOW BATTERY";
+  return view.charging ? "CHARGING" : "NOT READY";
 }
 
 inline const char *nutAmbientBatteryStateClass(const LedcardsInterfaceNutView &view) {
@@ -148,7 +153,7 @@ inline const char *nutAmbientBatteryStateClass(const LedcardsInterfaceNutView &v
   if (nutAmbientTelemetryStale(view)) return "stale";
   if (view.batteryPercent < 0) return "unavailable";
   if (view.onBattery && (view.lowBattery || view.batteryPercent < 10)) return "critical";
-  if (view.onBattery || view.lowBattery || view.batteryPercent < 50) return "warning";
+  if (view.onBattery || view.lowBattery || view.batteryPercent < 90) return "warning";
   return "healthy";
 }
 

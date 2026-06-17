@@ -115,7 +115,7 @@ Build firmware:
 
 ```bash
 cd firmware/core-s3-display
-pio run -e m5stack-cores3-ledcards-interface
+pio run -e m5stack-cores3
 ```
 
 ## Flash workflow
@@ -126,8 +126,27 @@ Default firmware:
 
 - StackFlow/UART interno su CoreS3 RX=G18 TX=G17, `Serial2`, 115200.
 - Nessun polling HTTP dal CoreS3 nella baseline corrente.
-- UI unica: NUT Monitor Ledcards.
+- UI live: NUT Monitor Ledcards + pagina Proxmox quando il backend la espone come modulo implementato.
 - Sleep display con long press; loop/telemetria restano attivi.
+
+Firmware di sviluppo/fixture:
+
+- `m5stack-cores3` è il firmware live: interroga StackFlow/UART e richiede `power-sentinel-api.service` + `power-sentinel-stackflow-unit.service` attivi sul Module LLM.
+- `m5stack-cores3-ledcards-interface` definisce `POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY=1` e carica una fixture visuale interna; usarlo solo per test statici di layout, non per validazione live.
+
+Flash live su host Linux con CoreS3 visibile come `/dev/ttyACM0`:
+
+```bash
+cd firmware/core-s3-display
+/home/martino/.platformio/penv/bin/pio run -e m5stack-cores3 -t upload --upload-port /dev/ttyACM0
+```
+
+Validazione live lato Module LLM:
+
+```bash
+curl -fsS 'http://192.168.2.202:8088/api/v1/summary?stackflow_safe=1' | python3 -m json.tool
+ssh root@192.168.2.202 'systemctl is-active power-sentinel-api.service power-sentinel-stackflow-unit.service'
+```
 
 ## Live-test serial capture
 

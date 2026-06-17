@@ -1,11 +1,38 @@
 # CoreS3 display firmware
 
-Clean baseline: NUT Monitor only.
+Clean baseline: live NUT Monitor plus Proxmox ambient page when the backend reports the Proxmox module as implemented/observed.
 
 ## Build
 
+Live firmware:
+
+```bash
+pio run -e m5stack-cores3
+```
+
+Static visual fixture firmware:
+
 ```bash
 pio run -e m5stack-cores3-ledcards-interface
+```
+
+`m5stack-cores3` is the production/live firmware. It does not embed the Ledcards fixture and fetches summaries through StackFlow over the internal UART. `m5stack-cores3-ledcards-interface` defines `POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY=1` and calls the internal visual fixture at boot; use it only for layout checks.
+
+## Flash live firmware
+
+On Linux hosts where the CoreS3 appears as `/dev/ttyACM0`:
+
+```bash
+/home/martino/.platformio/penv/bin/pio run -e m5stack-cores3 -t upload --upload-port /dev/ttyACM0
+```
+
+The committed `platformio.ini` still carries the Windows/DOOMTRAIN `COM4` default for local IDE convenience, so pass `--upload-port /dev/ttyACM0` from Hermes/Linux sessions.
+
+After flashing live firmware, verify that the Module LLM is serving real data and that StackFlow is available:
+
+```bash
+curl -fsS 'http://192.168.2.202:8088/api/v1/summary?stackflow_safe=1' | python3 -m json.tool
+ssh root@192.168.2.202 'systemctl is-active power-sentinel-api.service power-sentinel-stackflow-unit.service'
 ```
 
 ## Live serial capture
@@ -64,6 +91,6 @@ CoreS3 HTTP polling is out of scope for the current baseline; live data comes th
 
 ## UI
 
-`src/main.cpp` only fetches/parses NUT summary fields and drives `ledcards-interface-page.*`.
+`src/main.cpp` fetches/parses the live summary and drives `ledcards-interface-page.*` for the NUT page plus the Proxmox page when `modules.proxmox.enabled && modules.proxmox.implemented`.
 
 Legacy HOME/PVE/HA/M5S tab rendering is intentionally absent from this baseline. Reintroduce future pages as separate modules after their backend contracts are restored.
