@@ -1,6 +1,7 @@
 // Live-data Ledcards Interface NUT/UPS overview.
 // Layout remains synchronized with assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c.
 #include "ledcards-interface-page.h"
+#include "ledcards-graphics.h"
 #include "nut-ambient-page-model.h"
 #include "proxmox-ambient-page-model.h"
 
@@ -34,29 +35,11 @@ enum HeroStateMarker {
   STATE_INPUT_LOW,
 };
 
-struct MetricRender {
+struct MetricRender : LedcardsAmbientCardRender {
   MetricKind kind;
   HeroStateMarker state;
-  char value[16];
-  char label[12];
-  char unit[8];
-  char stateText[20];
-  uint32_t accent;
-  uint32_t fill;
-  uint32_t stateColor;
 };
 
-constexpr uint32_t kGreen = 0x14dc78;
-constexpr uint32_t kBlue = 0x1cb5f0;
-constexpr uint32_t kYellow = 0xfcca3d;
-constexpr uint32_t kOrange = 0xff8a2a;
-constexpr uint32_t kOrangeText = 0xffb064;
-constexpr uint32_t kRed = 0xff4e3e;
-constexpr uint32_t kRedText = 0xff6a57;
-constexpr uint32_t kGray = 0x6c7470;
-constexpr uint32_t kGrayText = 0xc1c5c1;
-constexpr uint32_t kPurple = 0x9b5cff;
-constexpr uint32_t kPurpleText = 0xc4b5fd;
 constexpr uint32_t kHeroCooldownMs = 5000;
 constexpr uint32_t kTouchHeroOverrideMs = 60000;
 
@@ -86,11 +69,6 @@ bool hasLastRenderedProxmoxModel = false;
 ProxmoxAmbientView pendingProxmoxAnimationView{};
 LedcardsInterfaceNutView pendingProxmoxAnimationStatusView{};
 bool hasPendingProxmoxAnimationView = false;
-
-struct SlotPosition {
-  int x;
-  int y;
-};
 
 struct RingGhostAnim {
   lv_obj_t *obj;
@@ -150,36 +128,6 @@ static lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y, int w, 
   return l;
 }
 
-static uint32_t state_fill(uint32_t c) {
-  if (c == kRed) return 0x200d0c;
-  if (c == kOrange) return 0x241307;
-  if (c == kYellow) return 0x221c08;
-  if (c == kBlue) return 0x07161d;
-  if (c == kPurple) return 0x180f26;
-  if (c == kGray) return 0x101514;
-  return 0x071c12;
-}
-
-static uint32_t state_text_color(uint32_t c) {
-  if (c == kRed) return kRedText;
-  if (c == kOrange) return kOrangeText;
-  if (c == kYellow) return kYellow;
-  if (c == kBlue) return kBlue;
-  if (c == kPurple) return kPurpleText;
-  if (c == kGray) return kGrayText;
-  return 0x9bb2a0;
-}
-
-static uint32_t visual_class_color(const char *visualClass) {
-  if (strcmp(visualClass, "red") == 0) return kRed;
-  if (strcmp(visualClass, "orange") == 0) return kOrange;
-  if (strcmp(visualClass, "yellow") == 0) return kYellow;
-  if (strcmp(visualClass, "blue") == 0) return kBlue;
-  if (strcmp(visualClass, "purple") == 0) return kPurple;
-  if (strcmp(visualClass, "gray") == 0) return kGray;
-  return kGreen;
-}
-
 static MetricKind metric_kind_for_model_kind(NutAmbientMetricKind kind) {
   switch (kind) {
     case NUT_AMBIENT_METRIC_RUNTIME: return METRIC_TTE;
@@ -226,13 +174,13 @@ static MetricRender metric_for(MetricKind kind, const LedcardsInterfaceNutView &
   MetricRender m{};
   m.kind = kind;
   m.state = hero_state_for_card(card);
-  m.accent = visual_class_color(card.visualClass);
-  m.fill = state_fill(m.accent);
-  m.stateColor = state_text_color(m.accent);
-  nutAmbientCopy(m.value, sizeof(m.value), compactTte ? card.compactValue : card.value);
-  nutAmbientCopy(m.label, sizeof(m.label), card.label);
-  nutAmbientCopy(m.unit, sizeof(m.unit), compactTte ? card.compactUnit : card.unit);
-  nutAmbientCopy(m.stateText, sizeof(m.stateText), card.stateText);
+  m.accent = ledcardsVisualClassColor(card.visualClass);
+  m.fill = ledcardsStateFill(m.accent);
+  m.stateColor = ledcardsStateTextColor(m.accent);
+  ledcardsAmbientCopy(m.value, sizeof(m.value), compactTte ? card.compactValue : card.value);
+  ledcardsAmbientCopy(m.label, sizeof(m.label), card.label);
+  ledcardsAmbientCopy(m.unit, sizeof(m.unit), compactTte ? card.compactUnit : card.unit);
+  ledcardsAmbientCopy(m.stateText, sizeof(m.stateText), card.stateText);
   return m;
 }
 
@@ -436,14 +384,8 @@ static lv_obj_t *tile(lv_obj_t *screen, int x, int y, const MetricRender &m, boo
   return t;
 }
 
-static SlotPosition slot_position(int slot) {
-  switch (slot) {
-    case 0: return {43, 57};
-    case 1: return {166, 124};
-    case 2: return {166, 182};
-    case 3: return {12, 182};
-    default: return {12, 124};
-  }
+static LedcardsRingSlotPosition slot_position(int slot) {
+  return ledcardsRingSlotPosition(static_cast<uint8_t>(slot));
 }
 
 static uint16_t segment_visual_length(uint8_t fromSlot, uint8_t toSlot) {
@@ -452,8 +394,8 @@ static uint16_t segment_visual_length(uint8_t fromSlot, uint8_t toSlot) {
     // its raw pixel width so it has the inertia of a larger card in the chain.
     return 360;
   }
-  SlotPosition from = slot_position(fromSlot);
-  SlotPosition to = slot_position(toSlot);
+  LedcardsRingSlotPosition from = slot_position(fromSlot);
+  LedcardsRingSlotPosition to = slot_position(toSlot);
   int dx = from.x > to.x ? from.x - to.x : to.x - from.x;
   int dy = from.y > to.y ? from.y - to.y : to.y - from.y;
   return static_cast<uint16_t>(dx > dy ? dx : dy);
@@ -476,7 +418,7 @@ static uint32_t chain_duration_ms(uint16_t maxPathLength) {
   return duration;
 }
 
-static void place_between(lv_obj_t *obj, const SlotPosition &from, const SlotPosition &to, int32_t progress) {
+static void place_between(lv_obj_t *obj, const LedcardsRingSlotPosition &from, const LedcardsRingSlotPosition &to, int32_t progress) {
   lv_obj_set_pos(obj,
                  from.x + ((to.x - from.x) * progress) / 1000,
                  from.y + ((to.y - from.y) * progress) / 1000);
@@ -511,8 +453,8 @@ static void place_ghost_between_slots(RingGhostAnim *anim, uint8_t fromSlot, uin
 
   lv_obj_set_style_opa(anim->heroObj, 0, 0);
   lv_obj_set_style_opa(anim->obj, anim->baseOpa, 0);
-  SlotPosition from = slot_position(fromSlot);
-  SlotPosition to = slot_position(toSlot);
+  LedcardsRingSlotPosition from = slot_position(fromSlot);
+  LedcardsRingSlotPosition to = slot_position(toSlot);
   place_between(anim->obj, from, to, segProgress);
 }
 
@@ -641,7 +583,7 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
 
     uint8_t firstMiniSlot = anim.path[0] == 0 ? anim.path[1] : anim.path[0];
     if (firstMiniSlot == 0) firstMiniSlot = anim.path[chainSteps];
-    SlotPosition start = slot_position(firstMiniSlot == 0 ? 4 : firstMiniSlot);
+    LedcardsRingSlotPosition start = slot_position(firstMiniSlot == 0 ? 4 : firstMiniSlot);
     lv_obj_t *ghost = tile(ringAnimationOverlay, start.x, start.y, metric_for(kind, overlayView, true), false);
     lv_obj_t *heroGhost = hero_card(ringAnimationOverlay, kHeroCardX, kHeroCardY, metric_for(kind, overlayView), true);
     anim.obj = ghost;
@@ -705,13 +647,13 @@ static MetricRender proxmox_metric_for_card(const ProxmoxAmbientCard &card, Metr
   MetricRender metric{};
   metric.kind = kind;
   metric.state = STATE_NOMINAL;
-  metric.accent = visual_class_color(card.visualClass);
-  metric.fill = state_fill(metric.accent);
-  metric.stateColor = state_text_color(metric.accent);
-  proxmoxAmbientCopy(metric.value, sizeof(metric.value), card.value);
-  proxmoxAmbientCopy(metric.label, sizeof(metric.label), card.label);
-  proxmoxAmbientCopy(metric.unit, sizeof(metric.unit), card.unit);
-  proxmoxAmbientCopy(metric.stateText, sizeof(metric.stateText), card.stateText);
+  metric.accent = ledcardsVisualClassColor(card.visualClass);
+  metric.fill = ledcardsStateFill(metric.accent);
+  metric.stateColor = ledcardsStateTextColor(metric.accent);
+  ledcardsAmbientCopy(metric.value, sizeof(metric.value), card.value);
+  ledcardsAmbientCopy(metric.label, sizeof(metric.label), card.label);
+  ledcardsAmbientCopy(metric.unit, sizeof(metric.unit), card.unit);
+  ledcardsAmbientCopy(metric.stateText, sizeof(metric.stateText), card.stateText);
   return metric;
 }
 
@@ -730,15 +672,15 @@ static MetricRender proxmox_hero_metric(const ProxmoxAmbientPageModel &model) {
   MetricRender metric{};
   metric.kind = proxmox_metric_kind_for_card_index(model.heroCardIndex);
   metric.state = STATE_NOMINAL;
-  metric.accent = visual_class_color(model.visualClass);
-  metric.fill = state_fill(metric.accent);
-  metric.stateColor = state_text_color(metric.accent);
-  proxmoxAmbientCopy(metric.value, sizeof(metric.value), model.heroDisplayValue);
-  proxmoxAmbientCopy(metric.label, sizeof(metric.label), model.heroTitle);
+  metric.accent = ledcardsVisualClassColor(model.visualClass);
+  metric.fill = ledcardsStateFill(metric.accent);
+  metric.stateColor = ledcardsStateTextColor(metric.accent);
+  ledcardsAmbientCopy(metric.value, sizeof(metric.value), model.heroDisplayValue);
+  ledcardsAmbientCopy(metric.label, sizeof(metric.label), model.heroTitle);
   if (model.heroCardIndex < model.cardCount) {
-    proxmoxAmbientCopy(metric.unit, sizeof(metric.unit), model.cards[model.heroCardIndex].unit);
+    ledcardsAmbientCopy(metric.unit, sizeof(metric.unit), model.cards[model.heroCardIndex].unit);
   }
-  proxmoxAmbientCopy(metric.stateText, sizeof(metric.stateText), model.heroDetail);
+  ledcardsAmbientCopy(metric.stateText, sizeof(metric.stateText), model.heroDetail);
   return metric;
 }
 
@@ -874,7 +816,7 @@ static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbient
 
     uint8_t firstMiniSlot = chainSteps == 0 ? static_cast<uint8_t>(oldSlot) : (anim.path[0] == 0 ? anim.path[1] : anim.path[0]);
     if (chainSteps > 0 && firstMiniSlot == 0) firstMiniSlot = anim.path[chainSteps];
-    SlotPosition start = slot_position(firstMiniSlot == 0 ? 4 : firstMiniSlot);
+    LedcardsRingSlotPosition start = slot_position(firstMiniSlot == 0 ? 4 : firstMiniSlot);
     const ProxmoxAmbientCard &card = lastRenderedProxmoxModel.cards[cardIndex];
     MetricKind kind = proxmox_metric_kind_for_card_index(cardIndex);
     MetricRender render = proxmox_metric_for_card(card, kind);

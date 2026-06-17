@@ -9,6 +9,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
+LEDCARDS_GRAPHICS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-graphics.h"
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
 NUT_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "nut-ambient-page-model.h"
 PROXMOX_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "proxmox-ambient-page-model.h"
@@ -29,10 +30,10 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
-    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
+    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + LEDCARDS_GRAPHICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
     if require(main, [
         "nut-monitor-clean-baseline",
         "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())",
@@ -105,18 +106,23 @@ def main() -> int:
         "METRIC_BATTERY", "METRIC_TTE", "METRIC_LOAD", "METRIC_INPUT", "METRIC_NUT",
         "compactValue", "visualClass", "nutAmbientFormatRuntimeFull", "nutAmbientFormatRuntimeMinutes",
         "CRITICAL RUNTIME", "LOW BATTERY", "UNAVAILABLE",
-        "visual_class_color", "card_for_metric", "hero_state_for_card",
+        "ledcardsVisualClassColor", "card_for_metric", "hero_state_for_card",
         "NutAmbientHeroPolicyInput", "acceptNutAmbientHeroMetric", "makeNutAmbientTouchHeroOverride",
         "start_ring_transition", "on_tile_clicked",
     ], "Ledcards Interface"):
         return 1
     if require(ledcards, [
+        "struct LedcardsAmbientCardRender",
         "char label[12];",
         "char unit[8];",
         "char stateText[20];",
-        "nutAmbientCopy(m.label, sizeof(m.label), card.label);",
-        "nutAmbientCopy(m.unit, sizeof(m.unit), compactTte ? card.compactUnit : card.unit);",
-        "nutAmbientCopy(m.stateText, sizeof(m.stateText), card.stateText);",
+        "ledcardsAmbientCopy(m.label, sizeof(m.label), card.label);",
+        "ledcardsAmbientCopy(m.unit, sizeof(m.unit), compactTte ? card.compactUnit : card.unit);",
+        "ledcardsAmbientCopy(m.stateText, sizeof(m.stateText), card.stateText);",
+        "ledcardsAmbientCopy(metric.label, sizeof(metric.label), card.label);",
+        "struct LedcardsRingSlotPosition",
+        "ledcardsRingSlotPosition",
+        "kLedcardsRingSlotCount",
     ], "Ledcards metric text ownership"):
         return 1
     if "const char *label;" in ledcards or "const char *unit;" in ledcards or "const char *stateText;" in ledcards:
