@@ -73,6 +73,14 @@ lv_obj_t *ringAnimationOverlay = nullptr;
 LedcardsInterfaceNutView pendingAnimationView{};
 bool hasPendingAnimationView = false;
 bool proxmoxRingAnimationActive = false;
+bool proxmoxTouchHeroOverrideActive = false;
+uint8_t proxmoxTouchHeroOverrideCardIndex = 0;
+uint32_t proxmoxTouchHeroOverrideUntilMs = 0;
+ProxmoxAmbientView lastRenderedProxmoxView{};
+LedcardsInterfaceNutView lastRenderedProxmoxStatusView{};
+uint8_t proxmoxSlotOrder[5] = {0, 1, 2, 3, 4};
+uint8_t proxmoxSlotCount = 5;
+bool hasProxmoxSlotOrder = false;
 ProxmoxAmbientPageModel lastRenderedProxmoxModel{};
 bool hasLastRenderedProxmoxModel = false;
 ProxmoxAmbientView pendingProxmoxAnimationView{};
@@ -106,6 +114,7 @@ static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutVie
 static void start_ring_transition(lv_obj_t *screen, MetricKind target, const LedcardsInterfaceNutView &view);
 static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);
 static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView, const ProxmoxAmbientPageModel &model);
+static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);
 
 static lv_color_t C(uint32_t hex) { return lv_color_hex(hex); }
 
@@ -261,13 +270,6 @@ static uint8_t ring_steps_to_hero(int pos, int direction) {
   return static_cast<uint8_t>(direction > 0 ? (5 - pos) % 5 : pos);
 }
 
-static int ring_direction_between_slots(int fromSlot, int toSlot) {
-  if (fromSlot == toSlot) return 0;
-  int forwardSteps = (toSlot - fromSlot + 5) % 5;
-  int reverseSteps = (fromSlot - toSlot + 5) % 5;
-  return forwardSteps <= reverseSteps ? 1 : -1;
-}
-
 static uint8_t ring_steps_between_slots(int fromSlot, int toSlot, int direction) {
   if (fromSlot == toSlot || direction == 0) return 0;
   return static_cast<uint8_t>(direction > 0 ? (toSlot - fromSlot + 5) % 5 : (fromSlot - toSlot + 5) % 5);
@@ -397,6 +399,28 @@ static void on_tile_clicked(lv_event_t *event) {
   if (hasLastRenderedView) start_ring_transition(lv_screen_active(), touchHeroOverrideMetric, lastRenderedView);
 }
 
+static void on_proxmox_tile_clicked(lv_event_t *event) {
+  if (lv_event_get_code(event) != LV_EVENT_CLICKED || ringAnimationActive) return;
+  uintptr_t raw = reinterpret_cast<uintptr_t>(lv_event_get_user_data(event));
+  if (raw >= 5) return;
+  uint32_t now = millis();
+  ProxmoxAmbientTouchHeroOverride touch = makeProxmoxAmbientTouchHeroOverride(static_cast<uint8_t>(raw), now, kTouchHeroOverrideMs);
+  proxmoxTouchHeroOverrideCardIndex = touch.cardIndex;
+  proxmoxTouchHeroOverrideUntilMs = touch.untilMs;
+  proxmoxTouchHeroOverrideActive = touch.active;
+  if (hasLastRenderedProxmoxModel) render_proxmox_ambient(lv_screen_active(), lastRenderedProxmoxView, lastRenderedProxmoxStatusView);
+}
+
+static void add_tile_hit(lv_obj_t *tileObj, lv_event_cb_t handler, uintptr_t userData) {
+  lv_obj_t *hit = lv_obj_create(tileObj);
+  lv_obj_remove_style_all(hit);
+  lv_obj_set_size(hit, 142, 46);
+  lv_obj_set_pos(hit, 0, 0);
+  lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_event_cb(hit, handler, LV_EVENT_CLICKED, reinterpret_cast<void *>(userData));
+}
+
 static lv_obj_t *tile(lv_obj_t *screen, int x, int y, const MetricRender &m, bool clickable = true) {
   lv_obj_t *t = box(screen, x, y, 142, 46, 7, m.fill, 0x141e1b);
   box(t, 7, 8, 5, 28, 3, m.accent, 0);
@@ -408,15 +432,7 @@ static lv_obj_t *tile(lv_obj_t *screen, int x, int y, const MetricRender &m, boo
   // Mini-card Runtime is minutes-only because clock-form values such as "06:24"
   // are too tight for this physical TFT/card geometry.
   label(t, m.value, 20, 8, 58, &ps_font_ddin_condensed_bold_40, 0xf5f6f2);
-  if (clickable) {
-    lv_obj_t *hit = lv_obj_create(t);
-    lv_obj_remove_style_all(hit);
-    lv_obj_set_size(hit, 142, 46);
-    lv_obj_set_pos(hit, 0, 0);
-    lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_scrollbar_mode(hit, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_event_cb(hit, on_tile_clicked, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<uintptr_t>(m.kind)));
-  }
+  if (clickable) add_tile_hit(t, on_tile_clicked, static_cast<uintptr_t>(m.kind));
   return t;
 }
 
@@ -728,13 +744,17 @@ static MetricRender proxmox_hero_metric(const ProxmoxAmbientPageModel &model) {
 
 static uint8_t fill_proxmox_slot_order(const ProxmoxAmbientPageModel &model, uint8_t order[5]) {
   if (model.cardCount == 0 || model.heroCardIndex >= model.cardCount) return 0;
-  order[0] = model.heroCardIndex;
-  uint8_t slot = 1;
-  for (uint8_t i = 0; i < model.cardCount && slot < 5; ++i) {
-    if (i == model.heroCardIndex) continue;
-    order[slot++] = i;
+  uint8_t count = model.cardCount > 5 ? 5 : model.cardCount;
+  for (uint8_t i = 0; i < count; ++i) order[i] = i;
+  proxmoxAmbientRotateSlotOrderToHero(order, count, model.heroCardIndex);
+  return count;
+}
+
+static void ensure_proxmox_slot_order(const ProxmoxAmbientPageModel &model) {
+  if (!hasProxmoxSlotOrder || proxmoxSlotCount != model.cardCount) {
+    proxmoxSlotCount = fill_proxmox_slot_order(model, proxmoxSlotOrder);
+    hasProxmoxSlotOrder = proxmoxSlotCount > 0;
   }
-  return slot;
 }
 
 static int find_proxmox_card_slot(const uint8_t order[5], uint8_t count, uint8_t cardIndex) {
@@ -744,8 +764,24 @@ static int find_proxmox_card_slot(const uint8_t order[5], uint8_t count, uint8_t
   return -1;
 }
 
-static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+static ProxmoxAmbientPageModel proxmox_model_with_touch_focus(const ProxmoxAmbientView &view, uint32_t nowMillis) {
   ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+  ProxmoxAmbientHeroPolicyInput input{};
+  input.currentHeroCardIndex = hasLastRenderedProxmoxModel ? lastRenderedProxmoxModel.heroCardIndex : model.heroCardIndex;
+  input.touchOverrideActive = proxmoxTouchHeroOverrideActive;
+  input.touchOverrideCardIndex = proxmoxTouchHeroOverrideCardIndex;
+  input.touchOverrideUntilMs = proxmoxTouchHeroOverrideUntilMs;
+  input.nowMillis = nowMillis;
+  ProxmoxAmbientHeroPolicyDecision decision = acceptProxmoxAmbientHeroCard(model, input);
+  proxmoxTouchHeroOverrideActive = decision.touchOverrideActive;
+  applyProxmoxAmbientHeroCard(model, decision.acceptedHeroCardIndex);
+  return model;
+}
+
+static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+  ProxmoxAmbientPageModel model = proxmox_model_with_touch_focus(view, statusView.nowMillis);
+  lastRenderedProxmoxView = view;
+  lastRenderedProxmoxStatusView = statusView;
   lastRenderedProxmoxModel = model;
   hasLastRenderedProxmoxModel = true;
   lv_obj_clean(screen);
@@ -755,13 +791,18 @@ static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientVi
 
   top_status(screen, statusView);
   hero_card(screen, kHeroCardX, kHeroCardY, proxmox_hero_metric(model), true);
+  ensure_proxmox_slot_order(model);
 
   const int xs[4] = {166, 166, 12, 12};
   const int ys[4] = {124, 182, 182, 124};
   const MetricKind kinds[4] = {METRIC_NUT, METRIC_INPUT, METRIC_LOAD, METRIC_TTE};
-  for (uint8_t i = 0; i < proxmoxReducedCardCount(model) && i < 4; ++i) {
-    const ProxmoxAmbientCard *card = proxmoxReducedCardAt(model, i);
-    if (card) tile(screen, xs[i], ys[i], proxmox_metric_for_card(*card, kinds[i]), false);
+  for (uint8_t slot = 1; slot < proxmoxSlotCount && slot <= 4; ++slot) {
+    uint8_t cardIndex = proxmoxSlotOrder[slot];
+    if (cardIndex < model.cardCount) {
+      const ProxmoxAmbientCard &card = model.cards[cardIndex];
+      lv_obj_t *cardTile = tile(screen, xs[slot - 1], ys[slot - 1], proxmox_metric_for_card(card, kinds[slot - 1]), false);
+      add_tile_hit(cardTile, on_proxmox_tile_clicked, static_cast<uintptr_t>(cardIndex));
+    }
   }
 }
 
@@ -777,15 +818,25 @@ static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbient
     return;
   }
 
+  ensure_proxmox_slot_order(lastRenderedProxmoxModel);
   uint8_t oldOrder[5]{};
   uint8_t newOrder[5]{};
-  uint8_t oldCount = fill_proxmox_slot_order(lastRenderedProxmoxModel, oldOrder);
-  uint8_t newCount = fill_proxmox_slot_order(model, newOrder);
+  uint8_t oldCount = proxmoxSlotCount;
+  uint8_t newCount = proxmoxSlotCount;
+  for (uint8_t i = 0; i < oldCount; ++i) {
+    oldOrder[i] = proxmoxSlotOrder[i];
+    newOrder[i] = proxmoxSlotOrder[i];
+  }
   int targetOldSlot = find_proxmox_card_slot(oldOrder, oldCount, model.heroCardIndex);
-  if (targetOldSlot <= 0 || oldCount != newCount) {
+  bool rotated = proxmoxAmbientRotateSlotOrderToHero(newOrder, newCount, model.heroCardIndex);
+  if (targetOldSlot <= 0 || oldCount != newCount || !rotated) {
     draw_proxmox_ambient_static(screen, view, statusView);
     return;
   }
+
+  for (uint8_t i = 0; i < newCount; ++i) proxmoxSlotOrder[i] = newOrder[i];
+  proxmoxSlotCount = newCount;
+  hasProxmoxSlotOrder = true;
 
   pendingProxmoxAnimationView = view;
   pendingProxmoxAnimationStatusView = statusView;
@@ -809,7 +860,7 @@ static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbient
     uint8_t cardIndex = oldOrder[oldSlot];
     int newSlot = find_proxmox_card_slot(newOrder, newCount, cardIndex);
     if (newSlot < 0) continue;
-    int ringDirection = ring_direction_between_slots(oldSlot, newSlot);
+    int ringDirection = heroRingDirection;
     uint8_t chainSteps = ring_steps_between_slots(oldSlot, newSlot, ringDirection);
     RingGhostAnim &anim = ringGhostAnimations[oldSlot];
     anim.steps = chainSteps;
@@ -867,7 +918,7 @@ static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbient
 }
 
 static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
-  ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+  ProxmoxAmbientPageModel model = proxmox_model_with_touch_focus(view, statusView.nowMillis);
   if (ringAnimationActive) {
     pendingProxmoxAnimationView = view;
     pendingProxmoxAnimationStatusView = statusView;

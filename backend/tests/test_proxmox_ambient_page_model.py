@@ -567,3 +567,97 @@ def test_proxmox_ambient_page_model_does_not_animate_unavailable_or_stale_teleme
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_slot_order_rotates_as_one_ring_when_promoting_cards():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        static int assert_order(const uint8_t actual[5], const uint8_t expected[5]) {
+          for (uint8_t i = 0; i < 5; ++i) {
+            if (actual[i] != expected[i]) return 1 + i;
+          }
+          return 0;
+        }
+
+        int main() {
+          uint8_t order[5] = {0, 1, 2, 3, 4};
+          if (!proxmoxAmbientRotateSlotOrderToHero(order, 5, 1)) return 1;
+          uint8_t ramHero[5] = {1, 2, 3, 4, 0};
+          if (assert_order(order, ramHero) != 0) return 10 + assert_order(order, ramHero);
+
+          if (!proxmoxAmbientRotateSlotOrderToHero(order, 5, 3)) return 2;
+          uint8_t storageHero[5] = {3, 4, 0, 1, 2};
+          if (assert_order(order, storageHero) != 0) return 20 + assert_order(order, storageHero);
+
+          if (!proxmoxAmbientRotateSlotOrderToHero(order, 5, 4)) return 3;
+          uint8_t networkHero[5] = {4, 0, 1, 2, 3};
+          if (assert_order(order, networkHero) != 0) return 30 + assert_order(order, networkHero);
+
+          uint8_t beforeNoop[5] = {4, 0, 1, 2, 3};
+          if (proxmoxAmbientRotateSlotOrderToHero(order, 5, 4)) return 4;
+          if (assert_order(order, beforeNoop) != 0) return 40 + assert_order(order, beforeNoop);
+
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_touch_override_promotes_selected_card_then_expires_to_canonical_hero():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.cpuPercent = 10;
+          view.ramPercent = 20;
+          view.guestRunning = 0;
+          view.guestTotal = 0;
+          view.storagePercent = 55;
+          view.networkPercent = 5;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "warning");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.cpuCondition, sizeof(view.cpuCondition), "healthy");
+          proxmoxAmbientCopy(view.ramCondition, sizeof(view.ramCondition), "healthy");
+          proxmoxAmbientCopy(view.guestCondition, sizeof(view.guestCondition), "healthy");
+          proxmoxAmbientCopy(view.storageCondition, sizeof(view.storageCondition), "warning");
+          proxmoxAmbientCopy(view.networkCondition, sizeof(view.networkCondition), "healthy");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+          if (model.heroCardIndex != 3) return 1;
+
+          ProxmoxAmbientTouchHeroOverride touch = makeProxmoxAmbientTouchHeroOverride(2, 1000, 60000);
+          ProxmoxAmbientHeroPolicyInput input{};
+          input.currentHeroCardIndex = model.heroCardIndex;
+          input.touchOverrideActive = touch.active;
+          input.touchOverrideCardIndex = touch.cardIndex;
+          input.touchOverrideUntilMs = touch.untilMs;
+          input.nowMillis = 2000;
+
+          ProxmoxAmbientHeroPolicyDecision decision = acceptProxmoxAmbientHeroCard(model, input);
+          if (!decision.touchOverrideActive) return 2;
+          if (decision.acceptedHeroCardIndex != 2) return 3;
+          applyProxmoxAmbientHeroCard(model, decision.acceptedHeroCardIndex);
+          if (model.heroCardIndex != 2) return 4;
+          if (std::strcmp(model.heroTitle, "Guests") != 0) return 5;
+          if (std::strcmp(model.heroDisplayValue, "0/0") != 0) return 6;
+          if (std::strcmp(model.visualClass, "blue") != 0) return 7;
+
+          input.currentHeroCardIndex = model.heroCardIndex;
+          input.nowMillis = 70001;
+          decision = acceptProxmoxAmbientHeroCard(makeProxmoxAmbientPageModel(view), input);
+          if (decision.touchOverrideActive) return 8;
+          if (decision.acceptedHeroCardIndex != 3) return 9;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

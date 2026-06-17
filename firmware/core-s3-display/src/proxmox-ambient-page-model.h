@@ -45,6 +45,25 @@ struct ProxmoxAmbientPageModel {
   ProxmoxAmbientCard cards[5];
 };
 
+struct ProxmoxAmbientHeroPolicyInput {
+  uint8_t currentHeroCardIndex;
+  bool touchOverrideActive;
+  uint8_t touchOverrideCardIndex;
+  uint32_t touchOverrideUntilMs;
+  uint32_t nowMillis;
+};
+
+struct ProxmoxAmbientHeroPolicyDecision {
+  uint8_t acceptedHeroCardIndex;
+  bool touchOverrideActive;
+};
+
+struct ProxmoxAmbientTouchHeroOverride {
+  bool active;
+  uint8_t cardIndex;
+  uint32_t untilMs;
+};
+
 inline void proxmoxAmbientCopy(char *dst, size_t dstSize, const char *src) {
   if (!dst || dstSize == 0) return;
   if (!src) src = "";
@@ -221,6 +240,50 @@ inline uint8_t proxmoxAmbientDefaultHeroCardIndex(const ProxmoxAmbientPageModel 
   return bestIndex;  // CPU wins ties because it appears first, RAM follows it.
 }
 
+inline int proxmoxAmbientFindSlotForCard(const uint8_t order[5], uint8_t count, uint8_t cardIndex) {
+  for (uint8_t i = 0; i < count; ++i) {
+    if (order[i] == cardIndex) return i;
+  }
+  return -1;
+}
+
+inline int proxmoxAmbientRingDirectionToHero(int slot, uint8_t count) {
+  if (slot <= 0 || count == 0) return 0;
+  int forwardSteps = (count - slot) % count;
+  int reverseSteps = slot;
+  return forwardSteps <= reverseSteps ? 1 : -1;
+}
+
+inline uint8_t proxmoxAmbientRingStep(uint8_t slot, int direction, uint8_t count) {
+  if (count == 0) return slot;
+  if (direction >= 0) return static_cast<uint8_t>((slot + 1) % count);
+  return static_cast<uint8_t>((slot + count - 1) % count);
+}
+
+inline uint8_t proxmoxAmbientRingStepsToHero(int slot, int direction, uint8_t count) {
+  if (slot <= 0 || direction == 0 || count == 0) return 0;
+  return static_cast<uint8_t>(direction > 0 ? (count - slot) % count : slot);
+}
+
+inline bool proxmoxAmbientRotateSlotOrderToHero(uint8_t order[5], uint8_t count, uint8_t heroCardIndex) {
+  if (!order || count == 0 || count > 5) return false;
+  int slot = proxmoxAmbientFindSlotForCard(order, count, heroCardIndex);
+  int direction = proxmoxAmbientRingDirectionToHero(slot, count);
+  uint8_t steps = proxmoxAmbientRingStepsToHero(slot, direction, count);
+  if (steps == 0) return false;
+
+  uint8_t source[5]{};
+  for (uint8_t i = 0; i < count; ++i) source[i] = order[i];
+  for (uint8_t i = 0; i < count; ++i) {
+    uint8_t destSlot = i;
+    for (uint8_t step = 0; step < steps; ++step) {
+      destSlot = proxmoxAmbientRingStep(destSlot, direction, count);
+    }
+    order[destSlot] = source[i];
+  }
+  return true;
+}
+
 inline void proxmoxAmbientApplyHero(ProxmoxAmbientPageModel &model) {
   if (model.cardCount == 0 || model.heroCardIndex >= model.cardCount) return;
   const ProxmoxAmbientCard &hero = model.cards[model.heroCardIndex];
@@ -231,10 +294,55 @@ inline void proxmoxAmbientApplyHero(ProxmoxAmbientPageModel &model) {
   proxmoxAmbientCopy(model.visualClass, sizeof(model.visualClass), hero.visualClass);
 }
 
+inline bool applyProxmoxAmbientHeroCard(ProxmoxAmbientPageModel &model, uint8_t cardIndex) {
+  if (model.cardCount == 0 || cardIndex >= model.cardCount) return false;
+  model.heroCardIndex = cardIndex;
+  proxmoxAmbientApplyHero(model);
+  return true;
+}
+
 inline bool proxmoxAmbientModelIsObserved(const ProxmoxAmbientPageModel &model) {
   return strcmp(model.telemetryState, "observed") == 0 &&
          strcmp(model.condition, "stale") != 0 &&
          strcmp(model.condition, "unavailable") != 0;
+}
+
+inline bool proxmoxAmbientTouchHeroOverrideStillActive(uint32_t nowMillis, uint32_t untilMs) {
+  return (int32_t)(untilMs - nowMillis) > 0;
+}
+
+inline ProxmoxAmbientTouchHeroOverride makeProxmoxAmbientTouchHeroOverride(uint8_t cardIndex, uint32_t nowMillis, uint32_t durationMs) {
+  ProxmoxAmbientTouchHeroOverride touch{};
+  touch.active = true;
+  touch.cardIndex = cardIndex;
+  touch.untilMs = nowMillis + durationMs;
+  return touch;
+}
+
+inline ProxmoxAmbientHeroPolicyDecision acceptProxmoxAmbientHeroCard(const ProxmoxAmbientPageModel &model,
+                                                                    const ProxmoxAmbientHeroPolicyInput &input) {
+  ProxmoxAmbientHeroPolicyDecision decision{};
+  decision.acceptedHeroCardIndex = model.heroCardIndex;
+  decision.touchOverrideActive = input.touchOverrideActive;
+
+  if (!proxmoxAmbientModelIsObserved(model)) {
+    decision.touchOverrideActive = false;
+    return decision;
+  }
+
+  if (input.touchOverrideActive) {
+    if (input.touchOverrideCardIndex < model.cardCount &&
+        proxmoxAmbientTouchHeroOverrideStillActive(input.nowMillis, input.touchOverrideUntilMs)) {
+      decision.acceptedHeroCardIndex = input.touchOverrideCardIndex;
+      return decision;
+    }
+    decision.touchOverrideActive = false;
+  }
+
+  if (input.currentHeroCardIndex < model.cardCount && input.currentHeroCardIndex == model.heroCardIndex) {
+    decision.acceptedHeroCardIndex = input.currentHeroCardIndex;
+  }
+  return decision;
 }
 
 inline bool proxmoxAmbientShouldAnimateHeroTransition(const ProxmoxAmbientPageModel &previous,
@@ -274,4 +382,14 @@ inline const ProxmoxAmbientCard *proxmoxReducedCardAt(const ProxmoxAmbientPageMo
     ++seen;
   }
   return nullptr;
+}
+
+inline uint8_t proxmoxReducedCardIndexAt(const ProxmoxAmbientPageModel &model, uint8_t reducedIndex) {
+  uint8_t seen = 0;
+  for (uint8_t i = 0; i < model.cardCount; ++i) {
+    if (i == model.heroCardIndex) continue;
+    if (seen == reducedIndex) return i;
+    ++seen;
+  }
+  return 255;
 }
