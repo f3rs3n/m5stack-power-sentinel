@@ -474,3 +474,96 @@ def test_proxmox_ambient_page_model_network_unavailable_promotes_when_no_critica
         }
     '''))
     assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_detects_hero_transition_for_card_animation():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        static ProxmoxAmbientView observed_healthy() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = true;
+          view.cpuPercent = 12;
+          view.ramPercent = 34;
+          view.guestRunning = 2;
+          view.guestTotal = 2;
+          view.storagePercent = 40;
+          view.networkPercent = 5;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "healthy");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
+          proxmoxAmbientCopy(view.cpuCondition, sizeof(view.cpuCondition), "healthy");
+          proxmoxAmbientCopy(view.ramCondition, sizeof(view.ramCondition), "healthy");
+          proxmoxAmbientCopy(view.guestCondition, sizeof(view.guestCondition), "healthy");
+          proxmoxAmbientCopy(view.storageCondition, sizeof(view.storageCondition), "healthy");
+          proxmoxAmbientCopy(view.networkCondition, sizeof(view.networkCondition), "healthy");
+          return view;
+        }
+
+        int main() {
+          ProxmoxAmbientPageModel previous = makeProxmoxAmbientPageModel(observed_healthy());
+          if (previous.heroCardIndex != 0) return 1;
+
+          ProxmoxAmbientView storageWarning = observed_healthy();
+          proxmoxAmbientCopy(storageWarning.condition, sizeof(storageWarning.condition), "warning");
+          storageWarning.storagePercent = 88;
+          proxmoxAmbientCopy(storageWarning.storageCondition, sizeof(storageWarning.storageCondition), "warning");
+          ProxmoxAmbientPageModel next = makeProxmoxAmbientPageModel(storageWarning);
+
+          if (next.heroCardIndex != 3) return 2;
+          if (!proxmoxAmbientShouldAnimateHeroTransition(previous, next)) return 3;
+
+          ProxmoxAmbientPageModel sameHero = makeProxmoxAmbientPageModel(storageWarning);
+          sameHero.cards[3].value[0] = '8';
+          if (proxmoxAmbientShouldAnimateHeroTransition(next, sameHero)) return 4;
+
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_does_not_animate_unavailable_or_stale_telemetry():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView observed{};
+          observed.enabled = true;
+          observed.implemented = true;
+          observed.hasLiveData = true;
+          observed.cpuPercent = 20;
+          proxmoxAmbientCopy(observed.condition, sizeof(observed.condition), "healthy");
+          proxmoxAmbientCopy(observed.status, sizeof(observed.status), "observed");
+
+          ProxmoxAmbientView unavailable = observed;
+          unavailable.hasLiveData = false;
+          proxmoxAmbientCopy(unavailable.condition, sizeof(unavailable.condition), "unavailable");
+          proxmoxAmbientCopy(unavailable.status, sizeof(unavailable.status), "api_unavailable");
+          proxmoxAmbientCopy(unavailable.networkCondition, sizeof(unavailable.networkCondition), "unavailable");
+
+          ProxmoxAmbientView stale = observed;
+          stale.hasLiveData = false;
+          proxmoxAmbientCopy(stale.condition, sizeof(stale.condition), "stale");
+          proxmoxAmbientCopy(stale.status, sizeof(stale.status), "stale");
+          proxmoxAmbientCopy(stale.storageCondition, sizeof(stale.storageCondition), "warning");
+
+          ProxmoxAmbientPageModel observedModel = makeProxmoxAmbientPageModel(observed);
+          ProxmoxAmbientPageModel unavailableModel = makeProxmoxAmbientPageModel(unavailable);
+          ProxmoxAmbientPageModel staleModel = makeProxmoxAmbientPageModel(stale);
+
+          if (proxmoxAmbientShouldAnimateHeroTransition(observedModel, unavailableModel)) return 1;
+          if (proxmoxAmbientShouldAnimateHeroTransition(observedModel, staleModel)) return 2;
+          if (proxmoxAmbientShouldAnimateHeroTransition(unavailableModel, observedModel)) return 3;
+
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

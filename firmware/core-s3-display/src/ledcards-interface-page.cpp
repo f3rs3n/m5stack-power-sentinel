@@ -72,6 +72,12 @@ bool ringAnimationActive = false;
 lv_obj_t *ringAnimationOverlay = nullptr;
 LedcardsInterfaceNutView pendingAnimationView{};
 bool hasPendingAnimationView = false;
+bool proxmoxRingAnimationActive = false;
+ProxmoxAmbientPageModel lastRenderedProxmoxModel{};
+bool hasLastRenderedProxmoxModel = false;
+ProxmoxAmbientView pendingProxmoxAnimationView{};
+LedcardsInterfaceNutView pendingProxmoxAnimationStatusView{};
+bool hasPendingProxmoxAnimationView = false;
 
 struct SlotPosition {
   int x;
@@ -98,6 +104,8 @@ RingGhostAnim ringGhostAnimations[5]{};
 static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
 static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
 static void start_ring_transition(lv_obj_t *screen, MetricKind target, const LedcardsInterfaceNutView &view);
+static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);
+static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView, const ProxmoxAmbientPageModel &model);
 
 static lv_color_t C(uint32_t hex) { return lv_color_hex(hex); }
 
@@ -251,6 +259,18 @@ static uint8_t ring_step_slot(uint8_t slot, int direction) {
 static uint8_t ring_steps_to_hero(int pos, int direction) {
   if (pos <= 0 || direction == 0) return 0;
   return static_cast<uint8_t>(direction > 0 ? (5 - pos) % 5 : pos);
+}
+
+static int ring_direction_between_slots(int fromSlot, int toSlot) {
+  if (fromSlot == toSlot) return 0;
+  int forwardSteps = (toSlot - fromSlot + 5) % 5;
+  int reverseSteps = (fromSlot - toSlot + 5) % 5;
+  return forwardSteps <= reverseSteps ? 1 : -1;
+}
+
+static uint8_t ring_steps_between_slots(int fromSlot, int toSlot, int direction) {
+  if (fromSlot == toSlot || direction == 0) return 0;
+  return static_cast<uint8_t>(direction > 0 ? (toSlot - fromSlot + 5) % 5 : (fromSlot - toSlot + 5) % 5);
 }
 
 static void rotate_order_to_hero(const MetricKind source[5], MetricKind kind, MetricKind dest[5]) {
@@ -507,6 +527,14 @@ static void finish_ring_animation_async(void *) {
     ringAnimationOverlay = nullptr;
   }
   ringAnimationActive = false;
+  if (proxmoxRingAnimationActive) {
+    proxmoxRingAnimationActive = false;
+    ProxmoxAmbientView view = hasPendingProxmoxAnimationView ? pendingProxmoxAnimationView : ProxmoxAmbientView{};
+    LedcardsInterfaceNutView statusView = hasPendingProxmoxAnimationView ? pendingProxmoxAnimationStatusView : lastRenderedView;
+    hasPendingProxmoxAnimationView = false;
+    draw_proxmox_ambient_static(screen, view, statusView);
+    return;
+  }
   LedcardsInterfaceNutView view = hasPendingAnimationView ? pendingAnimationView : lastRenderedView;
   hasPendingAnimationView = false;
   draw_nut_home_static(screen, view);
@@ -671,9 +699,20 @@ static MetricRender proxmox_metric_for_card(const ProxmoxAmbientCard &card, Metr
   return metric;
 }
 
+static MetricKind proxmox_metric_kind_for_card_index(uint8_t cardIndex) {
+  switch (cardIndex) {
+    case 0: return METRIC_BATTERY;  // CPU
+    case 1: return METRIC_TTE;      // RAM
+    case 2: return METRIC_LOAD;     // Guests
+    case 3: return METRIC_INPUT;    // Storage
+    case 4:
+    default: return METRIC_NUT;     // Network
+  }
+}
+
 static MetricRender proxmox_hero_metric(const ProxmoxAmbientPageModel &model) {
   MetricRender metric{};
-  metric.kind = METRIC_NUT;
+  metric.kind = proxmox_metric_kind_for_card_index(model.heroCardIndex);
   metric.state = STATE_NOMINAL;
   metric.accent = visual_class_color(model.visualClass);
   metric.fill = state_fill(metric.accent);
@@ -687,8 +726,28 @@ static MetricRender proxmox_hero_metric(const ProxmoxAmbientPageModel &model) {
   return metric;
 }
 
-static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+static uint8_t fill_proxmox_slot_order(const ProxmoxAmbientPageModel &model, uint8_t order[5]) {
+  if (model.cardCount == 0 || model.heroCardIndex >= model.cardCount) return 0;
+  order[0] = model.heroCardIndex;
+  uint8_t slot = 1;
+  for (uint8_t i = 0; i < model.cardCount && slot < 5; ++i) {
+    if (i == model.heroCardIndex) continue;
+    order[slot++] = i;
+  }
+  return slot;
+}
+
+static int find_proxmox_card_slot(const uint8_t order[5], uint8_t count, uint8_t cardIndex) {
+  for (uint8_t i = 0; i < count; ++i) {
+    if (order[i] == cardIndex) return i;
+  }
+  return -1;
+}
+
+static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
   ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+  lastRenderedProxmoxModel = model;
+  hasLastRenderedProxmoxModel = true;
   lv_obj_clean(screen);
   lv_obj_set_style_bg_color(screen, C(0x040607), 0);
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
@@ -704,6 +763,122 @@ static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &v
     const ProxmoxAmbientCard *card = proxmoxReducedCardAt(model, i);
     if (card) tile(screen, xs[i], ys[i], proxmox_metric_for_card(*card, kinds[i]), false);
   }
+}
+
+static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView, const ProxmoxAmbientPageModel &model) {
+  if (ringAnimationActive) {
+    pendingProxmoxAnimationView = view;
+    pendingProxmoxAnimationStatusView = statusView;
+    hasPendingProxmoxAnimationView = true;
+    return;
+  }
+  if (!hasLastRenderedProxmoxModel || !proxmoxAmbientShouldAnimateHeroTransition(lastRenderedProxmoxModel, model)) {
+    draw_proxmox_ambient_static(screen, view, statusView);
+    return;
+  }
+
+  uint8_t oldOrder[5]{};
+  uint8_t newOrder[5]{};
+  uint8_t oldCount = fill_proxmox_slot_order(lastRenderedProxmoxModel, oldOrder);
+  uint8_t newCount = fill_proxmox_slot_order(model, newOrder);
+  int targetOldSlot = find_proxmox_card_slot(oldOrder, oldCount, model.heroCardIndex);
+  if (targetOldSlot <= 0 || oldCount != newCount) {
+    draw_proxmox_ambient_static(screen, view, statusView);
+    return;
+  }
+
+  pendingProxmoxAnimationView = view;
+  pendingProxmoxAnimationStatusView = statusView;
+  hasPendingProxmoxAnimationView = true;
+  ringAnimationActive = true;
+  proxmoxRingAnimationActive = true;
+
+  if (ringAnimationOverlay) lv_obj_delete(ringAnimationOverlay);
+  ringAnimationOverlay = lv_obj_create(screen);
+  lv_obj_remove_style_all(ringAnimationOverlay);
+  lv_obj_set_pos(ringAnimationOverlay, 0, 0);
+  lv_obj_set_size(ringAnimationOverlay, 320, 240);
+  lv_obj_add_flag(ringAnimationOverlay, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_scrollbar_mode(ringAnimationOverlay, LV_SCROLLBAR_MODE_OFF);
+  box(ringAnimationOverlay, 0, kHeroCardY, 320, kHeroCardH, 0, 0x040607, 0);
+
+  int heroRingDirection = ring_direction_to_hero(targetOldSlot);
+  uint16_t maxPathLength = 0;
+  int movingCount = 0;
+  for (int oldSlot = 0; oldSlot < oldCount; ++oldSlot) {
+    uint8_t cardIndex = oldOrder[oldSlot];
+    int newSlot = find_proxmox_card_slot(newOrder, newCount, cardIndex);
+    if (newSlot < 0) continue;
+    int ringDirection = ring_direction_between_slots(oldSlot, newSlot);
+    uint8_t chainSteps = ring_steps_between_slots(oldSlot, newSlot, ringDirection);
+    RingGhostAnim &anim = ringGhostAnimations[oldSlot];
+    anim.steps = chainSteps;
+    anim.baseOpa = LV_OPA_80;
+    anim.path[0] = static_cast<uint8_t>(oldSlot);
+    for (uint8_t step = 1; step <= chainSteps; ++step) {
+      anim.path[step] = ring_step_slot(anim.path[step - 1], ringDirection);
+    }
+    finalize_anim_path_lengths(anim);
+    if (anim.totalLength > maxPathLength) maxPathLength = anim.totalLength;
+
+    uint8_t firstMiniSlot = chainSteps == 0 ? static_cast<uint8_t>(oldSlot) : (anim.path[0] == 0 ? anim.path[1] : anim.path[0]);
+    if (chainSteps > 0 && firstMiniSlot == 0) firstMiniSlot = anim.path[chainSteps];
+    SlotPosition start = slot_position(firstMiniSlot == 0 ? 4 : firstMiniSlot);
+    const ProxmoxAmbientCard &card = lastRenderedProxmoxModel.cards[cardIndex];
+    MetricKind kind = proxmox_metric_kind_for_card_index(cardIndex);
+    MetricRender render = proxmox_metric_for_card(card, kind);
+    lv_obj_t *ghost = tile(ringAnimationOverlay, start.x, start.y, render, false);
+    lv_obj_t *heroGhost = hero_card(ringAnimationOverlay, kHeroCardX, kHeroCardY, render, true);
+    anim.obj = ghost;
+    anim.heroObj = heroGhost;
+    lv_obj_set_style_opa(ghost, 0, 0);
+    lv_obj_set_style_opa(heroGhost, 0, 0);
+    if (chainSteps > 0) ++movingCount;
+  }
+
+  if (movingCount == 0 || maxPathLength == 0) {
+    if (ringAnimationOverlay) {
+      lv_obj_delete(ringAnimationOverlay);
+      ringAnimationOverlay = nullptr;
+    }
+    ringAnimationActive = false;
+    proxmoxRingAnimationActive = false;
+    hasPendingProxmoxAnimationView = false;
+    draw_proxmox_ambient_static(screen, view, statusView);
+    return;
+  }
+
+  uint32_t durationMs = chain_duration_ms(maxPathLength);
+  uint32_t maxDelayMs = 0;
+  int finishSlot = 0;
+  for (int oldSlot = 0; oldSlot < oldCount; ++oldSlot) {
+    if (ringGhostAnimations[oldSlot].steps == 0) continue;
+    uint32_t delayMs = chain_stagger_delay_ms(oldSlot, targetOldSlot, heroRingDirection);
+    if (delayMs >= maxDelayMs) {
+      maxDelayMs = delayMs;
+      finishSlot = oldSlot;
+    }
+  }
+  for (int oldSlot = 0; oldSlot < oldCount; ++oldSlot) {
+    if (ringGhostAnimations[oldSlot].steps == 0) continue;
+    uint32_t delayMs = chain_stagger_delay_ms(oldSlot, targetOldSlot, heroRingDirection);
+    animate_ghost_chain(&ringGhostAnimations[oldSlot], durationMs, delayMs, oldSlot == finishSlot);
+  }
+}
+
+static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+  ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+  if (ringAnimationActive) {
+    pendingProxmoxAnimationView = view;
+    pendingProxmoxAnimationStatusView = statusView;
+    hasPendingProxmoxAnimationView = true;
+    return;
+  }
+  if (hasLastRenderedProxmoxModel && proxmoxAmbientShouldAnimateHeroTransition(lastRenderedProxmoxModel, model)) {
+    start_proxmox_ring_transition(screen, view, statusView, model);
+    return;
+  }
+  draw_proxmox_ambient_static(screen, view, statusView);
 }
 
 }  // namespace

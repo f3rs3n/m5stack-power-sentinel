@@ -231,6 +231,20 @@ inline void proxmoxAmbientApplyHero(ProxmoxAmbientPageModel &model) {
   proxmoxAmbientCopy(model.visualClass, sizeof(model.visualClass), hero.visualClass);
 }
 
+inline bool proxmoxAmbientModelIsObserved(const ProxmoxAmbientPageModel &model) {
+  return strcmp(model.telemetryState, "observed") == 0 &&
+         strcmp(model.condition, "stale") != 0 &&
+         strcmp(model.condition, "unavailable") != 0;
+}
+
+inline bool proxmoxAmbientShouldAnimateHeroTransition(const ProxmoxAmbientPageModel &previous,
+                                                     const ProxmoxAmbientPageModel &next) {
+  if (!proxmoxAmbientModelIsObserved(previous) || !proxmoxAmbientModelIsObserved(next)) return false;
+  if (previous.cardCount == 0 || next.cardCount == 0) return false;
+  if (previous.heroCardIndex >= previous.cardCount || next.heroCardIndex >= next.cardCount) return false;
+  return previous.heroCardIndex != next.heroCardIndex;
+}
+
 inline ProxmoxAmbientPageModel makeProxmoxAmbientPageModel(const ProxmoxAmbientView &view) {
   ProxmoxAmbientPageModel model{};
   proxmoxAmbientCopy(model.condition, sizeof(model.condition), proxmoxAmbientCondition(view));
