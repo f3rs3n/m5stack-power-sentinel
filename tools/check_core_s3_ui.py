@@ -10,6 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
 AMBIENT_PAGE_TRANSITION_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-page-transition.h"
+CORE_S3_TRANSPORT_DIAGNOSTICS_H = ROOT / "firmware" / "core-s3-display" / "src" / "core-s3-transport-diagnostics.h"
 LEDCARDS_GRAPHICS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-graphics.h"
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
 NUT_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "nut-ambient-page-model.h"
@@ -31,10 +32,10 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not CORE_S3_TRANSPORT_DIAGNOSTICS_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
-    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + AMBIENT_PAGE_TRANSITION_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_GRAPHICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
+    ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + AMBIENT_PAGE_TRANSITION_H.read_text(encoding="utf-8") + "\n" + CORE_S3_TRANSPORT_DIAGNOSTICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_GRAPHICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
     if require(main, [
         "nut-monitor-clean-baseline",
         "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())",
@@ -45,6 +46,7 @@ def main() -> int:
         "applyLedcardsInterfaceVisualFixture()",
         "kLedcardsInterfaceVisualFixtureJson",
         "Serial2.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN)",
+        "Transport: StackFlow serial rx=",
         "work_id\"] = \"sentinel\"",
         "parseSummary(body, \"stackflow\")",
         "kLinkStatusTimeoutMs = 10000",
@@ -71,6 +73,14 @@ def main() -> int:
         "manualDisplaySnoozeActive",
         "buildStateSignature",
         "state.nut.clientCount",
+        "CoreS3TransportDiagnostics",
+        "coreS3TransportRecordFailure",
+        "coreS3TransportRecordSuccess",
+        "coreS3TransportShouldLogSuccess",
+        "Transport diagnostic:",
+        "CORE_S3_TRANSPORT_FAILURE_JSON_PARSE",
+        "CORE_S3_TRANSPORT_FAILURE_STACKFLOW_ERROR",
+        "CORE_S3_TRANSPORT_FAILURE_TIMEOUT",
         "if (displayMode != DisplayMode::Off) refreshLedcardsUi();",
         "lastPayloadAgeMs >= kDisplayNoPayloadOffMs",
         "missingPayloadDisplayOffActive",
@@ -118,6 +128,7 @@ def main() -> int:
         "char label[12];",
         "char unit[8];",
         "char stateText[20];",
+        "char transportStatus[32];",
         "ledcardsAmbientCopy(m.label, sizeof(m.label), card.label);",
         "ledcardsAmbientCopy(m.unit, sizeof(m.unit), compactTte ? card.compactUnit : card.unit);",
         "ledcardsAmbientCopy(m.stateText, sizeof(m.stateText), card.stateText);",
@@ -131,6 +142,7 @@ def main() -> int:
         "AMBIENT_PAGE_TRANSITION_REVERSE",
         "transitionLedcardsInterfacePageUi",
         "Page body below it slides as one coherent module surface",
+        "coreS3TransportFormatStatus",
     ], "Ledcards metric text ownership"):
         return 1
     if "const char *label;" in ledcards or "const char *unit;" in ledcards or "const char *stateText;" in ledcards:

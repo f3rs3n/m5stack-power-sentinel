@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "m5_hal.h"
+#include "core-s3-transport-diagnostics.h"
 #include "ledcards-interface-page.h"
 #include "proxmox-ambient-page-model.h"
 
@@ -288,6 +289,8 @@ uint32_t stackflowRequestId = 0;
 uint32_t fetchAttemptCount = 0;
 uint32_t fetchOkCount = 0;
 uint32_t fetchFailCount = 0;
+CoreS3TransportDiagnostics transportDiagnostics{};
+CoreS3TransportFailureKind pendingTransportFailureKind = CORE_S3_TRANSPORT_FAILURE_TIMEOUT;
 bool displayAsleep = false;
 bool displaySleepWakeArmed = false;
 bool ledcardsSleepTouchActive = false;
@@ -396,13 +399,14 @@ void clampCurrentPageIndex() {
   if (currentPageIndex >= pageCount) currentPageIndex = 0;
 }
 
-void parseSummary(const String &json, const char *source) {
+bool parseSummary(const String &json, const char *source) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
   if (err) {
     Serial.printf("NUT summary JSON parse error: %s\n", err.c_str());
     snprintf(state.transportStatus, sizeof(state.transportStatus), "JSON parse failed: %s", err.c_str());
-    return;
+    pendingTransportFailureKind = CORE_S3_TRANSPORT_FAILURE_JSON_PARSE;
+    return false;
   }
   safeCopy(state.schema, sizeof(state.schema), doc["schema"] | "power-sentinel.summary.v1");
   safeCopy(state.severity, sizeof(state.severity), doc["severity"] | "unknown");
@@ -502,6 +506,7 @@ void parseSummary(const String &json, const char *source) {
   state.offline = false;
   state.lastGoodMillis = millis();
   snprintf(state.transportStatus, sizeof(state.transportStatus), "%s summary OK", source);
+  return true;
 }
 
 #if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
@@ -570,6 +575,7 @@ LedcardsInterfaceNutView makeLedcardsInterfaceNutView() {
   view.moduleLanConnected = state.moduleLanConnected;
   view.wifiConnected = WiFi.status() == WL_CONNECTED;
   view.linkOk = linkOkAt(now);
+  safeCopy(view.transportStatus, sizeof(view.transportStatus), state.transportStatus);
   safeCopy(view.moduleTimeHhmm, sizeof(view.moduleTimeHhmm), validHhmm(state.moduleTimeHhmm) ? state.moduleTimeHhmm : "--:--");
   view.localBatteryPercent = psBatteryLevel();
   view.localBatteryCharging = psBatteryCharging();
@@ -1077,24 +1083,29 @@ bool parseStackFlowSummaryResponse(const String &line, const String &requestId, 
   DeserializationError err = deserializeJson(doc, line);
   if (err) {
     snprintf(state.transportStatus, sizeof(state.transportStatus), "StackFlow JSON fail try %u", static_cast<unsigned>(attempt));
+    pendingTransportFailureKind = CORE_S3_TRANSPORT_FAILURE_JSON_PARSE;
     return false;
   }
   const char *rid = doc["request_id"] | "";
-  if (strcmp(rid, requestId.c_str()) != 0) return false;
+  if (strcmp(rid, requestId.c_str()) != 0) {
+    pendingTransportFailureKind = CORE_S3_TRANSPORT_FAILURE_STALE_RESPONSE;
+    return false;
+  }
   JsonObjectConst error = doc["error"].as<JsonObjectConst>();
   int code = error["code"] | 0;
   if (code != 0) {
     snprintf(state.transportStatus, sizeof(state.transportStatus), "StackFlow error %d", code);
+    pendingTransportFailureKind = CORE_S3_TRANSPORT_FAILURE_STACKFLOW_ERROR;
     return false;
   }
   String body;
   serializeJson(doc["data"], body);
-  parseSummary(body, "stackflow");
-  return !state.offline;
+  return parseSummary(body, "stackflow");
 }
 
 bool fetchSerialSummary() {
 #if POWER_SENTINEL_TRANSPORT_SERIAL
+  pendingTransportFailureKind = CORE_S3_TRANSPORT_FAILURE_TIMEOUT;
   for (uint8_t attempt = 1; attempt <= POWER_SENTINEL_SERIAL_RETRIES; ++attempt) {
     String requestId = "ps-nut-" + String(++stackflowRequestId);
     JsonDocument req;
@@ -1115,14 +1126,48 @@ bool fetchSerialSummary() {
   return false;
 }
 
+void formatTransportStatusFromDiagnostics() {
+  coreS3TransportFormatStatus(transportDiagnostics, state.transportStatus, sizeof(state.transportStatus));
+}
+
+void logTransportFailureIfNeeded() {
+  if (!coreS3TransportShouldLogFailure(transportDiagnostics, 3)) return;
+  char status[96]{};
+  coreS3TransportFormatStatus(transportDiagnostics, status, sizeof(status));
+  Serial.printf("Transport diagnostic: %s attempts=%lu ok=%lu fail=%lu last_good_ms=%lu\n",
+                status,
+                static_cast<unsigned long>(transportDiagnostics.attemptCount),
+                static_cast<unsigned long>(transportDiagnostics.okCount),
+                static_cast<unsigned long>(transportDiagnostics.failCount),
+                static_cast<unsigned long>(transportDiagnostics.lastGoodMillis));
+}
+
+void logTransportSuccessIfNeeded() {
+  if (!coreS3TransportShouldLogSuccess(transportDiagnostics)) return;
+  char status[96]{};
+  coreS3TransportFormatStatus(transportDiagnostics, status, sizeof(status));
+  Serial.printf("Transport diagnostic: %s attempts=%lu ok=%lu fail=%lu\n",
+                status,
+                static_cast<unsigned long>(transportDiagnostics.attemptCount),
+                static_cast<unsigned long>(transportDiagnostics.okCount),
+                static_cast<unsigned long>(transportDiagnostics.failCount));
+}
+
 bool fetchLiveSummary() {
-  ++fetchAttemptCount;
   if (fetchSerialSummary()) {
+    coreS3TransportRecordSuccess(transportDiagnostics, CORE_S3_TRANSPORT_STACKFLOW_SERIAL, millis());
+    fetchAttemptCount = transportDiagnostics.attemptCount;
     ++fetchOkCount;
+    formatTransportStatusFromDiagnostics();
+    logTransportSuccessIfNeeded();
     handleStateSignatureAfterFetch(millis());
     return true;
   }
+  coreS3TransportRecordFailure(transportDiagnostics, pendingTransportFailureKind, millis(), POWER_SENTINEL_SERIAL_RETRIES);
+  fetchAttemptCount = transportDiagnostics.attemptCount;
   ++fetchFailCount;
+  formatTransportStatusFromDiagnostics();
+  logTransportFailureIfNeeded();
   state.offline = true;
   return false;
 }
@@ -1158,6 +1203,13 @@ void setup() {
   initStatusWiFi();
   initSerialTransport();
   Serial.printf("Power Sentinel %s clean NUT monitor baseline\n", POWER_SENTINEL_FIRMWARE_BUILD);
+  Serial.printf("Transport: StackFlow serial rx=%u tx=%u baud=%lu retries=%u timeout=%lu max_json=%u\n",
+                static_cast<unsigned>(POWER_SENTINEL_UART_RX_PIN),
+                static_cast<unsigned>(POWER_SENTINEL_UART_TX_PIN),
+                static_cast<unsigned long>(POWER_SENTINEL_UART_BAUD),
+                static_cast<unsigned>(POWER_SENTINEL_SERIAL_RETRIES),
+                static_cast<unsigned long>(POWER_SENTINEL_SERIAL_TIMEOUT_MS),
+                static_cast<unsigned>(POWER_SENTINEL_SERIAL_MAX_JSON_BYTES));
   Serial.printf("Display policy: standby=%lu no_payload_off=%lu awake=%u dim=%u\n",
                 static_cast<unsigned long>(kDisplayStandbyMs),
                 static_cast<unsigned long>(kDisplayNoPayloadOffMs),

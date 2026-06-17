@@ -112,6 +112,7 @@ inline bool nutAmbientShutdownRelevant(const LedcardsInterfaceNutView &view) {
 }
 
 inline const char *nutAmbientMissingStateText(const LedcardsInterfaceNutView &view) {
+  if ((view.offline || view.upsStale) && view.transportStatus[0] != '\0') return view.transportStatus;
   return nutAmbientTelemetryUnavailable(view) ? "UNAVAILABLE" : "STALE";
 }
 

@@ -21,6 +21,7 @@ struct LedcardsInterfaceNutView {
   bool moduleLanConnected;
   bool wifiConnected;
   bool linkOk;
+  char transportStatus[32];
   char moduleTimeHhmm[6];
   int localBatteryPercent;
   bool localBatteryCharging;
