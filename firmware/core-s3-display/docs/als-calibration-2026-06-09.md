@@ -50,8 +50,8 @@ Current firmware tuning after physical visual checks:
 - ALS is sampled every 100 ms.
 - EMA uses alpha 2/3.
 - Bucket debounce/raw hysteresis was removed from the runtime path after interpolation made it redundant.
-- The 5 DIM/AWAKE brightness values are interpolation anchors, not direct output steps. Current DIM anchors are `32,48,64,80,96`; AWAKE anchors are `80,112,144,176,208`.
-- The continuous interpolation raw anchors are 0, 12, 45, 95, and 135.
+- The six DIM/AWAKE entries are physical CoreS3 Backlight Level anchors, not nominal 0-255 PWM values. Current DIM anchors are `20,20,21,21,22,22`; AWAKE anchors are `21,22,23,24,25,25`.
+- The continuous interpolation raw anchors are 0, 12, 45, 70, 95, and 135.
 - Tiny instantaneous target changes inside `POWER_SENTINEL_ALS_TARGET_DEADBAND=2` are ignored when accepting a new target, but curve endpoints are always eligible so the accepted target can still reach the real dark/bright endpoints.
 - Eligible targets are debounced asymmetrically: `POWER_SENTINEL_ALS_BRIGHTENING_DEBOUNCE_MS=300` and `POWER_SENTINEL_ALS_DARKENING_DEBOUNCE_MS=1000`, matching the real-system pattern of accepting brightening faster than transient darkening/shadows.
 - The remaining accepted brightness target is applied directly (`POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT=0`); smoothness is handled by the PWM slew, while deadband/debounce suppress target jitter.

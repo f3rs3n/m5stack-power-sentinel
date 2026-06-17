@@ -53,6 +53,8 @@ Implication: LLM Mate can pass the BAT rail upward/downward, and can provide/use
 
 ## CoreS3 battery readings
 
+CoreS3 power-path caveat: M5Unified's `cfg.output_power` / `Power.setExtOutput()` controls external 5V/BUS output through the CoreS3 PMIC/IO-expander path. Official CoreS3 power docs note that when using external power input through Grove/DC, `cfg.output_power` should be set to `false`. In this project that matches the sentinel topology: let the CoreS3 boot from stack-side power and avoid intentionally backfeeding the LLM stack from the CoreS3 USB port unless testing that mode explicitly.
+
 With the DIN Base switch OFF:
 
 - CoreS3 saw valid VBUS but an invalid/absent battery reading.

@@ -32,6 +32,8 @@ CoreS3 TXD = G17
 baud       = 115200 8N1
 ```
 
+`115200` is the StackFlow/default service speed used by the current Power Sentinel baseline, not a hardware ceiling. Official Module LLM examples start on `Serial2` at 115200 and some image/YOLO examples renegotiate the link to higher baud rates such as 1500000 for large camera payloads. Keep the baseline at 115200 unless the StackFlow service and CoreS3 firmware are deliberately changed together and validated.
+
 This also matches DIN Base PORT.C for CoreS3:
 
 ```text
@@ -102,6 +104,8 @@ CoreS3 firmware uses the vendor-tested UART instance and pins:
 HardwareSerial LlmSerial(2);
 LlmSerial.begin(115200, SERIAL_8N1, 18, 17); // RX, TX
 ```
+
+Prefer `Serial2` / `HardwareSerial(2)` or the M5Unified `port_c_rxd` / `port_c_txd` pin helpers. Avoid treating `HardwareSerial(1)` success/failure as hardware evidence for this stack; the official CoreS3 Module LLM examples use `Serial2` on Port C.
 
 Request from CoreS3:
 
