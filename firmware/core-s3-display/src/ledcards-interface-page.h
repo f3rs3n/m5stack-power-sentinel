@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "ambient-console-page-transition.h"
 #include "proxmox-ambient-page-model.h"
 
 struct LedcardsInterfaceNutView {
@@ -31,5 +32,10 @@ struct LedcardsInterfaceNutView {
 
 void createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view);
 void updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view);
+bool ledcardsInterfacePageTransitionActive();
+bool transitionLedcardsInterfacePageUi(uint8_t fromPage,
+                                       uint8_t toPage,
+                                       const LedcardsInterfaceNutView &statusView,
+                                       const ProxmoxAmbientView &proxmoxView);
 void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);
 void renderProxmoxAmbientUi(const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);

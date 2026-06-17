@@ -876,9 +876,14 @@ bool handleTopBarPageTap(int32_t x, int32_t y) {
   uint8_t pageCount = ambientPageCount();
   if (pageCount <= 1 || y > 24) return false;
   if (!topBarPageTouchActive) {
-    currentPageIndex = x < 160 ? 0 : 1;
+    uint8_t previousPageIndex = currentPageIndex;
+    uint8_t targetPageIndex = x < 160 ? 0 : 1;
+    currentPageIndex = targetPageIndex;
     clampCurrentPageIndex();
-    refreshLedcardsUi();
+    LedcardsInterfaceNutView view = makeLedcardsInterfaceNutView();
+    if (!transitionLedcardsInterfacePageUi(previousPageIndex, currentPageIndex, view, makeProxmoxAmbientView())) {
+      refreshLedcardsUi();
+    }
     topBarPageTouchActive = true;
   }
   return true;

@@ -69,6 +69,12 @@ bool hasLastRenderedProxmoxModel = false;
 ProxmoxAmbientView pendingProxmoxAnimationView{};
 LedcardsInterfaceNutView pendingProxmoxAnimationStatusView{};
 bool hasPendingProxmoxAnimationView = false;
+AmbientConsolePageTransitionState pageTransitionState{};
+lv_obj_t *pageTransitionOutgoingBody = nullptr;
+lv_obj_t *pageTransitionIncomingBody = nullptr;
+LedcardsInterfaceNutView pendingPageTransitionStatusView{};
+ProxmoxAmbientView pendingPageTransitionProxmoxView{};
+bool hasPendingPageTransitionView = false;
 
 struct RingGhostAnim {
   lv_obj_t *obj;
@@ -89,8 +95,10 @@ RingGhostAnim ringGhostAnimations[5]{};
 
 static void render_nut_home(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
 static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutView &view);
+static void draw_nut_home_body(lv_obj_t *parent, const LedcardsInterfaceNutView &view);
 static void start_ring_transition(lv_obj_t *screen, MetricKind target, const LedcardsInterfaceNutView &view);
 static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);
+static void draw_proxmox_ambient_body(lv_obj_t *parent, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);
 static void start_proxmox_ring_transition(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView, const ProxmoxAmbientPageModel &model);
 static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView);
 
@@ -100,6 +108,25 @@ static void set_no_border(lv_obj_t *obj) {
   lv_obj_set_style_border_width(obj, 0, 0);
   lv_obj_set_style_outline_width(obj, 0, 0);
   lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
+}
+
+static void prepare_screen(lv_obj_t *screen) {
+  lv_obj_clean(screen);
+  lv_obj_set_style_bg_color(screen, C(0x040607), 0);
+  lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+  set_no_border(screen);
+}
+
+static lv_obj_t *page_body_container(lv_obj_t *parent, int x) {
+  lv_obj_t *body = lv_obj_create(parent);
+  lv_obj_remove_style_all(body);
+  lv_obj_set_pos(body, x, 0);
+  lv_obj_set_size(body, 320, 240);
+  lv_obj_set_style_bg_color(body, C(0x040607), 0);
+  lv_obj_set_style_bg_opa(body, LV_OPA_COVER, 0);
+  lv_obj_add_flag(body, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_scrollbar_mode(body, LV_SCROLLBAR_MODE_OFF);
+  return body;
 }
 
 static lv_obj_t *box(lv_obj_t *parent, int x, int y, int w, int h, int radius, uint32_t fill, uint32_t border) {
@@ -335,7 +362,7 @@ static lv_obj_t *hero_card(lv_obj_t *parent, int x, int y, const MetricRender &h
 }
 
 static void on_tile_clicked(lv_event_t *event) {
-  if (lv_event_get_code(event) != LV_EVENT_CLICKED || ringAnimationActive) return;
+  if (lv_event_get_code(event) != LV_EVENT_CLICKED || ringAnimationActive || pageTransitionState.active) return;
   uintptr_t raw = reinterpret_cast<uintptr_t>(lv_event_get_user_data(event));
   if (raw >= 5) return;
   touchHeroOverrideMetric = static_cast<MetricKind>(raw);
@@ -348,7 +375,7 @@ static void on_tile_clicked(lv_event_t *event) {
 }
 
 static void on_proxmox_tile_clicked(lv_event_t *event) {
-  if (lv_event_get_code(event) != LV_EVENT_CLICKED || ringAnimationActive) return;
+  if (lv_event_get_code(event) != LV_EVENT_CLICKED || ringAnimationActive || pageTransitionState.active) return;
   uintptr_t raw = reinterpret_cast<uintptr_t>(lv_event_get_user_data(event));
   if (raw >= 5) return;
   uint32_t now = millis();
@@ -611,21 +638,22 @@ static void start_ring_transition(lv_obj_t *screen, MetricKind target, const Led
 static void draw_nut_home_static(lv_obj_t *screen, const LedcardsInterfaceNutView &view) {
   lastRenderedView = view;
   hasLastRenderedView = true;
-  lv_obj_clean(screen);
-  lv_obj_set_style_bg_color(screen, C(0x040607), 0);
-  lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
-  set_no_border(screen);
+  prepare_screen(screen);
 
+  draw_nut_home_body(screen, view);
+  top_status(screen, view);
+}
+
+static void draw_nut_home_body(lv_obj_t *parent, const LedcardsInterfaceNutView &view) {
   MetricKind heroKind = metricOrder[0];
   MetricRender hero = metric_for(heroKind, view);
-  top_status(screen, view);
 
-  hero_card(screen, kHeroCardX, kHeroCardY, hero, true);
+  hero_card(parent, kHeroCardX, kHeroCardY, hero, true);
 
   const int xs[4] = {166, 166, 12, 12};
   const int ys[4] = {124, 182, 182, 124};
   for (int i = 1; i < 5; ++i) {
-    tile(screen, xs[i - 1], ys[i - 1], metric_for(metricOrder[i], view, true));
+    tile(parent, xs[i - 1], ys[i - 1], metric_for(metricOrder[i], view, true));
   }
 }
 
@@ -721,18 +749,20 @@ static ProxmoxAmbientPageModel proxmox_model_with_touch_focus(const ProxmoxAmbie
 }
 
 static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
-  ProxmoxAmbientPageModel model = proxmox_model_with_touch_focus(view, statusView.nowMillis);
   lastRenderedProxmoxView = view;
   lastRenderedProxmoxStatusView = statusView;
+  prepare_screen(screen);
+
+  draw_proxmox_ambient_body(screen, view, statusView);
+  top_status(screen, statusView);
+}
+
+static void draw_proxmox_ambient_body(lv_obj_t *parent, const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+  ProxmoxAmbientPageModel model = proxmox_model_with_touch_focus(view, statusView.nowMillis);
   lastRenderedProxmoxModel = model;
   hasLastRenderedProxmoxModel = true;
-  lv_obj_clean(screen);
-  lv_obj_set_style_bg_color(screen, C(0x040607), 0);
-  lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
-  set_no_border(screen);
 
-  top_status(screen, statusView);
-  hero_card(screen, kHeroCardX, kHeroCardY, proxmox_hero_metric(model), true);
+  hero_card(parent, kHeroCardX, kHeroCardY, proxmox_hero_metric(model), true);
   ensure_proxmox_slot_order(model);
 
   const int xs[4] = {166, 166, 12, 12};
@@ -742,7 +772,7 @@ static void draw_proxmox_ambient_static(lv_obj_t *screen, const ProxmoxAmbientVi
     uint8_t cardIndex = proxmoxSlotOrder[slot];
     if (cardIndex < model.cardCount) {
       const ProxmoxAmbientCard &card = model.cards[cardIndex];
-      lv_obj_t *cardTile = tile(screen, xs[slot - 1], ys[slot - 1], proxmox_metric_for_card(card, kinds[slot - 1]), false);
+      lv_obj_t *cardTile = tile(parent, xs[slot - 1], ys[slot - 1], proxmox_metric_for_card(card, kinds[slot - 1]), false);
       add_tile_hit(cardTile, on_proxmox_tile_clicked, static_cast<uintptr_t>(cardIndex));
     }
   }
@@ -874,6 +904,90 @@ static void render_proxmox_ambient(lv_obj_t *screen, const ProxmoxAmbientView &v
   draw_proxmox_ambient_static(screen, view, statusView);
 }
 
+static void render_page_body(uint8_t pageIndex, lv_obj_t *parent, const LedcardsInterfaceNutView &statusView, const ProxmoxAmbientView &proxmoxView) {
+  if (pageIndex == 1 && statusView.pageCount > 1) {
+    draw_proxmox_ambient_body(parent, proxmoxView, statusView);
+    return;
+  }
+  draw_nut_home_body(parent, statusView);
+}
+
+static void render_selected_page_static(lv_obj_t *screen) {
+  LedcardsInterfaceNutView statusView = hasPendingPageTransitionView ? pendingPageTransitionStatusView : lastRenderedView;
+  ProxmoxAmbientView proxmoxView = hasPendingPageTransitionView ? pendingPageTransitionProxmoxView : lastRenderedProxmoxView;
+  hasPendingPageTransitionView = false;
+  if (pageTransitionState.selectedPage == 1 && statusView.pageCount > 1) {
+    draw_proxmox_ambient_static(screen, proxmoxView, statusView);
+    return;
+  }
+  draw_nut_home_static(screen, statusView);
+}
+
+static void finish_page_transition_async(void *) {
+  lv_obj_t *screen = lv_screen_active();
+  if (pageTransitionOutgoingBody) {
+    lv_obj_delete(pageTransitionOutgoingBody);
+    pageTransitionOutgoingBody = nullptr;
+  }
+  if (pageTransitionIncomingBody) {
+    lv_obj_delete(pageTransitionIncomingBody);
+    pageTransitionIncomingBody = nullptr;
+  }
+  ambientConsoleFinishPageTransition(pageTransitionState);
+  render_selected_page_static(screen);
+}
+
+static void finish_page_transition(lv_anim_t *) {
+  lv_async_call(finish_page_transition_async, nullptr);
+}
+
+static void anim_set_obj_x(void *var, int32_t x) {
+  lv_obj_set_x(static_cast<lv_obj_t *>(var), x);
+}
+
+static void animate_page_body(lv_obj_t *obj, int32_t fromX, int32_t toX, bool finish) {
+  lv_anim_t a;
+  lv_anim_init(&a);
+  lv_anim_set_var(&a, obj);
+  lv_anim_set_values(&a, fromX, toX);
+  lv_anim_set_duration(&a, 430);
+  lv_anim_set_exec_cb(&a, anim_set_obj_x);
+  lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+  if (finish) lv_anim_set_completed_cb(&a, finish_page_transition);
+  lv_anim_start(&a);
+}
+
+static bool start_page_transition(lv_obj_t *screen,
+                                  uint8_t fromPage,
+                                  uint8_t toPage,
+                                  const LedcardsInterfaceNutView &statusView,
+                                  const ProxmoxAmbientView &proxmoxView) {
+  pendingPageTransitionStatusView = statusView;
+  pendingPageTransitionProxmoxView = proxmoxView;
+  hasPendingPageTransitionView = true;
+
+  pageTransitionState.selectedPage = fromPage;
+  if (!ambientConsoleStartPageTransition(pageTransitionState, toPage, statusView.pageCount)) {
+    return false;
+  }
+
+  int incomingStartX = pageTransitionState.direction == AMBIENT_PAGE_TRANSITION_FORWARD ? 320 : -320;
+  int outgoingEndX = pageTransitionState.direction == AMBIENT_PAGE_TRANSITION_FORWARD ? -320 : 320;
+
+  prepare_screen(screen);
+  pageTransitionOutgoingBody = page_body_container(screen, 0);
+  pageTransitionIncomingBody = page_body_container(screen, incomingStartX);
+  render_page_body(fromPage, pageTransitionOutgoingBody, statusView, proxmoxView);
+  render_page_body(toPage, pageTransitionIncomingBody, statusView, proxmoxView);
+  top_status(screen, statusView);
+
+  // Page transition is shell-owned: the top status bar stays fixed while the
+  // Page body below it slides as one coherent module surface.
+  animate_page_body(pageTransitionOutgoingBody, 0, outgoingEndX, false);
+  animate_page_body(pageTransitionIncomingBody, incomingStartX, 0, true);
+  return true;
+}
+
 }  // namespace
 
 void createLedcardsInterfaceUi(const LedcardsInterfaceNutView &view) {
@@ -886,13 +1000,53 @@ void updateLedcardsInterfaceUi(const LedcardsInterfaceNutView &view) {
     createLedcardsInterfaceUi(view);
     return;
   }
+  if (pageTransitionState.active) {
+    pendingPageTransitionStatusView = view;
+    hasPendingPageTransitionView = true;
+    ambientConsoleNotePageRefresh(pageTransitionState);
+    return;
+  }
   render_nut_home(lv_screen_active(), view);
 }
 
+bool ledcardsInterfacePageTransitionActive() {
+  return pageTransitionState.active;
+}
+
+bool transitionLedcardsInterfacePageUi(uint8_t fromPage,
+                                       uint8_t toPage,
+                                       const LedcardsInterfaceNutView &statusView,
+                                       const ProxmoxAmbientView &proxmoxView) {
+  if (ringAnimationActive) return false;
+  if (pageTransitionState.active) {
+    pendingPageTransitionStatusView = statusView;
+    pendingPageTransitionProxmoxView = proxmoxView;
+    hasPendingPageTransitionView = true;
+    ambientConsoleStartPageTransition(pageTransitionState, toPage, statusView.pageCount);
+    ambientConsoleNotePageRefresh(pageTransitionState);
+    return false;
+  }
+  return start_page_transition(lv_screen_active(), fromPage, toPage, statusView, proxmoxView);
+}
+
 void renderProxmoxAmbientUnavailableUi(const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+  if (pageTransitionState.active) {
+    pendingPageTransitionStatusView = statusView;
+    pendingPageTransitionProxmoxView = view;
+    hasPendingPageTransitionView = true;
+    ambientConsoleNotePageRefresh(pageTransitionState);
+    return;
+  }
   render_proxmox_ambient(lv_screen_active(), view, statusView);
 }
 
 void renderProxmoxAmbientUi(const ProxmoxAmbientView &view, const LedcardsInterfaceNutView &statusView) {
+  if (pageTransitionState.active) {
+    pendingPageTransitionStatusView = statusView;
+    pendingPageTransitionProxmoxView = view;
+    hasPendingPageTransitionView = true;
+    ambientConsoleNotePageRefresh(pageTransitionState);
+    return;
+  }
   render_proxmox_ambient(lv_screen_active(), view, statusView);
 }
