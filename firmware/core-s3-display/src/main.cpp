@@ -5,9 +5,10 @@
 #include <string.h>
 
 #include "m5_hal.h"
+#include "ambient-console-state.h"
+#include "ambient-console-shell.h"
 #include "core-s3-transport-diagnostics.h"
 #include "ledcards-interface-page.h"
-#include "proxmox-ambient-page-model.h"
 
 #if __has_include("power_sentinel_config.h")
 #include "power_sentinel_config.h"
@@ -219,70 +220,10 @@ constexpr uint32_t kAlsDarkeningDebounceMs = POWER_SENTINEL_ALS_DARKENING_DEBOUN
 constexpr uint8_t kAlsTargetFilterShift = POWER_SENTINEL_ALS_TARGET_FILTER_SHIFT;
 constexpr uint8_t kAlsTargetDeadband = POWER_SENTINEL_ALS_TARGET_DEADBAND;
 
-struct UpsState {
-  bool available = false;
-  bool onBattery = false;
-  bool lowBattery = false;
-  bool charging = false;
-  bool stale = true;
-  char status[24] = "unknown";
-  int batteryPercent = -1;
-  int runtimeSeconds = -1;
-  int loadPercent = -1;
-  float inputVoltage = 0.0f;
-  int ageSeconds = -1;
-};
-
-struct NutState {
-  int clientCount = -1;
-  bool wouldShutdown = false;
-};
-
-struct ProxmoxState {
-  bool enabled = false;
-  bool implemented = false;
-  bool hasLiveData = false;
-  char condition[16] = "unavailable";
-  char status[24] = "not_observed";
-  char signalKind[24] = "";
-  char signalSummary[48] = "";
-  char signalContext[32] = "";
-  int nodeCount = -1;
-  int onlineNodeCount = -1;
-  int guestTotalCount = -1;
-  int guestRunningCount = -1;
-  int storageCount = -1;
-  int maxStorageUsedPercent = -1;
-  int cpuPercent = -1;
-  char cpuCondition[16] = "healthy";
-  int ramPercent = -1;
-  char ramCondition[16] = "healthy";
-  int guestRunning = -1;
-  int guestTotal = -1;
-  char guestCondition[16] = "healthy";
-  int storagePercent = -1;
-  char storageCondition[16] = "healthy";
-  int networkPercent = -1;
-  char networkCondition[16] = "healthy";
-};
-
-struct SummaryState {
-  char schema[32] = "power-sentinel.summary.v1";
-  char severity[12] = "unknown";
-  char source[16] = "boot";
-  char transportStatus[96] = "Waiting for StackFlow summary";
-  bool moduleLanConnected = false;
-  char moduleTimeHhmm[6] = "--:--";
-  bool offline = true;
-  uint32_t lastGoodMillis = 0;
-  UpsState ups;
-  NutState nut;
-  ProxmoxState proxmox;
-};
-
 enum class DisplayMode : uint8_t { Awake, Dim, Off };
 
 SummaryState state;
+AmbientConsoleShell ambientShell{kLinkStatusTimeoutMs};
 uint32_t lastFetchMs = 0;
 uint32_t lastLvTickMs = 0;
 uint32_t stackflowRequestId = 0;
@@ -300,10 +241,6 @@ bool stateSignatureValid = false;
 bool manualDisplaySnoozeActive = false;
 bool missingPayloadDisplayOffActive = false;
 bool displayFadeActive = false;
-bool linkStatusRenderedValid = false;
-bool lastRenderedLinkOk = false;
-uint8_t currentPageIndex = 0;
-bool topBarPageTouchActive = false;
 DisplayMode displayMode = DisplayMode::Awake;
 DisplayMode displayFadeTargetMode = DisplayMode::Awake;
 uint8_t displayBrightnessCurrent = kDisplayAwakeBrightness;
@@ -337,177 +274,6 @@ lv_color_t buf1[kScreenW * 24];
 lv_color_t buf2[kScreenW * 24];
 lv_display_t *display = nullptr;
 lv_indev_t *indev = nullptr;
-
-void safeCopy(char *dst, size_t dstSize, const char *src) {
-  if (!dst || dstSize == 0) return;
-  if (!src) src = "";
-  strncpy(dst, src, dstSize - 1);
-  dst[dstSize - 1] = '\0';
-}
-
-int jsonInt(JsonVariantConst v, int fallback) {
-  if (v.isNull()) return fallback;
-  if (v.is<int>()) return v.as<int>();
-  if (v.is<float>()) return static_cast<int>(v.as<float>());
-  if (v.is<const char *>()) return atoi(v.as<const char *>());
-  return fallback;
-}
-
-float jsonFloat(JsonVariantConst v, float fallback) {
-  if (v.isNull()) return fallback;
-  if (v.is<float>() || v.is<int>()) return v.as<float>();
-  if (v.is<const char *>()) return atof(v.as<const char *>());
-  return fallback;
-}
-
-bool jsonBool(JsonVariantConst v, bool fallback = false) {
-  if (v.isNull()) return fallback;
-  if (v.is<bool>()) return v.as<bool>();
-  if (v.is<int>()) return v.as<int>() != 0;
-  if (v.is<const char *>()) {
-    const char *s = v.as<const char *>();
-    return strcmp(s, "1") == 0 || strcmp(s, "true") == 0 || strcmp(s, "yes") == 0;
-  }
-  return fallback;
-}
-
-bool validHhmm(const char *s) {
-  if (!s) return false;
-  return s[0] >= '0' && s[0] <= '2' &&
-         s[1] >= '0' && s[1] <= '9' &&
-         s[2] == ':' &&
-         s[3] >= '0' && s[3] <= '5' &&
-         s[4] >= '0' && s[4] <= '9' &&
-         s[5] == '\0' &&
-         !(s[0] == '2' && s[1] > '3');
-}
-
-bool linkOkAt(uint32_t now) {
-  return state.lastGoodMillis != 0 && now - state.lastGoodMillis <= kLinkStatusTimeoutMs;
-}
-
-bool proxmoxPageAvailable() {
-  return state.proxmox.enabled && state.proxmox.implemented;
-}
-
-uint8_t ambientPageCount() {
-  return proxmoxPageAvailable() ? 2 : 1;
-}
-
-void clampCurrentPageIndex() {
-  uint8_t pageCount = ambientPageCount();
-  if (currentPageIndex >= pageCount) currentPageIndex = 0;
-}
-
-bool parseSummary(const String &json, const char *source) {
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, json);
-  if (err) {
-    Serial.printf("NUT summary JSON parse error: %s\n", err.c_str());
-    snprintf(state.transportStatus, sizeof(state.transportStatus), "JSON parse failed: %s", err.c_str());
-    pendingTransportFailureKind = CORE_S3_TRANSPORT_FAILURE_JSON_PARSE;
-    return false;
-  }
-  safeCopy(state.schema, sizeof(state.schema), doc["schema"] | "power-sentinel.summary.v1");
-  safeCopy(state.severity, sizeof(state.severity), doc["severity"] | "unknown");
-  safeCopy(state.source, sizeof(state.source), source);
-  JsonObjectConst ups = doc["ups"].as<JsonObjectConst>();
-  state.ups.available = jsonBool(ups["available"], false);
-  state.ups.stale = jsonBool(ups["stale"], !state.ups.available);
-  state.ups.onBattery = jsonBool(ups["on_battery"], false);
-  state.ups.lowBattery = jsonBool(ups["low_battery"], false);
-  state.ups.charging = jsonBool(ups["charging"], false);
-  safeCopy(state.ups.status, sizeof(state.ups.status), ups["status"] | ups["status_label"] | "unknown");
-  state.ups.batteryPercent = jsonInt(ups["battery_percent"], -1);
-  state.ups.runtimeSeconds = jsonInt(ups["runtime_seconds"], -1);
-  state.ups.loadPercent = jsonInt(ups["load_percent"], -1);
-  state.ups.inputVoltage = jsonFloat(ups["input_voltage"], 0.0f);
-  state.ups.ageSeconds = jsonInt(ups["age_seconds"], -1);
-  JsonObjectConst nut = doc["nut"].as<JsonObjectConst>();
-  state.nut.clientCount = jsonInt(nut["client_count"], -1);
-  state.nut.wouldShutdown = jsonBool(nut["would_shutdown"], false);
-  JsonObjectConst module = doc["module"].as<JsonObjectConst>();
-  state.moduleLanConnected = jsonBool(module["lan_connected"], false);
-  const char *timeHhmm = module["time_hhmm"] | "--:--";
-  safeCopy(state.moduleTimeHhmm, sizeof(state.moduleTimeHhmm), validHhmm(timeHhmm) ? timeHhmm : "--:--");
-  JsonObjectConst proxmox = doc["modules"]["proxmox"].as<JsonObjectConst>();
-  state.proxmox.enabled = jsonBool(proxmox["enabled"], false);
-  state.proxmox.implemented = jsonBool(proxmox["implemented"], false);
-  safeCopy(state.proxmox.condition, sizeof(state.proxmox.condition), proxmox["condition"] | "unavailable");
-  safeCopy(state.proxmox.status, sizeof(state.proxmox.status), proxmox["status"] | "not_observed");
-  JsonObjectConst proxmoxCpuCard = proxmox["cards"]["cpu"].as<JsonObjectConst>();
-  state.proxmox.cpuPercent = jsonInt(proxmoxCpuCard["value_percent"], -1);
-  safeCopy(state.proxmox.cpuCondition, sizeof(state.proxmox.cpuCondition), proxmoxCpuCard["condition"] | "healthy");
-  JsonObjectConst proxmoxRamCard = proxmox["cards"]["ram"].as<JsonObjectConst>();
-  state.proxmox.ramPercent = jsonInt(proxmoxRamCard["value_percent"], -1);
-  safeCopy(state.proxmox.ramCondition, sizeof(state.proxmox.ramCondition), proxmoxRamCard["condition"] | "healthy");
-  JsonObjectConst proxmoxGuestCard = proxmox["cards"]["guests"].as<JsonObjectConst>();
-  state.proxmox.guestRunning = jsonInt(proxmoxGuestCard["running"], -1);
-  state.proxmox.guestTotal = jsonInt(proxmoxGuestCard["total"], -1);
-  safeCopy(state.proxmox.guestCondition, sizeof(state.proxmox.guestCondition), proxmoxGuestCard["condition"] | "healthy");
-  JsonObjectConst proxmoxStorageCard = proxmox["cards"]["storage"].as<JsonObjectConst>();
-  state.proxmox.storagePercent = jsonInt(proxmoxStorageCard["value_percent"], -1);
-  safeCopy(state.proxmox.storageCondition, sizeof(state.proxmox.storageCondition), proxmoxStorageCard["condition"] | "healthy");
-  JsonObjectConst proxmoxNetworkCard = proxmox["cards"]["network"].as<JsonObjectConst>();
-  state.proxmox.networkPercent = jsonInt(proxmoxNetworkCard["value_percent"], -1);
-  safeCopy(state.proxmox.networkCondition, sizeof(state.proxmox.networkCondition), proxmoxNetworkCard["condition"] | "healthy");
-  JsonObjectConst proxmoxEnvironment = proxmox["environment"].as<JsonObjectConst>();
-  state.proxmox.nodeCount = jsonInt(proxmoxEnvironment["node_count"], -1);
-  state.proxmox.onlineNodeCount = jsonInt(proxmoxEnvironment["online_node_count"], -1);
-  state.proxmox.guestTotalCount = jsonInt(proxmoxEnvironment["guest_total_count"], -1);
-  state.proxmox.guestRunningCount = jsonInt(proxmoxEnvironment["guest_running_count"], -1);
-  state.proxmox.storageCount = jsonInt(proxmoxEnvironment["storage_count"], -1);
-  state.proxmox.maxStorageUsedPercent = -1;
-  JsonArrayConst proxmoxStorage = proxmox["storage"].as<JsonArrayConst>();
-  for (JsonObjectConst item : proxmoxStorage) {
-    int used = jsonInt(item["used_percent"], -1);
-    if (used > state.proxmox.maxStorageUsedPercent) state.proxmox.maxStorageUsedPercent = used;
-  }
-  JsonArrayConst proxmoxSignals = proxmox["signals"].as<JsonArrayConst>();
-  JsonObjectConst selectedProxmoxSignal;
-  for (JsonObjectConst signal : proxmoxSignals) {
-    if (selectedProxmoxSignal.isNull()) {
-      selectedProxmoxSignal = signal;
-      continue;
-    }
-    const char *selectedKind = selectedProxmoxSignal["kind"] | "";
-    const char *kind = signal["kind"] | "";
-    if (strcmp(selectedKind, "storage_warning") == 0 && strcmp(kind, "storage_critical") == 0) {
-      selectedProxmoxSignal = signal;
-    }
-  }
-  safeCopy(state.proxmox.signalKind, sizeof(state.proxmox.signalKind), selectedProxmoxSignal["kind"] | "");
-  safeCopy(state.proxmox.signalSummary, sizeof(state.proxmox.signalSummary), selectedProxmoxSignal["summary"] | "");
-  JsonObjectConst selectedProxmoxSignalContext = selectedProxmoxSignal["context"].as<JsonObjectConst>();
-  const char *signalNode = selectedProxmoxSignalContext["node"] | "";
-  const char *signalStorage = selectedProxmoxSignalContext["storage"] | "";
-  const char *signalName = selectedProxmoxSignalContext["name"] | "";
-  int signalUsedPercent = jsonInt(selectedProxmoxSignalContext["used_percent"], -1);
-  int signalVmid = jsonInt(selectedProxmoxSignalContext["vmid"], -1);
-  if (signalNode[0] != '\0') {
-    if (signalStorage[0] != '\0' && signalUsedPercent >= 0) {
-      snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "%s/%s %d%%", signalNode, signalStorage, signalUsedPercent);
-    } else {
-      safeCopy(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), signalNode);
-    }
-  } else if (signalStorage[0] != '\0' && signalUsedPercent >= 0) {
-    snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "%s %d%%", signalStorage, signalUsedPercent);
-  } else if (signalName[0] != '\0' && signalVmid >= 0) {
-    snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "%s %d", signalName, signalVmid);
-  } else if (signalVmid >= 0) {
-    snprintf(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "VMID %d", signalVmid);
-  } else {
-    safeCopy(state.proxmox.signalContext, sizeof(state.proxmox.signalContext), "");
-  }
-  state.proxmox.hasLiveData = state.proxmox.enabled &&
-                              state.proxmox.implemented &&
-                              strcmp(state.proxmox.status, "observed") == 0 &&
-                              state.proxmox.nodeCount >= 0;
-  state.offline = false;
-  state.lastGoodMillis = millis();
-  snprintf(state.transportStatus, sizeof(state.transportStatus), "%s summary OK", source);
-  return true;
-}
 
 #if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
 static const char kLedcardsInterfaceVisualFixtureJson[] = R"JSON({
@@ -553,60 +319,9 @@ static const char kLedcardsInterfaceVisualFixtureJson[] = R"JSON({
 })JSON";
 
 void applyLedcardsInterfaceVisualFixture() {
-  parseSummary(kLedcardsInterfaceVisualFixtureJson, "fixture");
+  ambientConsoleParseSummary(state, pendingTransportFailureKind, kLedcardsInterfaceVisualFixtureJson, "fixture");
 }
 #endif
-
-LedcardsInterfaceNutView makeLedcardsInterfaceNutView() {
-  LedcardsInterfaceNutView view{};
-  view.offline = state.offline;
-  view.upsAvailable = state.ups.available;
-  view.upsStale = state.ups.stale;
-  view.onBattery = state.ups.onBattery;
-  view.lowBattery = state.ups.lowBattery;
-  view.charging = state.ups.charging;
-  view.batteryPercent = state.ups.batteryPercent;
-  view.runtimeSeconds = state.ups.runtimeSeconds;
-  view.loadPercent = state.ups.loadPercent;
-  view.inputVoltage = state.ups.inputVoltage;
-  view.nutClientCount = state.nut.clientCount;
-  view.ageSeconds = state.ups.ageSeconds;
-  uint32_t now = millis();
-  view.moduleLanConnected = state.moduleLanConnected;
-  view.wifiConnected = WiFi.status() == WL_CONNECTED;
-  view.linkOk = linkOkAt(now);
-  safeCopy(view.transportStatus, sizeof(view.transportStatus), state.transportStatus);
-  safeCopy(view.moduleTimeHhmm, sizeof(view.moduleTimeHhmm), validHhmm(state.moduleTimeHhmm) ? state.moduleTimeHhmm : "--:--");
-  view.localBatteryPercent = psBatteryLevel();
-  view.localBatteryCharging = psBatteryCharging();
-  view.localBatteryKnown = view.localBatteryPercent >= 0;
-  clampCurrentPageIndex();
-  view.pageCount = proxmoxPageAvailable() ? 2 : 1;
-  view.pageIndex = currentPageIndex;
-  view.nowMillis = now;
-  return view;
-}
-
-ProxmoxAmbientView makeProxmoxAmbientView() {
-  ProxmoxAmbientView view{};
-  view.enabled = state.proxmox.enabled;
-  view.implemented = state.proxmox.implemented;
-  view.hasLiveData = state.proxmox.hasLiveData;
-  safeCopy(view.condition, sizeof(view.condition), state.proxmox.condition);
-  safeCopy(view.status, sizeof(view.status), state.proxmox.status);
-  view.cpuPercent = state.proxmox.cpuPercent;
-  safeCopy(view.cpuCondition, sizeof(view.cpuCondition), state.proxmox.cpuCondition);
-  view.ramPercent = state.proxmox.ramPercent;
-  safeCopy(view.ramCondition, sizeof(view.ramCondition), state.proxmox.ramCondition);
-  view.guestRunning = state.proxmox.guestRunning;
-  view.guestTotal = state.proxmox.guestTotal;
-  safeCopy(view.guestCondition, sizeof(view.guestCondition), state.proxmox.guestCondition);
-  view.storagePercent = state.proxmox.storagePercent;
-  safeCopy(view.storageCondition, sizeof(view.storageCondition), state.proxmox.storageCondition);
-  view.networkPercent = state.proxmox.networkPercent;
-  safeCopy(view.networkCondition, sizeof(view.networkCondition), state.proxmox.networkCondition);
-  return view;
-}
 
 void myDispFlush(lv_display_t *disp, const lv_area_t *area, uint8_t *pxMap) {
   uint32_t w = static_cast<uint32_t>(area->x2 - area->x1 + 1);
@@ -867,38 +582,14 @@ void updateDisplayFade(uint32_t now) {
   if (next != displayBrightnessCurrent) applyDisplayBrightness(next);
 }
 
-void refreshLedcardsUi() {
-  LedcardsInterfaceNutView view = makeLedcardsInterfaceNutView();
-  if (currentPageIndex == 1 && proxmoxPageAvailable()) {
-    renderProxmoxAmbientUi(makeProxmoxAmbientView(), view);
-  } else {
-    updateLedcardsInterfaceUi(view);
-  }
-  lastRenderedLinkOk = view.linkOk;
-  linkStatusRenderedValid = true;
-}
-
-bool handleTopBarPageTap(int32_t x, int32_t y) {
-  uint8_t pageCount = ambientPageCount();
-  if (pageCount <= 1 || y > 24) return false;
-  if (!topBarPageTouchActive) {
-    uint8_t previousPageIndex = currentPageIndex;
-    uint8_t targetPageIndex = x < 160 ? 0 : 1;
-    currentPageIndex = targetPageIndex;
-    clampCurrentPageIndex();
-    LedcardsInterfaceNutView view = makeLedcardsInterfaceNutView();
-    if (!transitionLedcardsInterfacePageUi(previousPageIndex, currentPageIndex, view, makeProxmoxAmbientView())) {
-      refreshLedcardsUi();
-    }
-    topBarPageTouchActive = true;
-  }
-  return true;
+void refreshAmbientConsoleUi() {
+  ambientShell.refresh(state, WiFi.status() == WL_CONNECTED, psBatteryLevel(), psBatteryCharging(), millis());
 }
 
 void enterDisplayDim(uint32_t now) {
   if ((displayMode == DisplayMode::Dim && !displayFadeActive) ||
       (displayFadeActive && displayFadeTargetMode == DisplayMode::Dim)) return;
-  if (displayMode == DisplayMode::Off) refreshLedcardsUi();
+  if (displayMode == DisplayMode::Off) refreshAmbientConsoleUi();
   startDisplayFade(DisplayMode::Dim, brightnessForMode(DisplayMode::Dim), now);
 }
 
@@ -915,7 +606,7 @@ void wakeDisplay() {
   uint32_t now = millis();
   if ((displayMode == DisplayMode::Awake && !displayFadeActive) ||
       (displayFadeActive && displayFadeTargetMode == DisplayMode::Awake)) return;
-  if (displayMode == DisplayMode::Off) refreshLedcardsUi();
+  if (displayMode == DisplayMode::Off) refreshAmbientConsoleUi();
   displayAsleep = false;
   displaySleepWakeArmed = true;
   startDisplayFade(DisplayMode::Awake, brightnessForMode(DisplayMode::Awake), now);
@@ -961,7 +652,7 @@ void handleStateSignatureAfterFetch(uint32_t now) {
   } else if (wasMissingPayloadOff) {
     enterDisplayDim(now);
   }
-  safeCopy(lastStateSignature, sizeof(lastStateSignature), signature);
+  ambientConsoleSafeCopy(lastStateSignature, sizeof(lastStateSignature), signature);
 }
 
 void updateAutoStandby(uint32_t now) {
@@ -1002,7 +693,7 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
   uint32_t now = millis();
   bool pressed = psTouchPressed(&x, &y);
 
-  if (!pressed) topBarPageTouchActive = false;
+  if (!pressed) ambientShell.noteTouchReleased();
 
   if (pressed && (displayMode == DisplayMode::Dim || displayMode == DisplayMode::Off)) {
     recordDisplayActivity(now);
@@ -1014,7 +705,7 @@ void myTouchRead(lv_indev_t *, lv_indev_data_t *data) {
     data->state = LV_INDEV_STATE_RELEASED;
     return;
   }
-  if (pressed && handleTopBarPageTap(x, y)) {
+  if (pressed && ambientShell.handleTopBarPageTap(state, x, y, WiFi.status() == WL_CONNECTED, psBatteryLevel(), psBatteryCharging(), now)) {
     recordDisplayActivity(now);
     data->state = LV_INDEV_STATE_RELEASED;
     return;
@@ -1100,7 +791,7 @@ bool parseStackFlowSummaryResponse(const String &line, const String &requestId, 
   }
   String body;
   serializeJson(doc["data"], body);
-  return parseSummary(body, "stackflow");
+  return ambientConsoleParseSummary(state, pendingTransportFailureKind, body, "stackflow");
 }
 
 bool fetchSerialSummary() {
@@ -1194,7 +885,7 @@ void setup() {
 #if POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY
   applyLedcardsInterfaceVisualFixture();
 #endif
-  createLedcardsInterfaceUi(makeLedcardsInterfaceNutView());
+  ambientShell.create(state, WiFi.status() == WL_CONNECTED, psBatteryLevel(), psBatteryCharging(), millis());
   alsSensorReady = psAmbientLightBegin();
   Serial.printf("ALS sensor: %s adaptive=%u poll=%lu ms\n",
                 alsSensorReady ? "ready" : "unavailable",
@@ -1263,11 +954,10 @@ void loop() {
     fetchLiveSummary();
 #endif
     now = millis();
-    if (displayMode != DisplayMode::Off) refreshLedcardsUi();
+    if (displayMode != DisplayMode::Off) refreshAmbientConsoleUi();
   }
-  if (displayMode != DisplayMode::Off) {
-    bool currentLinkOk = linkOkAt(now);
-    if (!linkStatusRenderedValid || currentLinkOk != lastRenderedLinkOk) refreshLedcardsUi();
+  if (displayMode != DisplayMode::Off && ambientShell.shouldRefreshForLinkStatus(state, now)) {
+    refreshAmbientConsoleUi();
   }
   updateAutoStandby(now);
   delay(5);

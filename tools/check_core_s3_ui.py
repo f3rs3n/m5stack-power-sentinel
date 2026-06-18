@@ -10,6 +10,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
 AMBIENT_PAGE_TRANSITION_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-page-transition.h"
+AMBIENT_CONSOLE_STATE_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-state.h"
+AMBIENT_CONSOLE_SHELL_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-shell.h"
 CORE_S3_TRANSPORT_DIAGNOSTICS_H = ROOT / "firmware" / "core-s3-display" / "src" / "core-s3-transport-diagnostics.h"
 LEDCARDS_GRAPHICS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-graphics.h"
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
@@ -33,15 +35,15 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not CORE_S3_TRANSPORT_DIAGNOSTICS_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not CONTEXT.exists() or not NUT_AMBIENT_CONTRACT.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not AMBIENT_CONSOLE_STATE_H.exists() or not AMBIENT_CONSOLE_SHELL_H.exists() or not CORE_S3_TRANSPORT_DIAGNOSTICS_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not CONTEXT.exists() or not NUT_AMBIENT_CONTRACT.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
+    ambient_console = AMBIENT_CONSOLE_STATE_H.read_text(encoding="utf-8") + "\n" + AMBIENT_CONSOLE_SHELL_H.read_text(encoding="utf-8")
     ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + AMBIENT_PAGE_TRANSITION_H.read_text(encoding="utf-8") + "\n" + CORE_S3_TRANSPORT_DIAGNOSTICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_GRAPHICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
     if require(main, [
         "nut-monitor-clean-baseline",
-        "createLedcardsInterfaceUi(makeLedcardsInterfaceNutView())",
-        "updateLedcardsInterfaceUi(view)",
-        "currentLinkOk != lastRenderedLinkOk",
+        "ambientShell.create(state",
+        "ambientShell.shouldRefreshForLinkStatus(state, now)",
         "POWER_SENTINEL_TRANSPORT_SERIAL",
         "POWER_SENTINEL_LEDCARDS_INTERFACE_ONLY",
         "applyLedcardsInterfaceVisualFixture()",
@@ -49,16 +51,11 @@ def main() -> int:
         "Serial2.begin(POWER_SENTINEL_UART_BAUD, SERIAL_8N1, POWER_SENTINEL_UART_RX_PIN, POWER_SENTINEL_UART_TX_PIN)",
         "Transport: StackFlow serial rx=",
         "work_id\"] = \"sentinel\"",
-        "parseSummary(body, \"stackflow\")",
+        "ambientConsoleParseSummary(state, pendingTransportFailureKind, body, \"stackflow\")",
         "kLinkStatusTimeoutMs = 10000",
-        "doc[\"module\"].as<JsonObjectConst>()",
-        "doc[\"modules\"][\"proxmox\"].as<JsonObjectConst>()",
-        "makeProxmoxAmbientView()",
-        "currentPageIndex",
-        "proxmoxPageAvailable() ? 2 : 1",
-        "renderProxmoxAmbientUi(makeProxmoxAmbientView(), view)",
-        "handleTopBarPageTap",
-         "transitionLedcardsInterfacePageUi(previousPageIndex, currentPageIndex, view, makeProxmoxAmbientView())",
+        "AmbientConsoleShell ambientShell",
+        "ambientShell.refresh(state",
+        "ambientShell.handleTopBarPageTap(state",
         "WiFi.status() == WL_CONNECTED",
         "initStatusWiFi()",
         "psBatteryLevel()",
@@ -82,7 +79,7 @@ def main() -> int:
         "CORE_S3_TRANSPORT_FAILURE_JSON_PARSE",
         "CORE_S3_TRANSPORT_FAILURE_STACKFLOW_ERROR",
         "CORE_S3_TRANSPORT_FAILURE_TIMEOUT",
-        "if (displayMode != DisplayMode::Off) refreshLedcardsUi();",
+        "if (displayMode != DisplayMode::Off) refreshAmbientConsoleUi();",
         "lastPayloadAgeMs >= kDisplayNoPayloadOffMs",
         "missingPayloadDisplayOffActive",
         "wasMissingPayloadOff",
@@ -91,6 +88,38 @@ def main() -> int:
         "psDisplaySetBrightness(0)",
     ], "main NUT monitor"):
         return 1
+    if require(ambient_console, [
+        "struct SummaryState",
+        "ambientConsoleParseSummary",
+        "struct AmbientConsoleShell",
+        "ambientPageCount(const SummaryState &state) const",
+        "refresh(const SummaryState &state",
+        "handleTopBarPageTap",
+        "makeLedcardsInterfaceNutView",
+        "makeProxmoxAmbientView",
+        "updateLedcardsInterfaceUi(view)",
+    ], "Ambient Console Shell composition seam"):
+        return 1
+    if require(main, [
+        "AmbientConsoleShell ambientShell",
+        "ambientConsoleParseSummary(state, pendingTransportFailureKind",
+        "ambientShell.create(state",
+        "ambientShell.refresh(state",
+        "ambientShell.handleTopBarPageTap(state",
+    ], "main firmware composition"):
+        return 1
+    forbidden_main_policy = [
+        "bool proxmoxPageAvailable()",
+        "uint8_t ambientPageCount()",
+        "void clampCurrentPageIndex()",
+        "LedcardsInterfaceNutView makeLedcardsInterfaceNutView()",
+        "ProxmoxAmbientView makeProxmoxAmbientView()",
+        "void refreshLedcardsUi()",
+        "bool handleTopBarPageTap(",
+    ]
+    for needle in forbidden_main_policy:
+        if needle in main:
+            return fail(f"main.cpp still owns Ambient Console Shell policy {needle!r}")
     config_example = (ROOT / "firmware" / "core-s3-display" / "include" / "power_sentinel_config.example.h").read_text(encoding="utf-8")
     if require(config_example, ["#define SUMMARY_POLL_MS 5000UL", "POWER_SENTINEL_WIFI_SSID"], "CoreS3 config example"):
         return 1
