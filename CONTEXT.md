@@ -16,6 +16,14 @@ _Avoid_: Page module, dashboard tile
 A user-interface view that presents an enabled module on the CoreS3 display. A page is one possible surface of a module, not the module itself. Page visibility is decided separately from the module summary: disabled modules do not expose active pages; enabled modules with unavailable or unconfigured data should remain visible with appropriate unavailable/dim treatment rather than disappearing.
 _Avoid_: Module
 
+**Module Page**:
+The firmware-side page owned by a specific module. A Module Page owns that module's Page model, Ambient Card mapping, Hero Position policy, unavailable/unconfigured treatment, rendering policy, and touch focus inside the page. It should not own the page registry, current page index, cross-page transitions, top bar, transport status, display mode, or standby policy.
+_Avoid_: Ambient Console Shell, backend module, generic plugin
+
+**Page model**:
+The module-owned interpreted view that turns summary data into renderer-ready Ambient Cards, page condition, hero priority, and unavailable/unconfigured copy. A Page model is the boundary between module-specific policy and LVGL rendering: the renderer may draw visual classes and geometry, but it should not reinterpret module status, condition priority, or Hero Position rules.
+_Avoid_: Raw API payload, LVGL widget tree, shell state
+
 **Overview**:
 A page that summarizes the conditions of enabled modules. It should emerge when multiple real modules exist, and should not recreate the old generic HOME dashboard.
 _Avoid_: HOME dashboard, widget board
@@ -39,6 +47,10 @@ _Avoid_: Generic instruction, embedded admin console, full remediation flow
 **Ambient Console**:
 The CoreS3 display surface for glanceable status and lightweight interaction. Touch interactions belong here only when they are frequent, convenient, and meaningfully simpler than using the authoritative tool.
 _Avoid_: Primary workstation, full configuration UI
+
+**Ambient Console Shell**:
+The firmware seam that owns cross-page Ambient Console lifecycle. The Shell receives live summaries and transport diagnostics, keeps the page registry/page count/current page index, routes page-level touch intent, runs page transitions, renders the top bar, and applies display mode, standby, snooze, and common refresh policy. It delegates module-specific Page model construction, Ambient Card interpretation, Hero Position policy, and page rendering policy to Module Pages.
+_Avoid_: Module Page, module condition interpreter, generic plugin host
 
 **Backlight Level**:
 A physical brightness step that the CoreS3 display backlight can actually render after display hardware maps requested brightness values to its available output levels. Backlight levels are coarser than the firmware's nominal brightness values.

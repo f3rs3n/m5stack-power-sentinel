@@ -15,6 +15,7 @@ LEDCARDS_GRAPHICS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-
 LEDCARDS_H = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.h"
 NUT_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "nut-ambient-page-model.h"
 PROXMOX_PAGE_MODEL_H = ROOT / "firmware" / "core-s3-display" / "src" / "proxmox-ambient-page-model.h"
+CONTEXT = ROOT / "CONTEXT.md"
 NUT_AMBIENT_CONTRACT = ROOT / "docs" / "architecture" / "nut-ambient-console-contract.md"
 NUT_FIXTURE = ROOT / "assets" / "lvgl-spike" / "power-sentinel-nut-ledcards-interface-fixture.c"
 
@@ -32,7 +33,7 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not CORE_S3_TRANSPORT_DIAGNOSTICS_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not NUT_AMBIENT_CONTRACT.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not CORE_S3_TRANSPORT_DIAGNOSTICS_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not CONTEXT.exists() or not NUT_AMBIENT_CONTRACT.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
     ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + AMBIENT_PAGE_TRANSITION_H.read_text(encoding="utf-8") + "\n" + CORE_S3_TRANSPORT_DIAGNOSTICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_GRAPHICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
@@ -92,6 +93,19 @@ def main() -> int:
         return 1
     config_example = (ROOT / "firmware" / "core-s3-display" / "include" / "power_sentinel_config.example.h").read_text(encoding="utf-8")
     if require(config_example, ["#define SUMMARY_POLL_MS 5000UL", "POWER_SENTINEL_WIFI_SSID"], "CoreS3 config example"):
+        return 1
+    context = CONTEXT.read_text(encoding="utf-8")
+    if require(context, [
+        "**Ambient Console Shell**:",
+        "**Module Page**:",
+        "**Page model**:",
+        "page registry",
+        "top bar",
+        "transport status",
+        "display mode",
+        "rendering policy",
+        "Hero Position",
+    ], "Power Sentinel vocabulary"):
         return 1
     forbidden = [
         "renderHome(", "renderProxmox(", "renderHa(", "renderM5s(", "tabview", "PS_ICON_HOME", "Zigbee2MqttState",
