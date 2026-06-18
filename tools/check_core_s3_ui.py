@@ -10,6 +10,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "firmware" / "core-s3-display" / "src" / "main.cpp"
 LEDCARDS_CPP = ROOT / "firmware" / "core-s3-display" / "src" / "ledcards-interface-page.cpp"
 AMBIENT_PAGE_TRANSITION_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-page-transition.h"
+AMBIENT_CONSOLE_NUT_PAGE_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-nut-page.h"
+AMBIENT_CONSOLE_PROXMOX_PAGE_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-proxmox-page.h"
 AMBIENT_CONSOLE_STATE_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-state.h"
 AMBIENT_CONSOLE_SHELL_H = ROOT / "firmware" / "core-s3-display" / "src" / "ambient-console-shell.h"
 CORE_S3_TRANSPORT_DIAGNOSTICS_H = ROOT / "firmware" / "core-s3-display" / "src" / "core-s3-transport-diagnostics.h"
@@ -35,10 +37,10 @@ def require(text: str, needles: list[str], context: str) -> int:
 
 
 def main() -> int:
-    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not AMBIENT_CONSOLE_STATE_H.exists() or not AMBIENT_CONSOLE_SHELL_H.exists() or not CORE_S3_TRANSPORT_DIAGNOSTICS_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not CONTEXT.exists() or not NUT_AMBIENT_CONTRACT.exists():
+    if not MAIN.exists() or not LEDCARDS_CPP.exists() or not AMBIENT_PAGE_TRANSITION_H.exists() or not AMBIENT_CONSOLE_NUT_PAGE_H.exists() or not AMBIENT_CONSOLE_PROXMOX_PAGE_H.exists() or not AMBIENT_CONSOLE_STATE_H.exists() or not AMBIENT_CONSOLE_SHELL_H.exists() or not CORE_S3_TRANSPORT_DIAGNOSTICS_H.exists() or not LEDCARDS_GRAPHICS_H.exists() or not LEDCARDS_H.exists() or not NUT_PAGE_MODEL_H.exists() or not PROXMOX_PAGE_MODEL_H.exists() or not CONTEXT.exists() or not NUT_AMBIENT_CONTRACT.exists():
         return fail("firmware NUT monitor sources are missing")
     main = MAIN.read_text(encoding="utf-8")
-    ambient_console = AMBIENT_CONSOLE_STATE_H.read_text(encoding="utf-8") + "\n" + AMBIENT_CONSOLE_SHELL_H.read_text(encoding="utf-8")
+    ambient_console = AMBIENT_CONSOLE_STATE_H.read_text(encoding="utf-8") + "\n" + AMBIENT_CONSOLE_SHELL_H.read_text(encoding="utf-8") + "\n" + AMBIENT_CONSOLE_NUT_PAGE_H.read_text(encoding="utf-8") + "\n" + AMBIENT_CONSOLE_PROXMOX_PAGE_H.read_text(encoding="utf-8")
     ledcards = LEDCARDS_CPP.read_text(encoding="utf-8") + "\n" + AMBIENT_PAGE_TRANSITION_H.read_text(encoding="utf-8") + "\n" + CORE_S3_TRANSPORT_DIAGNOSTICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_GRAPHICS_H.read_text(encoding="utf-8") + "\n" + LEDCARDS_H.read_text(encoding="utf-8") + "\n" + NUT_PAGE_MODEL_H.read_text(encoding="utf-8") + "\n" + PROXMOX_PAGE_MODEL_H.read_text(encoding="utf-8")
     if require(main, [
         "nut-monitor-clean-baseline",
@@ -92,11 +94,14 @@ def main() -> int:
         "struct SummaryState",
         "ambientConsoleParseSummary",
         "struct AmbientConsoleShell",
+        "struct AmbientConsoleNutPage",
+        "struct AmbientConsoleProxmoxPage",
         "ambientPageCount(const SummaryState &state) const",
         "refresh(const SummaryState &state",
         "handleTopBarPageTap",
-        "makeLedcardsInterfaceNutView",
-        "makeProxmoxAmbientView",
+        "makeNutPageView",
+        "nutPage.makeView",
+        "proxmoxPage.makeView",
         "updateLedcardsInterfaceUi(view)",
     ], "Ambient Console Shell composition seam"):
         return 1

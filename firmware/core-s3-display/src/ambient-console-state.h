@@ -1,10 +1,13 @@
 #pragma once
 
-#include <Arduino.h>
-#include <ArduinoJson.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef ARDUINO
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#endif
 
 #include "core-s3-transport-diagnostics.h"
 
@@ -76,6 +79,7 @@ inline void ambientConsoleSafeCopy(char *dst, size_t dstSize, const char *src) {
   dst[dstSize - 1] = '\0';
 }
 
+#ifdef ARDUINO
 inline int ambientConsoleJsonInt(JsonVariantConst v, int fallback) {
   if (v.isNull()) return fallback;
   if (v.is<int>()) return v.as<int>();
@@ -101,6 +105,7 @@ inline bool ambientConsoleJsonBool(JsonVariantConst v, bool fallback = false) {
   }
   return fallback;
 }
+#endif
 
 inline bool ambientConsoleValidHhmm(const char *s) {
   if (!s) return false;
@@ -113,6 +118,7 @@ inline bool ambientConsoleValidHhmm(const char *s) {
          !(s[0] == '2' && s[1] > '3');
 }
 
+#ifdef ARDUINO
 inline bool ambientConsoleParseSummary(SummaryState &state,
                                        CoreS3TransportFailureKind &pendingTransportFailureKind,
                                        const String &json,
@@ -225,3 +231,4 @@ inline bool ambientConsoleParseSummary(SummaryState &state,
   snprintf(state.transportStatus, sizeof(state.transportStatus), "%s summary OK", source);
   return true;
 }
+#endif
