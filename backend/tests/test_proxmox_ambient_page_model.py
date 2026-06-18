@@ -144,6 +144,72 @@ def test_proxmox_ambient_page_model_legacy_api_nodes_signal_vocabulary_is_absent
     assert output == "ok\n"
 
 
+def test_proxmox_ambient_page_model_enabled_unconfigured_stays_visible_without_fake_telemetry():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = false;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "unavailable");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "unconfigured");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+          if (std::strcmp(model.condition, "unavailable") != 0) return 1;
+          if (std::strcmp(model.telemetryState, "unconfigured") != 0) return 2;
+          if (model.cardCount != 5) return 3;
+          if (std::strcmp(model.heroDisplayValue, "--") != 0) return 4;
+          if (std::strcmp(model.heroDetail, "UNCONFIGURED") != 0) return 5;
+          if (std::strcmp(model.visualClass, "purple") != 0) return 6;
+          for (int i = 0; i < model.cardCount; ++i) {
+            if (std::strcmp(model.cards[i].value, "--") != 0) return 10 + i;
+            if (std::strcmp(model.cards[i].stateText, "UNCONFIGURED") != 0) return 20 + i;
+            if (std::strcmp(model.cards[i].stateClass, "unavailable") != 0) return 30 + i;
+            if (std::strcmp(model.cards[i].visualClass, "purple") != 0) return 40 + i;
+          }
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_proxmox_ambient_page_model_enabled_api_unavailable_stays_visible_without_fake_telemetry():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "proxmox-ambient-page-model.h"
+
+        int main() {
+          ProxmoxAmbientView view{};
+          view.enabled = true;
+          view.implemented = true;
+          view.hasLiveData = false;
+          proxmoxAmbientCopy(view.condition, sizeof(view.condition), "unavailable");
+          proxmoxAmbientCopy(view.status, sizeof(view.status), "api_unavailable");
+
+          ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
+          if (std::strcmp(model.telemetryState, "api_unavailable") != 0) return 1;
+          if (std::strcmp(model.heroDisplayValue, "--") != 0) return 2;
+          if (std::strcmp(model.heroDetail, "UNAVAILABLE") != 0) return 3;
+          if (std::strcmp(model.visualClass, "purple") != 0) return 4;
+          for (int i = 0; i < model.cardCount; ++i) {
+            if (std::strcmp(model.cards[i].value, "--") != 0) return 10 + i;
+            if (std::strcmp(model.cards[i].stateText, "UNAVAILABLE") != 0) return 20 + i;
+            if (std::strcmp(model.cards[i].stateClass, "unavailable") != 0) return 30 + i;
+            if (std::strcmp(model.cards[i].visualClass, "purple") != 0) return 40 + i;
+          }
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
 def test_proxmox_ambient_page_model_renders_reduced_cards_without_duplicate_hero():
     output = compile_and_run(textwrap.dedent(r'''
         #include <cstring>

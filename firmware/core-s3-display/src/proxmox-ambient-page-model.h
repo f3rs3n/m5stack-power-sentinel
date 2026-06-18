@@ -138,6 +138,14 @@ inline const char *proxmoxAmbientNetworkStateText(const char *condition, bool ha
   return "NET OK";
 }
 
+inline const char *proxmoxAmbientMissingTelemetryStateText(const ProxmoxAmbientView &view) {
+  if (!view.enabled) return "DISABLED";
+  if (strcmp(proxmoxAmbientTelemetryState(view), "unconfigured") == 0) return "UNCONFIGURED";
+  if (strcmp(proxmoxAmbientCondition(view), "stale") == 0) return "STALE";
+  if (!view.hasLiveData || strcmp(proxmoxAmbientCondition(view), "unavailable") == 0) return "UNAVAILABLE";
+  return "PLACEHOLDER";
+}
+
 inline uint8_t proxmoxAmbientConditionRank(const char *condition) {
   if (strcmp(condition, "critical") == 0) return 3;
   if (strcmp(condition, "warning") == 0) return 2;
@@ -155,37 +163,37 @@ inline void fillProxmoxAmbientPlaceholderCard(ProxmoxAmbientCard &card, const Pr
 }
 
 inline void fillProxmoxAmbientCpuCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  bool hasValue = view.cpuPercent >= 0;
+  bool hasValue = view.hasLiveData && view.cpuPercent >= 0;
   const char *condition = view.cpuCondition[0] == '\0' ? "healthy" : view.cpuCondition;
   proxmoxAmbientCopy(card.label, sizeof(card.label), "CPU");
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.cpuPercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientCpuStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientCpuStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
 }
 
 inline void fillProxmoxAmbientRamCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  bool hasValue = view.ramPercent >= 0;
+  bool hasValue = view.hasLiveData && view.ramPercent >= 0;
   const char *condition = view.ramCondition[0] == '\0' ? "healthy" : view.ramCondition;
   proxmoxAmbientCopy(card.label, sizeof(card.label), "RAM");
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.ramPercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientRamStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientRamStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
 }
 
 inline void fillProxmoxAmbientGuestCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  bool hasValue = view.guestRunning >= 0 && view.guestTotal >= 0;
+  bool hasValue = view.hasLiveData && view.guestRunning >= 0 && view.guestTotal >= 0;
   const char *condition = view.guestCondition[0] == '\0' ? "healthy" : view.guestCondition;
   proxmoxAmbientCopy(card.label, sizeof(card.label), "Guests");
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d/%d", view.guestRunning, view.guestTotal);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientGuestStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientGuestStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
   if (hasValue && view.guestRunning == 0 && view.guestTotal == 0 && strcmp(condition, "healthy") == 0) {
     proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), "blue");
@@ -195,25 +203,25 @@ inline void fillProxmoxAmbientGuestCard(ProxmoxAmbientCard &card, const ProxmoxA
 }
 
 inline void fillProxmoxAmbientNetworkCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  bool hasValue = view.networkPercent >= 0;
+  bool hasValue = view.hasLiveData && view.networkPercent >= 0;
   const char *condition = view.networkCondition[0] == '\0' ? "healthy" : view.networkCondition;
   proxmoxAmbientCopy(card.label, sizeof(card.label), "Network");
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.networkPercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientNetworkStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue || strcmp(condition, "unavailable") == 0 ? proxmoxAmbientNetworkStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue || strcmp(condition, "unavailable") == 0 ? condition : proxmoxAmbientCondition(view));
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue || strcmp(condition, "unavailable") == 0 ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
 }
 
 inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
-  bool hasValue = view.storagePercent >= 0;
+  bool hasValue = view.hasLiveData && view.storagePercent >= 0;
   const char *condition = view.storageCondition[0] == '\0' ? "healthy" : view.storageCondition;
   proxmoxAmbientCopy(card.label, sizeof(card.label), "Storage");
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.storagePercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), proxmoxAmbientStorageStateText(condition, hasValue));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientStorageStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
   proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
 }
