@@ -9,11 +9,10 @@ SYSTEMD_DIR="/etc/systemd/system"
 
 usage() {
   cat <<'USAGE'
-Usage: sudo scripts/install-power-sentinel.sh [--modules nut[,proxmox,ha]] [--dry-run]
+Usage: sudo scripts/install-power-sentinel.sh [--modules nut[,proxmox]] [--dry-run]
 
 Installs or updates the clean modular Power Sentinel baseline.
-Current implemented module: nut.
-Declared future modules: proxmox, ha (accepted for manifest/config only; no telemetry installed yet).
+Current implemented modules: nut, proxmox.
 USAGE
 }
 
@@ -58,14 +57,27 @@ write_modules_config() {
   tmp="$(mktemp)"
   python3 - "$MODULES" > "$tmp" <<'PY'
 import json, sys
-mods = {"nut": False, "proxmox": False, "ha": False}
+mods = {"nut": False, "proxmox": False}
 for item in sys.argv[1].split(','):
     item = item.strip().lower()
     if item:
         if item not in mods:
             raise SystemExit(f"unsupported module: {item}")
         mods[item] = True
-print(json.dumps({"modules": mods, "nut": {"ups": "homelab_ups@localhost", "clients_file": "/etc/power-sentinel-nut-clients.json"}}, indent=2))
+config = {
+    "nut": {
+        "enabled": mods["nut"],
+        "ups": "homelab_ups@localhost",
+        "clients_file": "/etc/power-sentinel-nut-clients.json",
+    },
+    "proxmox": {
+        "enabled": mods["proxmox"],
+        "api_url": "https://pve.example:8006",
+        "token_id": "power-sentinel@pve!monitor",
+        "token_secret": "CHANGE_ME",
+    },
+}
+print(json.dumps(config, indent=2))
 PY
   if [[ "$DRY_RUN" == 1 ]]; then
     echo "DRY-RUN install -m 600 generated module config $ETC_DIR/power-sentinel.json"
@@ -80,20 +92,17 @@ PY
 for m in "${requested[@]}"; do
   m="${m// /}"
   case "$m" in
-    nut|proxmox|ha) ;;
+    nut|proxmox) ;;
     "") ;;
     *) echo "Unsupported module: $m" >&2; exit 2 ;;
   esac
 done
 
 if ! have_module nut; then
-  echo "Warning: installing without nut leaves only placeholder modules; no CoreS3 telemetry will be produced." >&2
+  echo "Warning: installing without nut disables the NUT Monitor baseline." >&2
 fi
 if have_module proxmox; then
   echo "Note: proxmox module uses the stdlib API adapter in power-sentinel-api; configure read-only credentials in /etc/power-sentinel.json." >&2
-fi
-if have_module ha; then
-  echo "Note: ha module is a placeholder in this clean baseline; installer records it but installs no HA backend yet." >&2
 fi
 
 run install -d -m 755 "$PREFIX/bin" "$SYSTEMD_DIR"

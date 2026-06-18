@@ -1,6 +1,6 @@
 # CoreS3 display firmware
 
-Clean baseline: live NUT Monitor plus Proxmox ambient page when the backend reports the Proxmox module as implemented/observed.
+Clean baseline: live NUT Monitor plus Proxmox ambient page when the backend reports the Proxmox module as implemented/observed. Both pages use the shared Ledcards visual language, fixed top status row, touch focus, and the internal StackFlow/UART transport.
 
 ## Build
 
@@ -89,8 +89,14 @@ Default transport is StackFlow over the internal stacked UART:
 
 CoreS3 HTTP polling is out of scope for the current baseline; live data comes through StackFlow/UART only.
 
+Boot logs print the active transport configuration. Runtime diagnostics classify StackFlow serial timeout, JSON parse, StackFlow error, and stale-response failures, preserve the last-good payload timing, log first OK/failure/recovery events, and avoid steady-state success spam.
+
 ## UI
 
-`src/main.cpp` fetches/parses the live summary and drives `ledcards-interface-page.*` for the NUT page plus the Proxmox page when `modules.proxmox.enabled && modules.proxmox.implemented`.
+`src/main.cpp` fetches/parses the live summary and drives `ledcards-interface-page.*` for the NUT page plus any enabled backend page in `pages`, currently NUT and Proxmox. Enabled unavailable/unconfigured module pages should remain visible with unavailable/dim treatment rather than disappearing.
+
+`ledcards-graphics.h` is the small shared helper seam for module-neutral Ledcards rendering details: Ambient Card render text ownership, visual-class color mapping, state fill/text colors, and physical ring slot geometry. NUT and Proxmox page models remain responsible for module-specific condition semantics, card vocabulary, hero policy, and touch-focus policy.
+
+Ambient Console motion is live: page transitions animate between enabled Pages, and NUT/Proxmox card promotions move through the physical bidirectional ring using non-clickable animation ghosts. Touch focus promotes a card for presentation only; it does not create controls or remediation actions.
 
 Legacy HOME/PVE/HA/M5S tab rendering is intentionally absent from this baseline. Reintroduce future pages as separate modules after their backend contracts are restored.

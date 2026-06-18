@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Power Sentinel API, reframed around modular dashboard pages.
+"""Power Sentinel API, reframed around independently scoped modules.
 
-Current baseline: NUT Monitor is enabled by default, Proxmox has an initial
-read-only API adapter, and Home Assistant remains a placeholder page module.
+Current baseline: NUT Monitor is enabled by default and Proxmox has an initial
+read-only API adapter. Runtime registration is limited to implemented modules.
 """
 
 from __future__ import annotations
@@ -31,14 +31,15 @@ NUT_CLIENTS_FILE = os.environ.get("POWER_SENTINEL_NUT_CLIENTS_FILE", "/etc/power
 
 class ModuleSpec(NamedTuple):
     name: str
-    page: str
-    status: str
-    summary_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    page: str | None
+    summary_fn: Callable[[dict[str, Any], bool], dict[str, Any]]
+    default_enabled: bool = False
 
 
 class ModuleEvaluation(NamedTuple):
     payload: dict[str, Any]
     condition: str | None = None
+    page: str | None = None
     problem: str | None = None
 
 
@@ -101,16 +102,22 @@ def load_json_file(path: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def enabled_modules(config: dict[str, Any]) -> set[str]:
+def module_config(config: dict[str, Any], name: str) -> dict[str, Any]:
+    raw = config.get(name)
+    return raw if isinstance(raw, dict) else {}
+
+
+def module_enabled(config: dict[str, Any], name: str, *, default: bool = False) -> bool:
+    return bool(module_config(config, name).get("enabled", default))
+
+
+def enabled_modules(config: dict[str, Any], specs: dict[str, ModuleSpec] | None = None) -> set[str]:
+    specs = MODULES if specs is None else specs
     raw = os.environ.get("POWER_SENTINEL_MODULES")
     if raw:
-        return {item.strip().lower() for item in raw.split(",") if item.strip()}
-    modules = config.get("modules")
-    if isinstance(modules, list):
-        return {str(item).lower() for item in modules}
-    if isinstance(modules, dict):
-        return {str(name).lower() for name, enabled in modules.items() if enabled}
-    return {"nut"}
+        requested = {item.strip().lower() for item in raw.split(",") if item.strip()}
+        return {name for name in requested if name in specs}
+    return {name for name, spec in specs.items() if module_enabled(config, name, default=spec.default_enabled)}
 
 
 def run_text_command(cmd: list[str], timeout: float = 3.0) -> tuple[int, str, str]:
@@ -320,7 +327,16 @@ def local_nut_client(services: dict[str, bool | None]) -> dict[str, Any]:
     }
 
 
-def build_nut_summary(_config: dict[str, Any]) -> dict[str, Any]:
+def build_nut_summary(_config: dict[str, Any], enabled: bool = True) -> dict[str, Any]:
+    if not enabled:
+        return {
+            "enabled": False,
+            "implemented": True,
+            "status": "disabled",
+            "ups": unavailable_ups("NUT module disabled"),
+            "nut": {"client_count": 0, "would_shutdown": False},
+        }
+
     code, out, err = run_text_command([UPSC, UPS_NAME], timeout=3.5)
     ups = parse_upsc_output(out) if code == 0 and out.strip() else unavailable_ups(err.strip() or f"upsc exited {code}")
     services = {
@@ -333,6 +349,7 @@ def build_nut_summary(_config: dict[str, Any]) -> dict[str, Any]:
     severity = severity_for_condition(condition)
     return {
         "enabled": True,
+        "implemented": True,
         "page": "NUT",
         "condition": condition,
         "severity": severity,
@@ -920,7 +937,10 @@ def proxmox_empty_payload(status: str, signals: list[dict[str, Any]], environmen
     return payload
 
 
-def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
+def build_proxmox_summary(config: dict[str, Any], enabled: bool = False) -> dict[str, Any]:
+    if not enabled:
+        return {"enabled": False, "implemented": True, "status": "disabled"}
+
     module_config = proxmox_config(config)
     missing = missing_proxmox_config_fields(module_config)
     if missing:
@@ -977,37 +997,19 @@ def build_proxmox_summary(config: dict[str, Any]) -> dict[str, Any]:
     })
     return payload
 
-def module_placeholder(spec: ModuleSpec, enabled: bool) -> dict[str, Any]:
-    payload = {
-        "enabled": enabled,
-        "page": spec.page,
-        "severity": "unknown" if enabled else "disabled",
-        "status": spec.status,
-        "implemented": False,
-    }
-    if enabled:
-        payload["condition"] = "unavailable"
-    return payload
-
-
 class ModuleRuntime:
     def __init__(self, specs: dict[str, ModuleSpec]) -> None:
         self.specs = specs
 
     def evaluate_module(self, spec: ModuleSpec, enabled: set[str], config: dict[str, Any]) -> ModuleEvaluation:
         is_enabled = spec.name in enabled
-        if is_enabled and spec.summary_fn:
-            payload = spec.summary_fn(config)
-            return ModuleEvaluation(payload=payload, condition=str(payload.get("condition", "unavailable")))
-
-        payload = module_placeholder(spec, is_enabled)
-        if not is_enabled:
-            return ModuleEvaluation(payload=payload)
-
+        payload = spec.summary_fn(config, is_enabled)
+        condition = payload.get("condition") if is_enabled else None
+        page = spec.page if is_enabled and spec.page else None
         return ModuleEvaluation(
             payload=payload,
-            condition="unavailable",
-            problem=f"module {spec.name} is enabled but not implemented in this clean baseline",
+            condition=str(condition) if condition is not None else None,
+            page=page,
         )
 
     def compatibility_aliases(self, modules: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -1025,8 +1027,8 @@ class ModuleRuntime:
         for name, spec in self.specs.items():
             evaluation = self.evaluate_module(spec, enabled, config)
             modules[name] = evaluation.payload
-            if name in enabled:
-                pages.append(spec.page)
+            if evaluation.page is not None:
+                pages.append(evaluation.page)
             if evaluation.condition is not None:
                 conditions.append(evaluation.condition)
             if evaluation.problem is not None:
@@ -1047,15 +1049,14 @@ class ModuleRuntime:
 
 
 MODULES: dict[str, ModuleSpec] = {
-    "nut": ModuleSpec("nut", "NUT", "implemented", build_nut_summary),
-    "proxmox": ModuleSpec("proxmox", "PROXMOX", "implemented", build_proxmox_summary),
-    "ha": ModuleSpec("ha", "HA", "placeholder"),
+    "nut": ModuleSpec("nut", "NUT", build_nut_summary, True),
+    "proxmox": ModuleSpec("proxmox", "PROXMOX", build_proxmox_summary, False),
 }
 
 
 def build_summary(config: dict[str, Any] | None = None, *, stackflow_safe: bool = False) -> dict[str, Any]:
     config = config if config is not None else load_json_file(POWER_SENTINEL_CONFIG)
-    enabled = enabled_modules(config)
+    enabled = enabled_modules(config, MODULES)
     runtime = ModuleRuntime(MODULES).build(config, enabled)
     summary = {
         "schema": SCHEMA_SUMMARY,

@@ -18,9 +18,9 @@ Current profile: `nut-monitor-clean-baseline`.
 - `profile`: `nut-monitor-clean-baseline`
 - `condition`: aggregate module condition. This is the primary interpreted state.
 - `severity`: legacy compatibility alias: `ok` / `warn` / `critical` / `unknown`
-- `available_modules`: stable registry, currently `["nut", "proxmox", "ha"]`
-- `enabled_modules`: modules selected by `/etc/power-sentinel.json` or `POWER_SENTINEL_MODULES`
-- `pages`: UI pages corresponding to enabled modules
+- `available_modules`: real implemented runtime modules, currently `["nut", "proxmox"]`
+- `enabled_modules`: modules selected by module-local `/etc/power-sentinel.json` sections or `POWER_SENTINEL_MODULES`
+- `pages`: UI pages corresponding to enabled modules with a Page
 - `module`: local Module LLM/backend status used by the CoreS3 top bar
 - `modules`: per-module payloads
 - `ups`, `nut`: compatibility aliases for the NUT Monitor firmware
@@ -57,11 +57,20 @@ Top-level aggregation uses worst condition wins: `critical`, then `warning`, the
 
 ## Module policy
 
-`modules.nut` is implemented in this baseline. `modules.proxmox` has an initial read-only API adapter slice: it validates configuration, can make lightweight Proxmox API reads, and still avoids SSH, remote commands, guest control, or fake telemetry.
+`modules.nut` is implemented in this baseline. `modules.proxmox` is an API-only/read-only observability module: it validates configuration, makes lightweight Proxmox API reads, feeds the five-card Ambient Console page, and still avoids SSH, remote commands, guest control, or fake telemetry.
 
-`modules.ha` is still a placeholder. It may be enabled in config to reserve a page, but must not fake telemetry. Reintroduce it as a separate module with tests before rendering live data.
+Runtime registration contains real implemented modules only. Home Assistant is a Module Candidate until it exists as a real capability with backend, contract, tests, and UI.
 
-When enabled, a placeholder or unobservable module reports `condition: unavailable` because it cannot produce useful data. Disabled modules do not report a condition and do not affect the aggregate condition.
+When enabled, an unobservable or unconfigured module reports `condition: unavailable` because it cannot produce useful data. Disabled modules still produce diagnostic summaries, but do not report a condition, do not expose an active page, and do not affect the aggregate condition.
+
+Module configuration is local to each module section:
+
+```json
+{
+  "nut": {"enabled": true},
+  "proxmox": {"enabled": false}
+}
+```
 
 ## NUT module
 
@@ -101,12 +110,13 @@ Battery full threshold: battery charge at or above 90% is treated as full/ready 
 - `would_shutdown`
 - `shutdown_rule`
 
-## Proxmox module availability slice
+## Proxmox module
 
-`modules.proxmox` is implemented as a minimal read-only Proxmox API adapter. It uses no SSH, no remote commands, and no Proxmox controls.
+`modules.proxmox` is implemented as a read-only Proxmox API adapter for a typical single-node homelab Proxmox Environment. It uses no SSH, no remote commands, and no Proxmox controls.
 
 Minimum config:
 
+- `proxmox.enabled: true`
 - `proxmox.api_url`
 - `proxmox.token_id`
 - `proxmox.token_secret`

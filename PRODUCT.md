@@ -2,17 +2,18 @@
 
 ## Reframe
 
-Power Sentinel is a local homelab companion. It currently ships as a clean NUT Monitor baseline, with the Ledcards NUT UI as the design anchor; future capabilities return as independently scoped modules, not as coupled legacy dashboard code.
+Power Sentinel is a local homelab companion. It currently ships with NUT Monitor and Proxmox as independently scoped Ambient Console modules, with the Ledcards UI as the design anchor; future capabilities return as independently scoped modules, not as coupled legacy dashboard code.
 
 ## Baseline product
 
-NUT Monitor on M5Stack CoreS3 + LLM Kit:
+Ambient Console on M5Stack CoreS3 + LLM Kit:
 
 - local Linux backend reads UPS/NUT state;
-- CoreS3 renders one polished fullscreen NUT page;
-- CoreS3 uses the internal StackFlow/UART path as the current transport;
+- CoreS3 renders polished fullscreen NUT and Proxmox pages when those modules are enabled and observable;
+- CoreS3 uses the internal StackFlow/UART path as the current transport, with serial diagnostics for timeout, JSON parse, StackFlow error, and stale-response failures;
 - HTTP polling from CoreS3 is out of scope for the current baseline;
 - top status bar shows local Module LLM/CoreS3 status only: LAN, Wi-Fi, serial link recency, page dot(s), Module LLM time, and CoreS3 battery;
+- Ledcards pages share module-neutral graphics helpers for Ambient Card render data, visual treatment, and physical ring slot geometry while keeping module policy in page models;
 - no plausible demo telemetry when live data is missing.
 
 ## Module roadmap
@@ -22,8 +23,9 @@ Stable module/page names:
 | Module | Page | Status |
 | --- | --- | --- |
 | `nut` | `NUT` | implemented baseline |
-| `proxmox` | `PROXMOX` | initial read-only API adapter |
-| `ha` | `HA` | placeholder, to be reintroduced |
+| `proxmox` | `PROXMOX` | API-only/read-only five-card Ambient Console module |
+
+Home Assistant remains a Module Candidate, not a runtime placeholder. Add it to the runtime registry only when it exists as a real implemented capability.
 
 Each module must be independently installable/updateable and independently testable. A module should provide glanceable value, stay within a lightweight integration boundary, or improve a frequent contextual handoff/action.
 

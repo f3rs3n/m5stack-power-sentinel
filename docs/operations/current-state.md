@@ -1,6 +1,6 @@
 # Current state
 
-Power Sentinel has been reframed to a clean NUT Monitor baseline.
+Power Sentinel has been reframed as a local homelab companion with independently scoped Ambient Console modules.
 
 Implemented now:
 
@@ -8,12 +8,14 @@ Implemented now:
 - `nut` module enabled by default and backed by live `upsc homelab_ups@localhost` plus lightweight NUT service checks.
 - Backend summary includes a `module` status block for the CoreS3 top row: Module LLM LAN state/IP and local `HH:MM` time. The deployed Module LLM host should run in `Europe/Rome` so the display uses local 24-hour time.
 - NUT Ambient Console contract locked in `docs/architecture/nut-ambient-console-contract.md`; the page model owns telemetry completeness, metric cards, hero priority, and touch override policy before rendering.
-- `proxmox` has a first API-only/read-only backend adapter slice and a CoreS3 ambient page gated by the backend module state.
-- StackFlow custom unit preserved as the only CoreS3 live-data transport; the CoreS3 firmware no longer has an HTTP client/fallback path.
+- `proxmox` has an API-only/read-only backend adapter and a five-card CoreS3 ambient page gated by the backend module state. Its Ambient Cards are CPU, RAM, Guests, Storage, and Network; the Hero Position is promoted by condition priority, default policy, or touch focus.
+- StackFlow custom unit preserved as the only CoreS3 live-data transport; the CoreS3 firmware no longer has an HTTP client/fallback path. Serial transport diagnostics classify timeout, JSON parse, StackFlow error, and stale-response failures while preserving last-good payload timing.
 - CoreS3 firmware defaults to live StackFlow data and renders the Ledcards NUT Monitor UI plus the Proxmox ambient page when available. The top row shows Module LLM LAN, CoreS3 Wi-Fi, serial-link status, page dots, local time, and local battery glyph.
+- The Ledcards renderer now has a small shared graphics helper seam for Ambient Card render text ownership, visual-class color mapping, state colors, and physical ring slot geometry. NUT and Proxmox keep module-specific policy in their page models.
+- Ambient Console motion is active: page transitions animate between module Pages, and NUT/Proxmox card promotion uses the physical bidirectional ring with non-clickable ghost cards. Touch focus remains presentation-only and does not add controls.
 - CoreS3 display standby policy is production-timed: after the first valid payload, 5 minutes without touch or meaningful state change fades `AWAKE` to `DIM`; the fade is about 900 ms. Automatic standby stops at `DIM`; `OFF` remains reserved for 3-second long-press snooze or 15 minutes without a valid payload. Current static brightness defaults are `AWAKE=120` and `DIM=36`; adaptive ALS is hardware-aware and targets physical Backlight Level curves `DIM 20/20/21/21/22/22` and `AWAKE 21/22/23/24/25/25` over raw breakpoints `0/12/45/70/95/135`, encoded as center-band nominal brightness values before calling M5GFX. Adaptive slew uses `step=1` with intervals `96/136/160/192 ms` from high to low brightness bands.
 - LVGL MCP fixture/results retained only for the NUT Ledcards interface.
-- Installer script supports `--modules nut[,proxmox,ha]`; `nut` and `proxmox` are active display modules when configured, and `ha` remains a placeholder.
+- Installer script supports `--modules nut[,proxmox]`; `nut` and `proxmox` are active display modules when enabled/configured. Home Assistant is not registered at runtime until implemented as a real module.
 
 Hardware notes:
 
@@ -26,7 +28,7 @@ Hardware notes:
 Archived/removed from active baseline:
 
 - HOME/PVE/HA/M5S multi-tab firmware UI.
-- Proxmox CoreS3 page rendering and control surface.
+- Old broad PVE/Proxmox dashboard rendering and control surface.
 - Home Assistant/MQTT/Zigbee2MQTT backend and publisher units.
 - Old broad UI fixtures/results.
 
@@ -36,6 +38,8 @@ Operational verification:
 
 ```bash
 python3 tools/run_tests.py
+python3 tools/check_core_s3_ui.py
+git diff --check
 python3 backend/bin/power-sentinel-api.py --summary
 sudo scripts/install-power-sentinel.sh --modules nut --dry-run
 /home/martino/.platformio/penv/bin/pio run -e m5stack-cores3

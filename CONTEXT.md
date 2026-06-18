@@ -9,11 +9,11 @@ A local homelab companion that surfaces homelab state and provides lightweight o
 _Avoid_: UPS monitor, infrastructure dashboard
 
 **Module**:
-An installable capability of Power Sentinel with its own operational responsibility and user-facing surface. A module may be observational, interactive, or both.
+An independently scoped, individually enableable capability of Power Sentinel with its own operational responsibility, configuration/lifecycle, and user-facing surface. A module may be observational, interactive, or both, but interactive actions must stay lightweight, frequent, reversible, and inside the Integration Boundary.
 _Avoid_: Page module, dashboard tile
 
 **Page**:
-A user-interface view that presents a module on the CoreS3 display. A page is one possible surface of a module, not the module itself.
+A user-interface view that presents an enabled module on the CoreS3 display. A page is one possible surface of a module, not the module itself. Page visibility is decided separately from the module summary: disabled modules do not expose active pages; enabled modules with unavailable or unconfigured data should remain visible with appropriate unavailable/dim treatment rather than disappearing.
 _Avoid_: Module
 
 **Overview**:
@@ -56,17 +56,21 @@ _Avoid_: Separate status card, page title
 A proposed module that earns product scope by offering glanceable value, staying within the integration boundary, or improving a frequent contextual handoff or lightweight action. Weak candidates should not be added just because data is technically available.
 _Avoid_: Data source, integration idea
 
+**Module Configuration**:
+A module-local configuration section that contains the module's `enabled` flag and integration-specific settings. NUT Monitor may default to enabled for current baseline compatibility; new modules default disabled unless explicitly enabled. Install, update, and configuration scripts may discover module configuration through the shared `enabled: true|false` convention, but the Module owns interpretation and validation of its own settings. The old central `modules` enablement registry is superseded; do not preserve compatibility for it unless a real deployed migration need is identified.
+_Avoid_: Central module registry as source of all settings, scattered global flags, per-module synonyms for enabled, compatibility adapters for superseded config shapes
+
 **Not Implemented**:
-A module availability state where the module is declared for roadmap or compatibility reasons but does not exist yet as a real capability. Not implemented modules should not produce fake telemetry.
-_Avoid_: Unconfigured, stale
+A module availability state where the module is declared for roadmap or compatibility reasons but does not exist yet as a real capability. Not implemented modules should not produce fake telemetry. The ModuleRuntime should normally register only real implemented modules; Not Implemented is for roadmap or explicit compatibility needs, not a placeholder pattern.
+_Avoid_: Unconfigured, stale, runtime placeholder module
 
 **Disabled**:
-A module availability state where the module exists but the user has not enabled it. Disabled modules should not appear as problems.
-_Avoid_: Unavailable condition
+A module lifecycle state where the module exists but the user has not enabled it. Real implemented modules should still produce a disabled summary so configuration and diagnostics stay visible, but disabled modules should not expose an active Page and should not contribute a Condition. Do not add a separate availability field just to restate disabled/enabled.
+_Avoid_: Unavailable condition, disappearing module, redundant availability field
 
 **Unconfigured**:
-A module availability state where the module is enabled but lacks the minimum configuration needed to produce useful data. Unconfigured modules usually produce an unavailable condition with configuration context.
-_Avoid_: Stale
+A module lifecycle/status state where the module is enabled but lacks the minimum configuration needed to produce useful data. Unconfigured modules should stay visible because the user explicitly enabled them; they normally contribute an unavailable Condition with configuration context rather than introducing a separate unconfigured Condition. On the Ambient Console, an enabled but unconfigured Page should preserve the module's normal shape where useful, but dim it and overlay clear unconfigured copy instead of showing fake telemetry.
+_Avoid_: Stale, hidden enabled module, unconfigured as canonical condition, fake telemetry
 
 **NUT Monitor**:
 The Power Sentinel module that surfaces power state and shutdown condition from NUT and the UPS. It is observational; real shutdown remains owned by NUT and `upsmon`.

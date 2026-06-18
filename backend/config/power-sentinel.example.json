@@ -1,14 +1,11 @@
 {
-  "modules": {
-    "nut": true,
-    "proxmox": false,
-    "ha": false
-  },
   "nut": {
+    "enabled": true,
     "ups": "homelab_ups@localhost",
     "clients_file": "/etc/power-sentinel-nut-clients.json"
   },
   "proxmox": {
+    "enabled": false,
     "api_url": "https://pve.example:8006",
     "token_id": "power-sentinel@pve!monitor",
     "token_secret": "CHANGE_ME"

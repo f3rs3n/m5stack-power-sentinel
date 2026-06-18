@@ -57,15 +57,22 @@ def test_shutdown_rule_requires_on_battery_low_battery_not_online_low_battery():
     assert battery_low["would_shutdown"] is True
 
 
-def test_summary_defaults_to_nut_only_and_declares_future_modules():
+def test_summary_defaults_to_real_modules_with_nut_enabled_and_proxmox_disabled():
     def check():
         summary = api.build_summary({})
         assert summary["schema"] == api.SCHEMA_SUMMARY
         assert summary["profile"] == "nut-monitor-clean-baseline"
         assert summary["enabled_modules"] == ["nut"]
-        assert summary["available_modules"] == ["nut", "proxmox", "ha"]
+        assert summary["available_modules"] == ["nut", "proxmox"]
         assert summary["pages"] == ["NUT"]
-        assert summary["modules"]["proxmox"]["implemented"] is False
+        assert set(summary["modules"]) == {"nut", "proxmox"}
+        assert "ha" not in summary["modules"]
+        assert summary["modules"]["proxmox"] == {
+            "enabled": False,
+            "status": "disabled",
+            "implemented": True,
+        }
+        assert "condition" not in summary["modules"]["proxmox"]
         assert summary["ups"]["available"] is False
     with_fake_nut(check)
 
@@ -96,7 +103,7 @@ def test_summary_contract_locks_stackflow_safe_aliases_and_top_row_fields():
     try:
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
         setattr(api, "systemd_active", lambda unit: True)
-        summary = api.build_summary({"modules": {"nut": True}}, stackflow_safe=True)
+        summary = api.build_summary({"nut": {"enabled": True}}, stackflow_safe=True)
 
         assert summary["schema"] == api.SCHEMA_SUMMARY
         assert summary["profile"] == "nut-monitor-clean-baseline"
@@ -113,18 +120,34 @@ def test_summary_contract_locks_stackflow_safe_aliases_and_top_row_fields():
         setattr(api, "systemd_active", old_systemd)
 
 
-def test_summary_can_enable_non_nut_pages_without_fake_telemetry():
+def test_enabled_unconfigured_proxmox_is_visible_and_unavailable():
     def check():
-        summary = api.build_summary({"modules": {"nut": True, "proxmox": True, "ha": True}})
-        assert summary["pages"] == ["NUT", "PROXMOX", "HA"]
+        summary = api.build_summary({"proxmox": {"enabled": True}})
+        assert summary["pages"] == ["NUT", "PROXMOX"]
+        assert summary["available_modules"] == ["nut", "proxmox"]
+        assert "ha" not in summary["modules"]
+        assert summary["modules"]["proxmox"]["enabled"] is True
+        assert summary["modules"]["proxmox"]["implemented"] is True
+        assert summary["modules"]["proxmox"]["page"] == "PROXMOX"
         assert summary["modules"]["proxmox"]["status"] == "unconfigured"
         assert summary["modules"]["proxmox"]["condition"] == "unavailable"
         assert summary["modules"]["proxmox"]["signals"]
-        assert summary["modules"]["ha"]["status"] == "placeholder"
-        assert summary["modules"]["ha"]["severity"] == "unknown"
         assert summary["condition"] == "unavailable"
         assert summary["severity"] == "warn"
     with_fake_nut(check)
+
+
+def test_environment_module_override_is_limited_to_real_runtime_modules():
+    old_env = api.os.environ.get("POWER_SENTINEL_MODULES")
+    try:
+        api.os.environ["POWER_SENTINEL_MODULES"] = "nut,proxmox,ha"
+        enabled = api.enabled_modules({}, api.MODULES)
+        assert enabled == {"nut", "proxmox"}
+    finally:
+        if old_env is None:
+            api.os.environ.pop("POWER_SENTINEL_MODULES", None)
+        else:
+            api.os.environ["POWER_SENTINEL_MODULES"] = old_env
 
 
 def test_nut_summary_payload_counts_local_primary_and_configured_clients():
@@ -137,7 +160,7 @@ def test_nut_summary_payload_counts_local_primary_and_configured_clients():
         ])
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         setattr(api, "systemd_active", lambda unit: True)
-        summary = api.build_summary({"modules": {"nut": True}})
+        summary = api.build_summary({"nut": {"enabled": True}})
         assert summary["nut"]["client_count"] == 2
         assert [client["name"] for client in summary["nut"]["clients"]] == ["power-sentinel", "pve"]
     finally:
@@ -152,7 +175,7 @@ def test_nut_summary_exposes_condition_and_legacy_severity_alias():
     try:
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         setattr(api, "systemd_active", lambda unit: True)
-        summary = api.build_summary({"modules": {"nut": True}})
+        summary = api.build_summary({"nut": {"enabled": True}})
         assert summary["condition"] == "healthy"
         assert summary["severity"] == "ok"
         assert summary["modules"]["nut"]["condition"] == "healthy"
@@ -169,17 +192,17 @@ def test_nut_condition_maps_power_states_to_legacy_severity_aliases():
         setattr(api, "systemd_active", lambda unit: True)
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OB\nbattery.charge: 70", ""))
-        on_battery = api.build_summary({"modules": {"nut": True}})
+        on_battery = api.build_summary({"nut": {"enabled": True}})
         assert on_battery["modules"]["nut"]["condition"] == "warning"
         assert on_battery["modules"]["nut"]["severity"] == "warn"
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OB LB\nbattery.charge: 8", ""))
-        low_battery = api.build_summary({"modules": {"nut": True}})
+        low_battery = api.build_summary({"nut": {"enabled": True}})
         assert low_battery["modules"]["nut"]["condition"] == "critical"
         assert low_battery["modules"]["nut"]["severity"] == "critical"
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (1, "", "no ups"))
-        unavailable = api.build_summary({"modules": {"nut": True}})
+        unavailable = api.build_summary({"nut": {"enabled": True}})
         assert unavailable["modules"]["nut"]["condition"] == "unavailable"
         assert unavailable["modules"]["nut"]["severity"] == "warn"
     finally:
@@ -196,26 +219,26 @@ def test_nut_condition_reflects_power_readiness_and_ambient_card_warnings():
         setattr(api, "load_nut_clients", lambda: [])
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL CHRG\nbattery.charge: 89\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
-        charging = api.build_summary({"modules": {"nut": True}})
+        charging = api.build_summary({"nut": {"enabled": True}})
         assert charging["modules"]["nut"]["condition"] == "warning"
         assert charging["modules"]["nut"]["severity"] == "warn"
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 72\ninput.voltage: 231", ""))
-        high_load = api.build_summary({"modules": {"nut": True}})
+        high_load = api.build_summary({"nut": {"enabled": True}})
         assert high_load["modules"]["nut"]["condition"] == "warning"
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 205", ""))
-        marginal_input = api.build_summary({"modules": {"nut": True}})
+        marginal_input = api.build_summary({"nut": {"enabled": True}})
         assert marginal_input["modules"]["nut"]["condition"] == "warning"
 
         setattr(api, "systemd_active", lambda unit: False if unit == "nut-monitor.service" else True)
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 1200\nups.load: 20\ninput.voltage: 231", ""))
-        no_clients = api.build_summary({"modules": {"nut": True}})
+        no_clients = api.build_summary({"nut": {"enabled": True}})
         assert no_clients["modules"]["nut"]["condition"] == "warning"
 
         setattr(api, "systemd_active", lambda unit: True)
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 90\nups.load: 20\ninput.voltage: 231", ""))
-        critical_reserve = api.build_summary({"modules": {"nut": True}})
+        critical_reserve = api.build_summary({"nut": {"enabled": True}})
         assert critical_reserve["modules"]["nut"]["condition"] == "critical"
     finally:
         setattr(api, "run_text_command", old_run)
@@ -223,67 +246,80 @@ def test_nut_condition_reflects_power_readiness_and_ambient_card_warnings():
         setattr(api, "load_nut_clients", old_load)
 
 
-def test_condition_aggregation_ignores_disabled_modules_and_critical_wins():
+def test_disabled_modules_do_not_contribute_condition_or_page():
     old_run = api.run_text_command
     old_systemd = api.systemd_active
     try:
         setattr(api, "systemd_active", lambda unit: True)
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
-        disabled_placeholders = api.build_summary({"modules": {"nut": True, "proxmox": False, "ha": False}})
-        assert disabled_placeholders["condition"] == "healthy"
-        assert disabled_placeholders["severity"] == "ok"
-        assert "condition" not in disabled_placeholders["modules"]["proxmox"]
+        disabled = api.build_summary({"proxmox": {"enabled": False}})
+        assert disabled["enabled_modules"] == ["nut"]
+        assert disabled["condition"] == "healthy"
+        assert disabled["severity"] == "ok"
+        assert disabled["pages"] == ["NUT"]
+        assert disabled["modules"]["proxmox"]["status"] == "disabled"
+        assert "condition" not in disabled["modules"]["proxmox"]
 
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OB LB\nbattery.charge: 8", ""))
-        with_enabled_placeholder = api.build_summary({"modules": {"nut": True, "proxmox": True}})
-        assert with_enabled_placeholder["condition"] == "critical"
-        assert with_enabled_placeholder["severity"] == "critical"
+        with_enabled_proxmox = api.build_summary({"proxmox": {"enabled": True}})
+        assert with_enabled_proxmox["condition"] == "critical"
+        assert with_enabled_proxmox["severity"] == "critical"
     finally:
         setattr(api, "run_text_command", old_run)
         setattr(api, "systemd_active", old_systemd)
 
 
-def test_module_runtime_concentrates_registry_aggregation_and_compatibility_aliases():
+def test_module_runtime_concentrates_registry_aggregation_pages_and_compatibility_aliases():
     runtime = api.ModuleRuntime({
         "nut": api.ModuleSpec(
             "nut",
             "NUT",
-            "implemented",
-            lambda config: {
-                "enabled": True,
+            lambda config, enabled: {
+                "enabled": enabled,
                 "page": "NUT",
                 "condition": "healthy",
                 "severity": "ok",
                 "ups": {"available": True},
                 "nut": {"client_count": 1, "would_shutdown": False},
+            } if enabled else {
+                "enabled": False,
+                "status": "disabled",
+                "implemented": True,
+                "ups": {"available": False},
+                "nut": {"client_count": 0, "would_shutdown": False},
             },
+            True,
         ),
         "proxmox": api.ModuleSpec(
             "proxmox",
             "PROXMOX",
-            "implemented",
-            lambda config: {
-                "enabled": True,
+            lambda config, enabled: {
+                "enabled": enabled,
                 "page": "PROXMOX",
                 "condition": "warning",
                 "severity": "warn",
                 "signals": [{"kind": "storage_warning", "condition": "warning", "summary": "local 86%"}],
-            },
+            } if enabled else {"enabled": False, "status": "disabled", "implemented": True},
+            False,
         ),
-        "ha": api.ModuleSpec("ha", "HA", "placeholder"),
     })
 
-    result = runtime.build({}, {"nut", "proxmox", "ha"})
+    result = runtime.build({}, {"nut", "proxmox"})
 
     assert result.condition == "warning"
     assert result.severity == "warn"
-    assert result.available_modules == ["nut", "proxmox", "ha"]
-    assert result.pages == ["NUT", "PROXMOX", "HA"]
-    assert result.modules["ha"]["condition"] == "unavailable"
-    assert result.problems == ["module ha is enabled but not implemented in this clean baseline"]
+    assert result.available_modules == ["nut", "proxmox"]
+    assert result.pages == ["NUT", "PROXMOX"]
+    assert "ha" not in result.modules
+    assert result.problems == []
     assert result.ups == {"available": True}
     assert result.nut == {"client_count": 1, "would_shutdown": False}
+
+    disabled_result = runtime.build({}, {"nut"})
+    assert disabled_result.pages == ["NUT"]
+    assert disabled_result.modules["proxmox"] == {"enabled": False, "status": "disabled", "implemented": True}
+    assert "condition" not in disabled_result.modules["proxmox"]
 
 
 def test_health_payload_exposes_condition_and_derives_ok_from_condition():
@@ -304,7 +340,7 @@ def test_enabled_proxmox_without_minimum_config_reports_unavailable_condition():
     try:
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         setattr(api, "systemd_active", lambda unit: True)
-        summary = api.build_summary({"modules": {"nut": True, "proxmox": True}})
+        summary = api.build_summary({"proxmox": {"enabled": True}})
         proxmox = summary["modules"]["proxmox"]
 
         assert proxmox["enabled"] is True
@@ -322,8 +358,9 @@ def test_enabled_proxmox_without_minimum_config_reports_unavailable_condition():
 
 def test_configured_proxmox_availability_slice_does_not_fake_telemetry():
     summary = api.build_summary({
-        "modules": {"nut": False, "proxmox": True},
+        "nut": {"enabled": False},
         "proxmox": {
+            "enabled": True,
             "api_url": "https://pve.example:8006",
             "token_id": "power-sentinel@pve!monitor",
             "token_secret": "CHANGE_ME",
@@ -348,8 +385,9 @@ def test_proxmox_api_failure_reports_unavailable_without_exposing_token():
 
         api.proxmox_api_get = broken
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -430,8 +468,9 @@ def test_proxmox_first_healthy_observation_uses_read_only_api_adapter():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -477,8 +516,9 @@ def test_proxmox_cpu_pressure_requires_sustained_threshold_crossing():
 
         api.proxmox_api_get = fake_get
         config = {
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -536,8 +576,9 @@ def test_proxmox_memory_pressure_requires_sustained_threshold_crossing():
 
         api.proxmox_api_get = fake_get
         config = {
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -595,8 +636,9 @@ def test_proxmox_single_node_auto_selects_without_extra_config():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -630,8 +672,9 @@ def test_proxmox_multi_node_without_node_name_is_unavailable_not_guessed():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -677,8 +720,9 @@ def test_proxmox_explicit_node_name_observes_only_selected_node():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -711,8 +755,9 @@ def test_proxmox_selected_node_unavailable_is_module_unavailable_without_node_si
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -760,8 +805,9 @@ def test_proxmox_guest_inventory_counts_qemu_and_lxc_running_over_total():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -806,8 +852,9 @@ def test_proxmox_guest_inventory_empty_zero_zero_is_healthy():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -849,8 +896,9 @@ def test_proxmox_guest_inventory_all_stopped_is_critical_signal():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -900,8 +948,9 @@ def test_proxmox_network_card_auto_selects_single_physical_uplink_and_uses_api_s
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -951,8 +1000,9 @@ def test_proxmox_network_ambiguous_uplink_aggregates_warning_until_configured_wi
 
         api.proxmox_api_get = fake_get
         base_config = {
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -1000,8 +1050,9 @@ def test_proxmox_network_pressure_requires_sustained_threshold_crossing():
 
         api.proxmox_api_get = fake_get
         config = {
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -1062,8 +1113,9 @@ def test_proxmox_storage_warning_and_critical_signals_from_online_nodes():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -1109,8 +1161,9 @@ def test_proxmox_storage_below_warning_threshold_is_healthy_inventory():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",
@@ -1148,8 +1201,9 @@ def test_proxmox_storage_warning_only_sets_module_warning_not_critical():
 
         api.proxmox_api_get = fake_get
         summary = api.build_summary({
-            "modules": {"nut": False, "proxmox": True},
+            "nut": {"enabled": False},
             "proxmox": {
+                "enabled": True,
                 "api_url": "https://pve.example:8006",
                 "token_id": "power-sentinel@pve!monitor",
                 "token_secret": "SECRET",

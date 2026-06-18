@@ -119,12 +119,16 @@ Regression coverage lives in:
 - `backend/tests/test_power_sentinel_api.py` for public summary, StackFlow-safe fields, aliases, and top-row status fields.
 - `backend/tests/test_power_sentinel_stackflow_unit.py` for StackFlow response wrapping.
 - `backend/tests/test_nut_ambient_page_model.py` for page model card interpretation, missing telemetry states, hero priority, and touch override policy.
+- `backend/tests/test_ledcards_graphics_helpers.py` for shared Ledcards helper text ownership, visual-class mapping, and physical ring slot geometry.
 - `tools/check_core_s3_ui.py` for static firmware/UI contract guardrails.
 
 Full local validation:
 
 ```bash
 python3 tools/run_tests.py
-cd firmware/core-s3-display
-pio run -e m5stack-cores3-ledcards-interface
+python3 tools/check_core_s3_ui.py
+git diff --check
+/home/martino/.platformio/penv/bin/pio run -e m5stack-cores3
 ```
+
+Use `m5stack-cores3` for production/live validation. The `m5stack-cores3-ledcards-interface` environment remains a static visual fixture for layout checks only and is not a live transport validation seam.

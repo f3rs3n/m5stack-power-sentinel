@@ -1,13 +1,13 @@
 # M5Stack Power Sentinel
 
-Power Sentinel è un homelab companion locale. La baseline corrente è NUT Monitor, con UI CoreS3 Ledcards e backend locale dedicato a UPS/NUT, ma il prodotto non è limitato al solo UPS.
+Power Sentinel è un homelab companion locale. La baseline corrente include NUT Monitor e Proxmox come moduli Ambient Console indipendenti, con UI CoreS3 Ledcards e backend locale modulare.
 
 Gli sviluppi precedenti multi-dashboard non sono più parte della baseline corrente. Restano recuperabili dalla storia Git; il repo di lavoro contiene il nucleo da cui riaggiungere moduli indipendenti in modo controllato.
 
 ## Direzione prodotto
 
-- Baseline implementata: pagina `NUT` con la nuova UI Ledcards fullscreen.
-- Moduli: `nut` -> pagina `NUT` implementata; `proxmox` -> pagina `PROXMOX` con primo adapter API read-only; `ha` -> pagina `HA` ancora placeholder.
+- Baseline implementata: pagine `NUT` e `PROXMOX` con UI Ledcards fullscreen, top bar stabile e touch focus presentation-only.
+- Moduli runtime implementati: `nut` -> pagina `NUT`; `proxmox` -> pagina `PROXMOX` API-only/read-only con cinque Ambient Cards. Home Assistant resta un Module Candidate, non un placeholder runtime.
 - Ogni modulo deve avere backend, contratto, test e UI propri, installabili/aggiornabili separatamente.
 - Power Sentinel privilegia integrazioni leggere e handoff contestuali verso gli strumenti autorevoli; non deve diventare una console sostitutiva per sistemi specialistici.
 - NUT resta read-only lato Power Sentinel: lo shutdown reale è Standard NUT/`upsmon`; nessun controllo custom Proxmox/API per spegnimenti.
@@ -25,8 +25,9 @@ backend/
   systemd/                            unit per API e StackFlow unit
   tests/                              test stdlib-only
 firmware/core-s3-display/
-  src/main.cpp                        firmware clean NUT Monitor
-  src/ledcards-interface-page.*       nuova UI NUT Monitor
+  src/main.cpp                        firmware live StackFlow/UART per NUT + Proxmox
+  src/ledcards-interface-page.*       renderer Ambient Console Ledcards
+  src/ledcards-graphics.h             helper condivisi per card/colori/ring slot
 assets/lvgl-spike/
   power-sentinel-nut-ledcards-interface-fixture.c
   results/nut-ledcards-interface-*.png/json
@@ -46,11 +47,10 @@ Endpoint principali:
 Il contratto conserva `schema = power-sentinel.summary.v1`, ma ora espone chiaramente:
 
 - `profile: nut-monitor-clean-baseline`
-- `available_modules: ["nut", "proxmox", "ha"]`
-- `enabled_modules`, controllati da config o installer
+- `available_modules: ["nut", "proxmox"]`
+- `enabled_modules`, controllati dalla Module Configuration locale o dall'override ambiente
 - `modules.nut`, implementato
 - `modules.proxmox`, primo adapter API read-only senza controlli remoti
-- `modules.ha`, placeholder fino alla reintroduzione
 - alias compatibili `ups` e `nut` per il firmware NUT Monitor
 
 Default: solo `nut` è abilitato.
@@ -63,13 +63,15 @@ Esempio:
 
 ```json
 {
-  "modules": {
-    "nut": true,
-    "proxmox": false,
-    "ha": false
-  },
   "nut": {
+    "enabled": true,
     "ups": "homelab_ups@localhost"
+  },
+  "proxmox": {
+    "enabled": false,
+    "api_url": "https://pve.example:8006",
+    "token_id": "power-sentinel@pve!monitor",
+    "token_secret": "CHANGE_ME"
   }
 }
 ```
@@ -80,7 +82,7 @@ Override rapido:
 POWER_SENTINEL_MODULES=nut,proxmox ./backend/bin/power-sentinel-api.py --summary
 ```
 
-Nota: abilitare `proxmox` con il token esempio `CHANGE_ME` non tenta chiamate live e riporta `status: not_observed`. Con credenziali reali read-only, il modulo legge solo API Proxmox leggere. `ha` resta placeholder.
+Nota: abilitare `proxmox` con il token esempio `CHANGE_ME` non tenta chiamate live e riporta `status: not_observed`. Con credenziali reali read-only, il modulo legge solo API Proxmox leggere.
 
 ## Installer modulare
 
@@ -99,15 +101,16 @@ sudo scripts/install-power-sentinel.sh --modules nut
 Preparazione moduli aggiuntivi:
 
 ```bash
-sudo scripts/install-power-sentinel.sh --modules nut,proxmox,ha --dry-run
+sudo scripts/install-power-sentinel.sh --modules nut,proxmox --dry-run
 ```
 
-Lo script accetta `--modules` per installare/aggiornare solo i moduli necessari. Oggi installa artefatti comuni e NUT; Proxmox è configurabile come adapter API read-only, mentre HA resta dichiarato ma non implementato.
+Lo script accetta `--modules` per installare/aggiornare solo i moduli necessari. Oggi installa artefatti comuni e NUT; Proxmox è configurabile come adapter API read-only. Moduli futuri vanno aggiunti quando sono capability reali implementate.
 
 ## Verifica locale
 
 ```bash
 python3 tools/run_tests.py
+python3 tools/check_core_s3_ui.py
 python3 backend/bin/power-sentinel-api.py --summary
 ```
 
@@ -125,8 +128,10 @@ Il workflow Windows/VSCode rimane quello preferito: il repo è buildabile senza 
 Default firmware:
 
 - StackFlow/UART interno su CoreS3 RX=G18 TX=G17, `Serial2`, 115200.
+- Diagnostica seriale StackFlow per timeout, JSON parse, errori StackFlow e risposte stale, conservando il timing dell'ultimo payload valido.
 - Nessun polling HTTP dal CoreS3 nella baseline corrente.
-- UI live: NUT Monitor Ledcards + pagina Proxmox quando il backend la espone come modulo implementato.
+- UI live: NUT Monitor Ledcards + pagina Proxmox quando il backend la espone come modulo implementato; le card usano un helper condiviso per testi owned, visual class, colori e ring slot fisici.
+- Motion live: transizioni tra pagine Ambient Console e promozione card NUT/Proxmox lungo il ring fisico bidirezionale con ghost non cliccabili.
 - Sleep display con long press; loop/telemetria restano attivi.
 
 Firmware di sviluppo/fixture:

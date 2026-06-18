@@ -31,12 +31,8 @@ Store Proxmox config under the existing Power Sentinel config file:
 
 ```json
 {
-  "modules": {
-    "nut": true,
-    "proxmox": true,
-    "ha": false
-  },
   "proxmox": {
+    "enabled": true,
     "api_url": "https://pve.example:8006",
     "token_id": "power-sentinel@pve!monitor",
     "token_secret": "CHANGE_ME",

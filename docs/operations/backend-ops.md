@@ -25,21 +25,22 @@ Environment override:
 
 ```bash
 POWER_SENTINEL_MODULES=nut python3 backend/bin/power-sentinel-api.py --summary
-POWER_SENTINEL_MODULES=nut,proxmox,ha python3 backend/bin/power-sentinel-api.py --summary
+POWER_SENTINEL_MODULES=nut,proxmox python3 backend/bin/power-sentinel-api.py --summary
 ```
 
 Config file: `/etc/power-sentinel.json` from `backend/config/power-sentinel.example.json`.
 
-Enabled placeholder or unobservable modules report `condition: unavailable` and
-affect the aggregate condition. Disabled modules do not affect the aggregate
-condition.
+Enabled unobservable or unconfigured modules report `condition: unavailable` and
+affect the aggregate condition. Disabled modules produce diagnostic summaries,
+but do not expose active pages or affect the aggregate condition.
 
-The Proxmox module currently has an initial read-only API adapter slice. Minimum
-config is:
+The Proxmox module is API-only/read-only observability for the CoreS3 Proxmox
+Ambient Console page. Minimum config is:
 
 ```json
 {
   "proxmox": {
+    "enabled": true,
     "api_url": "https://pve.example:8006",
     "token_id": "power-sentinel@pve!monitor",
     "token_secret": "CHANGE_ME"
