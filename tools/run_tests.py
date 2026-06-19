@@ -33,12 +33,15 @@ def main() -> int:
                 failures += 1
                 print(f"FAIL {path.name}::{name}: {type(exc).__name__}: {exc}")
                 traceback.print_exc(limit=4)
-    ui_check = ROOT / "tools" / "check_core_s3_ui.py"
-    if ui_check.exists():
-        cp = subprocess.run([sys.executable, str(ui_check)], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-        print(cp.stdout.strip())
-        if cp.returncode != 0:
-            failures += 1
+    for check in [
+        ROOT / "tools" / "check_core_s3_ui.py",
+        ROOT / "tools" / "check_core_s3_architecture.py",
+    ]:
+        if check.exists():
+            cp = subprocess.run([sys.executable, str(check)], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+            print(cp.stdout.strip())
+            if cp.returncode != 0:
+                failures += 1
     return 1 if failures else 0
 
 
