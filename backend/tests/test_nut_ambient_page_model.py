@@ -47,6 +47,7 @@ def test_nut_ambient_page_model_interprets_healthy_line_power_baseline():
           view.loadPercent = 18;
           view.inputVoltage = 232.0f;
           view.nutClientCount = 2;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "healthy");
 
           NutAmbientPageModel model = makeNutAmbientPageModel(view);
 
@@ -105,6 +106,7 @@ def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
           LedcardsInterfaceNutView view = baseline();
           view.onBattery = true;
           view.inputVoltage = 0.0f;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "warning");
 
           NutAmbientPageModel model = makeNutAmbientPageModel(view);
 
@@ -123,6 +125,7 @@ def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
           view.batteryPercent = 8;
           view.runtimeSeconds = 90;
           view.inputVoltage = 0.0f;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "critical");
 
           NutAmbientPageModel model = makeNutAmbientPageModel(view);
 
@@ -142,6 +145,7 @@ def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
           view.batteryPercent = 14;
           view.runtimeSeconds = 1200;
           view.inputVoltage = 231.0f;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "warning");
 
           NutAmbientPageModel model = makeNutAmbientPageModel(view);
 
@@ -160,6 +164,89 @@ def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
           if (result != 0) return result;
           result = assert_online_low_battery_warning_no_shutdown();
           if (result != 0) return result;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_nut_ambient_page_model_uses_canonical_module_condition_when_present():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "nut-ambient-page-model.h"
+
+        static LedcardsInterfaceNutView baseline() {
+          LedcardsInterfaceNutView view{};
+          view.offline = false;
+          view.upsAvailable = true;
+          view.upsStale = false;
+          view.onBattery = false;
+          view.lowBattery = false;
+          view.charging = true;
+          view.batteryPercent = 97;
+          view.runtimeSeconds = 1200;
+          view.loadPercent = 20;
+          view.inputVoltage = 231.0f;
+          view.nutClientCount = 2;
+          return view;
+        }
+
+        int main() {
+          LedcardsInterfaceNutView view = baseline();
+          nutAmbientCopy(view.condition, sizeof(view.condition), "warning");
+
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+
+          if (std::strcmp(model.condition, "warning") != 0) return 1;
+          if (std::strcmp(model.telemetryState, "live") != 0) return 2;
+          if (std::strcmp(model.cards[0].stateText, "FULL") != 0) return 3;
+          if (std::strcmp(model.cards[0].stateClass, "healthy") != 0) return 4;
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_nut_ambient_page_model_falls_back_only_for_absent_or_invalid_module_condition():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "nut-ambient-page-model.h"
+
+        static LedcardsInterfaceNutView baseline() {
+          LedcardsInterfaceNutView view{};
+          view.offline = false;
+          view.upsAvailable = true;
+          view.upsStale = false;
+          view.onBattery = false;
+          view.lowBattery = false;
+          view.charging = true;
+          view.batteryPercent = 97;
+          view.runtimeSeconds = 1200;
+          view.loadPercent = 20;
+          view.inputVoltage = 231.0f;
+          view.nutClientCount = 2;
+          return view;
+        }
+
+        int main() {
+          LedcardsInterfaceNutView view = baseline();
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.condition, "unavailable") != 0) return 1;
+
+          nutAmbientCopy(view.condition, sizeof(view.condition), "unknown");
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.condition, "unavailable") != 0) return 2;
+
+          view.onBattery = true;
+          view.inputVoltage = 0.0f;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "");
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.condition, "unavailable") != 0) return 3;
+
           std::cout << "ok\n";
           return 0;
         }
@@ -306,6 +393,7 @@ def test_nut_ambient_page_model_maps_line_power_battery_readiness_warnings():
           LedcardsInterfaceNutView view = baseline();
           view.charging = true;
           view.batteryPercent = 89;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "warning");
           NutAmbientPageModel model = makeNutAmbientPageModel(view);
           if (std::strcmp(model.condition, "warning") != 0) return 1;
           if (std::strcmp(model.cards[0].stateText, "CHARGING") != 0) return 2;
@@ -315,6 +403,7 @@ def test_nut_ambient_page_model_maps_line_power_battery_readiness_warnings():
           view = baseline();
           view.charging = false;
           view.batteryPercent = 89;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "warning");
           model = makeNutAmbientPageModel(view);
           if (std::strcmp(model.condition, "warning") != 0) return 5;
           if (std::strcmp(model.cards[0].stateText, "NOT READY") != 0) return 6;

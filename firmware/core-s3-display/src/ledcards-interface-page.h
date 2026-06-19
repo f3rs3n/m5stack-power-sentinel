@@ -17,6 +17,7 @@ struct LedcardsInterfaceNutView {
   int loadPercent;
   float inputVoltage;
   int nutClientCount;
+  char condition[16] = "";
   int ageSeconds;
   bool moduleLanConnected;
   bool wifiConnected;

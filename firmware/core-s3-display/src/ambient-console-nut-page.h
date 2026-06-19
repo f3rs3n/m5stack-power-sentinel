@@ -26,6 +26,7 @@ struct AmbientConsoleNutPage {
     view.loadPercent = state.ups.loadPercent;
     view.inputVoltage = state.ups.inputVoltage;
     view.nutClientCount = state.nut.clientCount;
+    ambientConsoleSafeCopy(view.condition, sizeof(view.condition), state.nut.condition);
     view.ageSeconds = state.ups.ageSeconds;
     view.moduleLanConnected = state.moduleLanConnected;
     view.wifiConnected = wifiConnected;

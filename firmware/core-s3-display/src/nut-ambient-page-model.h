@@ -96,15 +96,14 @@ inline const char *nutAmbientTelemetryState(const LedcardsInterfaceNutView &view
 inline const char *nutAmbientCondition(const LedcardsInterfaceNutView &view) {
   if (nutAmbientTelemetryUnavailable(view)) return "unavailable";
   if (nutAmbientTelemetryStale(view)) return "stale";
-  if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return "critical";
-  if (view.loadPercent >= 90) return "critical";
-  if (view.onBattery && view.lowBattery) return "critical";
-  if (view.onBattery || view.lowBattery) return "warning";
-  if (view.batteryPercent >= 0 && view.batteryPercent < 90) return "warning";
-  if (view.loadPercent >= 70) return "warning";
-  if (view.inputVoltage > 0.0f && view.inputVoltage < 210.0f) return "warning";
-  if (view.nutClientCount == 0) return "warning";
-  return "healthy";
+  if (strcmp(view.condition, "healthy") == 0 ||
+      strcmp(view.condition, "stale") == 0 ||
+      strcmp(view.condition, "warning") == 0 ||
+      strcmp(view.condition, "critical") == 0 ||
+      strcmp(view.condition, "unavailable") == 0) {
+    return view.condition;
+  }
+  return "unavailable";
 }
 
 inline bool nutAmbientShutdownRelevant(const LedcardsInterfaceNutView &view) {

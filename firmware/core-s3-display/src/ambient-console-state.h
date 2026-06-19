@@ -28,6 +28,7 @@ struct UpsState {
 struct NutState {
   int clientCount = -1;
   bool wouldShutdown = false;
+  char condition[16] = "";
 };
 
 struct ProxmoxState {
@@ -149,6 +150,8 @@ inline bool ambientConsoleParseSummary(SummaryState &state,
   JsonObjectConst nut = doc["nut"].as<JsonObjectConst>();
   state.nut.clientCount = ambientConsoleJsonInt(nut["client_count"], -1);
   state.nut.wouldShutdown = ambientConsoleJsonBool(nut["would_shutdown"], false);
+  JsonObjectConst nutModule = doc["modules"]["nut"].as<JsonObjectConst>();
+  ambientConsoleSafeCopy(state.nut.condition, sizeof(state.nut.condition), nutModule["condition"] | "");
   JsonObjectConst module = doc["module"].as<JsonObjectConst>();
   state.moduleLanConnected = ambientConsoleJsonBool(module["lan_connected"], false);
   const char *timeHhmm = module["time_hhmm"] | "--:--";

@@ -59,6 +59,8 @@ Top-level aggregation uses worst condition wins: `critical`, then `warning`, the
 
 `modules.nut` is implemented in this baseline. `modules.proxmox` is an API-only/read-only observability module: it validates configuration, makes lightweight Proxmox API reads, feeds the five-card Ambient Console page, and still avoids SSH, remote commands, guest control, or fake telemetry.
 
+The CoreS3 Ambient Console NUT Page uses `modules.nut.condition` as the canonical Page condition. Raw `ups`/`nut` fields and their top-level aliases may still feed NUT Ambient Card values, state text, hero selection, and shutdown relevance, but they are not a separate compatibility condition interpreter for older pre-migration payloads.
+
 Runtime registration contains real implemented modules only. Home Assistant is a Module Candidate until it exists as a real capability with backend, contract, tests, and UI.
 
 When enabled, an unobservable or unconfigured module reports `condition: unavailable` because it cannot produce useful data. Disabled modules still produce diagnostic summaries, but do not report a condition, do not expose an active page, and do not affect the aggregate condition.

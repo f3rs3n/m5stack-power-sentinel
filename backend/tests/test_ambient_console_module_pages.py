@@ -59,6 +59,7 @@ def test_module_pages_own_summary_mapping_and_render_policy_contracts():
           state.ups.loadPercent = 18;
           state.ups.inputVoltage = 232.0f;
           state.nut.clientCount = 2;
+          ambientConsoleSafeCopy(state.nut.condition, sizeof(state.nut.condition), "warning");
           state.moduleLanConnected = true;
           state.lastGoodMillis = 1000;
           ambientConsoleSafeCopy(state.moduleTimeHhmm, sizeof(state.moduleTimeHhmm), "09:41");
@@ -81,6 +82,7 @@ def test_module_pages_own_summary_mapping_and_render_policy_contracts():
           if (nutView.pageCount != 2 || nutView.pageIndex != 1) return 10;
           if (!nutView.linkOk || strcmp(nutView.moduleTimeHhmm, "09:41") != 0) return 11;
           if (nutView.batteryPercent != 97 || nutView.nutClientCount != 2) return 12;
+          if (strcmp(nutView.condition, "warning") != 0) return 13;
 
           ProxmoxAmbientView proxmoxView = proxmoxPage.makeView(state);
           ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(proxmoxView);
