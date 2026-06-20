@@ -13,7 +13,7 @@ An independently scoped, individually enableable capability of Power Sentinel wi
 _Avoid_: Page module, dashboard tile
 
 **Page**:
-A user-interface view that presents an enabled module on the CoreS3 display. A page is one possible surface of a module, not the module itself. Page visibility is decided separately from the module summary: disabled modules do not expose active pages; enabled modules with unavailable or unconfigured data should remain visible with appropriate unavailable/dim treatment rather than disappearing.
+A user-interface view that presents an enabled module on the CoreS3 display. A page is one possible surface of a module, not the module itself. Page visibility is decided separately from the module summary: disabled modules do not expose active pages; enabled modules with unavailable or unconfigured data should remain visible with clear unavailable/unconfigured treatment rather than disappearing.
 _Avoid_: Module
 
 **Module Page**:
@@ -81,7 +81,7 @@ A module lifecycle state where the module exists but the user has not enabled it
 _Avoid_: Unavailable condition, disappearing module, redundant availability field
 
 **Unconfigured**:
-A module lifecycle/status state where the module is enabled but lacks the minimum configuration needed to produce useful data. Unconfigured modules should stay visible because the user explicitly enabled them; they normally contribute an unavailable Condition with configuration context rather than introducing a separate unconfigured Condition. On the Ambient Console, an enabled but unconfigured Page should preserve the module's normal shape where useful, but dim it and overlay clear unconfigured copy instead of showing fake telemetry.
+A module lifecycle/status state where the module is enabled but lacks the minimum configuration needed to produce useful data. Unconfigured modules should stay visible because the user explicitly enabled them; they normally contribute an unavailable Condition with configuration context rather than introducing a separate unconfigured Condition. On the Ambient Console, an enabled but unconfigured Page should preserve the module's normal shape where useful, render unavailable visual treatment, replace metric values with `--`, and show clear unconfigured copy in card state text instead of showing fake telemetry. Do not call this an overlay unless the renderer actually draws a separate overlay layer.
 _Avoid_: Stale, hidden enabled module, unconfigured as canonical condition, fake telemetry
 
 **NUT Monitor**:

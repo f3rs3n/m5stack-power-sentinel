@@ -8,7 +8,7 @@ Module configuration is local to the module section. Each implemented module use
 
 A real implemented module always produces a summary so configuration and diagnostics remain visible. Disabled modules produce a disabled summary, but do not contribute a condition and do not expose an active page. Enabled modules contribute a condition and should expose their page when the module has one, including unavailable or unconfigured states. An enabled but unconfigured module uses `condition: unavailable` with `status: unconfigured` and configuration context; `unconfigured` is not a separate canonical condition.
 
-Page visibility is separate from summary construction. On the Ambient Console, an enabled but unconfigured page should remain visible, preserve the module's normal shape where useful, and use unavailable/dim treatment plus clear unconfigured copy instead of fake telemetry.
+Page visibility is separate from summary construction. On the Ambient Console, an enabled but unconfigured page should remain visible, preserve the module's normal shape where useful, and use unavailable visual treatment plus clear unconfigured copy instead of fake telemetry. In the current Proxmox Ambient Page this is a card/page-model treatment, not a separate overlay layer: metrics render as `--`, card state text renders `UNCONFIGURED`, and the unavailable visual class is used.
 
 Consequences:
 
@@ -17,4 +17,4 @@ Consequences:
 - Keep `ModuleRuntime` focused on registration, calling modules, aggregate condition, page list construction, and product summary assembly.
 - Keep module-specific config validation, external adapters, status interpretation, and condition construction inside each module implementation.
 - Update tests to cover disabled summaries with no condition/page contribution, enabled unconfigured modules with unavailable condition and visible page, and aggregate condition ignoring disabled modules.
-- Update firmware handling so enabled unavailable/unconfigured module pages render visibly with unavailable/dim treatment and unconfigured context rather than disappearing.
+- Update firmware handling so enabled unavailable/unconfigured module pages render visibly with unavailable visual treatment and unconfigured context rather than disappearing.

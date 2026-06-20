@@ -93,7 +93,7 @@ Boot logs print the active transport configuration. Runtime diagnostics classify
 
 ## UI
 
-`src/main.cpp` fetches/parses the live summary and drives `ledcards-interface-page.*` for the NUT page plus any enabled backend page in `pages`, currently NUT and Proxmox. Enabled unavailable/unconfigured module pages should remain visible with unavailable/dim treatment rather than disappearing.
+`src/main.cpp` fetches/parses the live summary and drives `ledcards-interface-page.*` for the NUT page plus any enabled backend page in `pages`, currently NUT and Proxmox. Enabled unavailable/unconfigured module pages should remain visible with clear unavailable/unconfigured treatment rather than disappearing. The current Proxmox treatment is not a separate overlay layer: the normal five-card page shape stays visible, metric values become `--`, card state text says `UNCONFIGURED`/`UNAVAILABLE`, and the unavailable visual class is used.
 
 `ledcards-graphics.h` is the small shared helper seam for module-neutral Ledcards rendering details: Ambient Card render text ownership, visual-class color mapping, state fill/text colors, and physical ring slot geometry. NUT and Proxmox page models remain responsible for module-specific condition semantics, card vocabulary, hero policy, and touch-focus policy.
 

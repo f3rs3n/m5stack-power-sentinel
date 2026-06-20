@@ -144,7 +144,7 @@ def test_proxmox_ambient_page_model_legacy_api_nodes_signal_vocabulary_is_absent
     assert output == "ok\n"
 
 
-def test_proxmox_ambient_page_model_enabled_unconfigured_stays_visible_without_fake_telemetry():
+def test_proxmox_ambient_page_model_enabled_unconfigured_uses_card_treatment_without_fake_telemetry():
     output = compile_and_run(textwrap.dedent(r'''
         #include <cstring>
         #include <iostream>
@@ -165,6 +165,10 @@ def test_proxmox_ambient_page_model_enabled_unconfigured_stays_visible_without_f
           if (std::strcmp(model.heroDisplayValue, "--") != 0) return 4;
           if (std::strcmp(model.heroDetail, "UNCONFIGURED") != 0) return 5;
           if (std::strcmp(model.visualClass, "purple") != 0) return 6;
+          // This is deliberately a normal Proxmox card/page-model treatment,
+          // not a separate renderer overlay: keep the five-card shape and use
+          // unavailable visual class plus explicit card state text.
+          if (std::strcmp(model.heroTitle, "Storage") != 0) return 7;
           for (int i = 0; i < model.cardCount; ++i) {
             if (std::strcmp(model.cards[i].value, "--") != 0) return 10 + i;
             if (std::strcmp(model.cards[i].stateText, "UNCONFIGURED") != 0) return 20 + i;
