@@ -22,6 +22,7 @@ PUBLIC_DOCS = [
     ROOT / "docs" / "public-repo-audit.md",
     ROOT / "SECURITY.md",
     ROOT / "LICENSE",
+    ROOT / "NOTICE",
 ]
 
 PUBLIC_PLACEHOLDER_NEEDLES = [
@@ -46,6 +47,7 @@ README_LINKS = [
     "docs/public-repo-audit.md",
     "SECURITY.md",
     "LICENSE",
+    "NOTICE",
 ]
 
 PRIVATE_PUBLIC_PATTERNS = [
@@ -162,6 +164,17 @@ def main() -> int:
         security = docs[ROOT / "SECURITY.md"]
         for phrase in ["Supported scope", "Reporting a vulnerability", "Do not publish secrets"]:
             assert_contains(security, phrase, "SECURITY")
+
+        license_text = docs[ROOT / "LICENSE"]
+        for phrase in ["Apache License", "Version 2.0"]:
+            assert_contains(license_text, phrase, "LICENSE")
+        for forbidden in ["All rights reserved", "No license is currently granted"]:
+            if forbidden in license_text:
+                raise AssertionError(f"LICENSE still contains placeholder language {forbidden!r}")
+
+        notices = docs[ROOT / "NOTICE"]
+        for phrase in ["D-DIN", "Montserrat", "Nerd Fonts", "SIL Open Font License"]:
+            assert_contains(notices, phrase, "NOTICE")
 
         troubleshooting = docs[ROOT / "docs" / "troubleshooting.md"]
         assert_contains(troubleshooting, "Public Repo Audit", "troubleshooting/audit docs")

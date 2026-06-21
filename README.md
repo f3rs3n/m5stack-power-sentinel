@@ -39,6 +39,7 @@ Start here:
 - [Public Repo Audit checklist](docs/public-repo-audit.md)
 - [Security policy](SECURITY.md)
 - [License](LICENSE)
+- [Third-party notices](NOTICE)
 
 Maintainer/dev-unit evidence lives under `docs/operations/`. Those files can explain why hardware or architecture decisions were made, but they are not the public install path.
 

@@ -1,0 +1,55 @@
+M5Stack Power Sentinel
+Copyright 2026 Martino
+
+This project is licensed under the Apache License, Version 2.0.
+See LICENSE for the full license text.
+
+Third-party notices
+===================
+
+This repository includes generated source assets derived from third-party font
+or icon font projects. These notices are informational and do not modify the
+Apache-2.0 license for Power Sentinel's original code.
+
+D-DIN
+-----
+
+Files:
+- assets/lvgl-spike/ps_font_ddin_condensed_bold_40.c
+- assets/lvgl-spike/ps_font_ddin_condensed_bold_60.c
+
+Generated from D-DIN Condensed Bold font subsets.
+
+D-DIN is copyright (C) 2017 Datto Inc. with Reserved Font Names "D-DIN",
+"D-DIN Condensed", and "D-DIN Expanded".
+
+D-DIN is licensed under the SIL Open Font License, Version 1.1.
+Source/license reference: https://www.fontsquirrel.com/fonts/d-din
+
+Montserrat
+----------
+
+File:
+- assets/lvgl-spike/ps_font_montserrat_semibold_14.c
+
+Generated from a Montserrat SemiBold font subset.
+
+Montserrat is licensed under the SIL Open Font License, Version 1.1.
+Source/license reference: https://github.com/JulietaUla/Montserrat
+
+Nerd Fonts / Symbols Nerd Font Mono
+-----------------------------------
+
+Files:
+- assets/lvgl-spike/ps_icon_chart_32.c
+- assets/lvgl-spike/ps_icon_status_14.c
+- assets/lvgl-spike/ps_ui_tab_18.c
+
+Generated from Symbols Nerd Font Mono icon subsets.
+
+Nerd Fonts aggregates and patches glyphs from multiple icon/font projects.
+Nerd Fonts itself and its packaged symbols have mixed upstream licensing; common
+package metadata lists SIL Open Font License 1.1 and MIT License coverage, with
+upstream glyph attribution maintained by the Nerd Fonts project.
+
+Source/license reference: https://github.com/ryanoasis/nerd-fonts
