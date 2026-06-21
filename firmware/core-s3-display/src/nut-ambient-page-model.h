@@ -139,8 +139,10 @@ inline const char *nutAmbientBatteryStateText(const LedcardsInterfaceNutView &vi
   if (nutAmbientTelemetryMissing(view)) return nutAmbientMissingStateText(view);
   if (view.batteryPercent < 0) return "UNAVAILABLE";
   if (view.onBattery) {
+    if (view.batteryPercent >= 90) return "FULL";
     if (view.batteryPercent < 10) return "CRITICAL BATTERY";
     if (view.lowBattery || view.batteryPercent < 20) return "LOW BATTERY";
+    if (view.batteryPercent >= 50) return "DISCHARGING";
     return "ON BATTERY";
   }
   if (view.batteryPercent >= 90) return "FULL";
@@ -152,7 +154,8 @@ inline const char *nutAmbientBatteryStateClass(const LedcardsInterfaceNutView &v
   if (nutAmbientTelemetryUnavailable(view)) return "unavailable";
   if (nutAmbientTelemetryStale(view)) return "stale";
   if (view.batteryPercent < 0) return "unavailable";
-  if (view.onBattery && (view.lowBattery || view.batteryPercent < 10)) return "critical";
+  if (view.onBattery && view.batteryPercent >= 90) return "healthy";
+  if (view.onBattery && (view.batteryPercent < 10 || (view.lowBattery && view.batteryPercent < 20))) return "critical";
   if (view.onBattery || view.lowBattery || view.batteryPercent < 90) return "warning";
   return "healthy";
 }
@@ -162,12 +165,15 @@ inline const char *nutAmbientBatteryVisualClass(const LedcardsInterfaceNutView &
   if (nutAmbientTelemetryStale(view)) return "gray";
   if (view.batteryPercent < 0) return "purple";
   if (view.onBattery) {
+    if (view.batteryPercent >= 90) return "green";
+    if (view.batteryPercent >= 70) return "blue";
+    if (view.batteryPercent >= 50) return "yellow";
     if (view.batteryPercent < 10) return "red";
-    if (view.lowBattery || view.batteryPercent < 20) return "orange";
-    return "yellow";
+    return "orange";
   }
-  if (view.batteryPercent < 50) return "orange";
-  if (view.batteryPercent < 90) return "yellow";
+  if (view.batteryPercent < 40) return "orange";
+  if (view.batteryPercent < 70) return "yellow";
+  if (view.batteryPercent < 90) return "blue";
   return "green";
 }
 
@@ -195,6 +201,7 @@ inline const char *nutAmbientLoadVisualClass(const LedcardsInterfaceNutView &vie
   if (view.loadPercent < 0) return "purple";
   if (view.loadPercent >= 90) return "red";
   if (view.loadPercent >= 70) return "orange";
+  if (view.loadPercent >= 40) return "yellow";
   if (view.loadPercent < 10) return "blue";
   return "green";
 }
@@ -221,6 +228,7 @@ inline const char *nutAmbientInputVisualClass(const LedcardsInterfaceNutView &vi
   if (view.inputVoltage <= 0.0f) return view.onBattery ? "red" : "gray";
   if (view.inputVoltage < 190.0f) return "orange";
   if (view.inputVoltage < 210.0f) return "yellow";
+  if (view.inputVoltage < 220.0f) return "blue";
   return "green";
 }
 
@@ -244,18 +252,19 @@ inline const char *nutAmbientNutVisualClass(const LedcardsInterfaceNutView &view
   if (nutAmbientTelemetryStale(view)) return "gray";
   if (view.nutClientCount < 0) return "purple";
   if (view.nutClientCount == 0) return "orange";
-  return "blue";
+  if (view.nutClientCount == 1) return "blue";
+  return "green";
 }
 
 inline const char *nutAmbientRuntimeStateText(const LedcardsInterfaceNutView &view) {
   if (nutAmbientTelemetryMissing(view)) return nutAmbientMissingStateText(view);
   if (view.onBattery) {
-    if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return "CRITICAL RUNTIME";
-    if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 300) return "SHORT RUNTIME";
+    if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 60) return "CRITICAL RUNTIME";
+    if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return "SHORT RUNTIME";
     return "ON BATTERY";
   }
-  if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return "CRITICAL RESERVE";
-  if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 300) return "LOW RESERVE";
+  if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 60) return "CRITICAL RESERVE";
+  if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return "LOW RESERVE";
   if (view.runtimeSeconds < 0) return "UNAVAILABLE";
   return "RESERVE";
 }
@@ -264,8 +273,8 @@ inline const char *nutAmbientRuntimeStateClass(const LedcardsInterfaceNutView &v
   if (nutAmbientTelemetryUnavailable(view)) return "unavailable";
   if (nutAmbientTelemetryStale(view)) return "stale";
   if (view.runtimeSeconds < 0) return "unavailable";
-  if (view.runtimeSeconds < 120) return "critical";
-  if (view.onBattery || view.runtimeSeconds < 300) return "warning";
+  if (view.runtimeSeconds < 60) return "critical";
+  if (view.onBattery || view.runtimeSeconds < 120) return "warning";
   return "healthy";
 }
 
@@ -273,16 +282,17 @@ inline const char *nutAmbientRuntimeVisualClass(const LedcardsInterfaceNutView &
   if (nutAmbientTelemetryUnavailable(view)) return "purple";
   if (nutAmbientTelemetryStale(view)) return "gray";
   if (view.runtimeSeconds < 0) return "purple";
-  if (view.runtimeSeconds < 120) return "red";
-  if (view.runtimeSeconds < 300) return view.onBattery ? "orange" : "yellow";
-  return view.onBattery ? "yellow" : "blue";
+  if (view.runtimeSeconds < 60) return "red";
+  if (view.runtimeSeconds < 120) return "orange";
+  if (view.runtimeSeconds < 240) return "yellow";
+  return "blue";
 }
 
 inline NutAmbientMetricKind chooseNutAmbientHeroMetric(const LedcardsInterfaceNutView &view) {
   if (nutAmbientTelemetryMissing(view)) return NUT_AMBIENT_METRIC_NUT;
 
   if (view.onBattery) {
-    if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 120) return NUT_AMBIENT_METRIC_RUNTIME;
+    if (view.runtimeSeconds >= 0 && view.runtimeSeconds < 60) return NUT_AMBIENT_METRIC_RUNTIME;
     if (view.lowBattery || (view.batteryPercent >= 0 && view.batteryPercent < 20)) return NUT_AMBIENT_METRIC_BATTERY;
     if (view.runtimeSeconds >= 0) return NUT_AMBIENT_METRIC_RUNTIME;
     if (view.loadPercent >= 70) return NUT_AMBIENT_METRIC_LOAD;

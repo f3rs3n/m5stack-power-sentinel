@@ -88,6 +88,10 @@ _Avoid_: Stale, hidden enabled module, unconfigured as canonical condition, fake
 The Power Sentinel module that surfaces power state and shutdown condition from NUT and the UPS. It is observational; real shutdown remains owned by NUT and `upsmon`.
 _Avoid_: UPS controller, shutdown orchestrator
 
+**Homelab Runtime Reserve**:
+A UPS runtime reserve interpreted at homelab scale rather than enterprise scale. A few minutes of estimated runtime can be normal for a healthy homelab UPS under real load; runtime thresholds should reserve critical treatment for the final roughly minute-scale shutdown window instead of treating every sub-5-minute estimate as enterprise-style failure.
+_Avoid_: Enterprise runtime target, long-runtime SLA
+
 **Hermes Buddy**:
 A candidate module for surfacing Hermes workflow state and lightweight user interrupts. Its first useful job is to show whether Hermes is idle, running, blocked, or needs review, and to support convenient intervention for frequent prompts.
 _Avoid_: Generic chatbot, Claude Code clone, IDE on CoreS3

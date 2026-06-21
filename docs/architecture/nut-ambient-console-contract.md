@@ -80,12 +80,12 @@ Current behavior preserved:
 The migrated contract keeps visual classification explicit:
 
 - `green`, `yellow`, `orange`, `red`, `blue`, `purple`, and `gray` are renderer color classes, not backend API conditions.
-- Healthy observations should not use warning colors such as yellow or orange.
+- Healthy card observations may use blue or yellow as explicitly documented visual-depth classes, but orange and red remain attention/urgency colors.
 - A NUT battery below the full threshold is a warning condition, not a healthy observation with yellow/orange decoration, because it indicates either recent line-power loss or a UPS/battery problem.
-- The NUT battery full threshold is 90% for condition and visual treatment.
-- Battery warning visual intensity is presentation only: 50-89% uses yellow, 20-49% uses orange, and below 20% on line power uses orange with low-battery wording unless the UPS is also on battery and shutdown-relevant.
+- The NUT battery full threshold is 90% for condition and visual treatment, even when the UPS is currently on battery.
+- Battery warning visual intensity is presentation only: line power uses blue for 70-89%, yellow for 40-69%, and orange below 40%; on-battery uses green for >=90%, blue for 70-89%, yellow for 50-69%, orange for 10-49%, and red below 10%.
 - The NUT module condition should reflect the worst relevant NUT card condition for observability, safety, power readiness, service readiness, electrical input, and load pressure. Battery below 90%, high load, marginal input, missing clients, or degraded NUT services can make the module warning even when line power is currently online.
-- Runtime reserve on line power should remain a card-level observation unless it is critical or the UPS is on battery, because UPS runtime estimates can be conservative and should not create permanent module warnings while the battery is otherwise ready.
+- Runtime reserve is homelab-scaled: runtime below 60 seconds is critical, 60-119 seconds is warning, 120-239 seconds is a yellow visual-depth reserve, and 240 seconds or more is normal reserve. A few minutes of estimated runtime can be normal for a healthy homelab UPS under real load.
 - Battery warning wording should prefer direct NUT status when available: use `CHARGING` when the UPS reports charging, and use `NOT READY` when line power is online but the battery is below the full threshold without an explicit charging status.
 - Stale telemetry remains visually gray.
 - Unavailable telemetry remains visually purple.

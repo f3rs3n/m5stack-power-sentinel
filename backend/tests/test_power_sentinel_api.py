@@ -238,6 +238,10 @@ def test_nut_condition_reflects_power_readiness_and_ambient_card_warnings():
 
         setattr(api, "systemd_active", lambda unit: True)
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 90\nups.load: 20\ninput.voltage: 231", ""))
+        low_reserve = api.build_summary({"nut": {"enabled": True}})
+        assert low_reserve["modules"]["nut"]["condition"] == "warning"
+
+        setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97\nbattery.runtime: 45\nups.load: 20\ninput.voltage: 231", ""))
         critical_reserve = api.build_summary({"nut": {"enabled": True}})
         assert critical_reserve["modules"]["nut"]["condition"] == "critical"
     finally:

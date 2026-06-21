@@ -72,7 +72,7 @@ def test_nut_ambient_page_model_interprets_healthy_line_power_baseline():
           if (std::strcmp(model.cards[3].metricId, "input") != 0) return 19;
           if (std::strcmp(model.cards[3].visualClass, "green") != 0) return 20;
           if (std::strcmp(model.cards[4].metricId, "nut") != 0) return 21;
-          if (std::strcmp(model.cards[4].visualClass, "blue") != 0) return 22;
+          if (std::strcmp(model.cards[4].visualClass, "green") != 0) return 22;
           std::cout << "ok\n";
           return 0;
         }
@@ -113,8 +113,9 @@ def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
           if (std::strcmp(model.condition, "warning") != 0) return 101;
           if (model.shutdownRelevant) return 102;
           if (model.heroMetric != NUT_AMBIENT_METRIC_RUNTIME) return 103;
-          if (std::strcmp(model.cards[0].stateText, "ON BATTERY") != 0) return 104;
-          if (std::strcmp(model.cards[0].stateClass, "warning") != 0) return 105;
+          if (std::strcmp(model.cards[0].stateText, "FULL") != 0) return 104;
+          if (std::strcmp(model.cards[0].stateClass, "healthy") != 0) return 105;
+          if (std::strcmp(model.cards[0].visualClass, "green") != 0) return 106;
           return 0;
         }
 
@@ -123,7 +124,7 @@ def test_nut_ambient_page_model_maps_power_warning_and_shutdown_states():
           view.onBattery = true;
           view.lowBattery = true;
           view.batteryPercent = 8;
-          view.runtimeSeconds = 90;
+          view.runtimeSeconds = 45;
           view.inputVoltage = 0.0f;
           nutAmbientCopy(view.condition, sizeof(view.condition), "critical");
 
@@ -293,7 +294,7 @@ def test_nut_ambient_page_model_owns_hero_priority_and_touch_override_policy():
           view.onBattery = true;
           view.lowBattery = true;
           view.batteryPercent = 8;
-          view.runtimeSeconds = 90;
+          view.runtimeSeconds = 45;
           view.inputVoltage = 0.0f;
           if (makeNutAmbientPageModel(view).heroMetric != NUT_AMBIENT_METRIC_RUNTIME) return 104;
 
@@ -398,7 +399,7 @@ def test_nut_ambient_page_model_maps_line_power_battery_readiness_warnings():
           if (std::strcmp(model.condition, "warning") != 0) return 1;
           if (std::strcmp(model.cards[0].stateText, "CHARGING") != 0) return 2;
           if (std::strcmp(model.cards[0].stateClass, "warning") != 0) return 3;
-          if (std::strcmp(model.cards[0].visualClass, "yellow") != 0) return 4;
+          if (std::strcmp(model.cards[0].visualClass, "blue") != 0) return 4;
 
           view = baseline();
           view.charging = false;
@@ -407,14 +408,14 @@ def test_nut_ambient_page_model_maps_line_power_battery_readiness_warnings():
           model = makeNutAmbientPageModel(view);
           if (std::strcmp(model.condition, "warning") != 0) return 5;
           if (std::strcmp(model.cards[0].stateText, "NOT READY") != 0) return 6;
-          if (std::strcmp(model.cards[0].visualClass, "yellow") != 0) return 7;
+          if (std::strcmp(model.cards[0].visualClass, "blue") != 0) return 7;
 
           view = baseline();
           view.charging = true;
           view.batteryPercent = 42;
           model = makeNutAmbientPageModel(view);
           if (std::strcmp(model.cards[0].stateText, "CHARGING") != 0) return 8;
-          if (std::strcmp(model.cards[0].visualClass, "orange") != 0) return 9;
+          if (std::strcmp(model.cards[0].visualClass, "yellow") != 0) return 9;
 
           view = baseline();
           view.charging = false;
@@ -422,6 +423,89 @@ def test_nut_ambient_page_model_maps_line_power_battery_readiness_warnings():
           model = makeNutAmbientPageModel(view);
           if (std::strcmp(model.cards[0].stateText, "LOW BATTERY") != 0) return 10;
           if (std::strcmp(model.cards[0].visualClass, "orange") != 0) return 11;
+
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_nut_ambient_page_model_maps_discussed_visual_class_steps():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <cstring>
+        #include <iostream>
+        #include "nut-ambient-page-model.h"
+
+        static LedcardsInterfaceNutView baseline() {
+          LedcardsInterfaceNutView view{};
+          view.offline = false;
+          view.upsAvailable = true;
+          view.upsStale = false;
+          view.onBattery = false;
+          view.lowBattery = false;
+          view.charging = true;
+          view.batteryPercent = 97;
+          view.runtimeSeconds = 240;
+          view.loadPercent = 20;
+          view.inputVoltage = 231.0f;
+          view.nutClientCount = 2;
+          nutAmbientCopy(view.condition, sizeof(view.condition), "healthy");
+          return view;
+        }
+
+        int main() {
+          LedcardsInterfaceNutView view = baseline();
+          view.onBattery = true;
+          view.batteryPercent = 95;
+          NutAmbientPageModel model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[0].stateText, "FULL") != 0) return 1;
+          if (std::strcmp(model.cards[0].stateClass, "healthy") != 0) return 2;
+          if (std::strcmp(model.cards[0].visualClass, "green") != 0) return 3;
+
+          view.batteryPercent = 80;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[0].stateText, "DISCHARGING") != 0) return 4;
+          if (std::strcmp(model.cards[0].stateClass, "warning") != 0) return 5;
+          if (std::strcmp(model.cards[0].visualClass, "blue") != 0) return 6;
+
+          view.batteryPercent = 55;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[0].stateText, "DISCHARGING") != 0) return 7;
+          if (std::strcmp(model.cards[0].visualClass, "yellow") != 0) return 8;
+
+          view = baseline();
+          view.runtimeSeconds = 90;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[1].stateText, "LOW RESERVE") != 0) return 9;
+          if (std::strcmp(model.cards[1].stateClass, "warning") != 0) return 10;
+          if (std::strcmp(model.cards[1].visualClass, "orange") != 0) return 11;
+
+          view.runtimeSeconds = 45;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[1].stateText, "CRITICAL RESERVE") != 0) return 12;
+          if (std::strcmp(model.cards[1].stateClass, "critical") != 0) return 13;
+          if (std::strcmp(model.cards[1].visualClass, "red") != 0) return 14;
+
+          view = baseline();
+          view.loadPercent = 55;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 15;
+          if (std::strcmp(model.cards[2].visualClass, "yellow") != 0) return 16;
+
+          view = baseline();
+          view.inputVoltage = 215.0f;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[3].stateClass, "healthy") != 0) return 17;
+          if (std::strcmp(model.cards[3].visualClass, "blue") != 0) return 18;
+
+          view = baseline();
+          view.nutClientCount = 1;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[4].visualClass, "blue") != 0) return 19;
+          view.nutClientCount = 2;
+          model = makeNutAmbientPageModel(view);
+          if (std::strcmp(model.cards[4].visualClass, "green") != 0) return 20;
 
           std::cout << "ok\n";
           return 0;

@@ -201,7 +201,7 @@ def nut_condition(ups: dict[str, Any], services: dict[str, bool | None], clients
     runtime_seconds = ups.get("runtime_seconds")
     load_percent = ups.get("load_percent")
     input_voltage = ups.get("input_voltage")
-    if isinstance(runtime_seconds, int) and runtime_seconds < 120:
+    if isinstance(runtime_seconds, int) and runtime_seconds < 60:
         return "critical"
     if isinstance(load_percent, int) and load_percent >= 90:
         return "critical"
@@ -213,6 +213,7 @@ def nut_condition(ups: dict[str, Any], services: dict[str, bool | None], clients
         or ups["on_battery"]
         or ups["low_battery"]
         or (isinstance(battery_percent, int) and battery_percent < 90)
+        or (isinstance(runtime_seconds, int) and runtime_seconds < 120)
         or (isinstance(load_percent, int) and load_percent >= 70)
         or (isinstance(input_voltage, (int, float)) and input_voltage < 210.0)
     ):

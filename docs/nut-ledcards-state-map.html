@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NUT Ledcards — condition, visual class, priority map</title>
+  <style>
+    :root {
+      --bg: #040607;
+      --panel: #0b1114;
+      --panel2: #101820;
+      --text: #e8f0ec;
+      --muted: #99aaa5;
+      --line: #243235;
+      --green: #14dc78;
+      --blue: #1cb5f0;
+      --yellow: #fcca3d;
+      --orange: #ff8a2a;
+      --red: #ff4e3e;
+      --gray: #6c7470;
+      --purple: #9b5cff;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 20% 0%, #122027 0, var(--bg) 34rem);
+      color: var(--text);
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1440px; margin: 0 auto; padding: 28px; }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 48px); letter-spacing: -0.04em; }
+    h2 { margin: 0 0 14px; font-size: 20px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    p { margin: 0; color: var(--muted); }
+    code { color: #dff7ec; background: #152126; padding: 1px 5px; border-radius: 6px; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(360px, 1fr);
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(16,24,32,.96), rgba(8,13,16,.96));
+      box-shadow: 0 20px 80px rgba(0,0,0,.35);
+      padding: 18px;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; background: #0b1418; color: var(--muted); }
+    .chip strong { color: var(--text); }
+    .grid { display: grid; gap: 18px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.five { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+    .summary-card { min-height: 132px; }
+    .metric-card { padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: #071013; }
+    .metric-card .title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+    .metric-card .title strong { font-size: 18px; }
+    .metric-card .title span { color: var(--muted); font-size: 12px; }
+    .rules { display: grid; gap: 8px; }
+    .rule { display: grid; grid-template-columns: 92px 98px 1fr; gap: 8px; align-items: center; padding: 8px; border-radius: 12px; background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.04); }
+    .badge { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; border-radius: 999px; padding: 3px 8px; font-weight: 700; font-size: 12px; color: #06100d; text-transform: uppercase; }
+    .badge.green { background: var(--green); }
+    .badge.blue { background: var(--blue); }
+    .badge.yellow { background: var(--yellow); }
+    .badge.orange { background: var(--orange); }
+    .badge.red { background: var(--red); }
+    .badge.gray { background: var(--gray); color: #f0f4f2; }
+    .badge.purple { background: var(--purple); color: #fff; }
+    .state { color: var(--text); font-weight: 700; font-size: 12px; }
+    .expr { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 14px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 9px 10px; vertical-align: top; text-align: left; }
+    th { color: #c9d7d1; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; background: #0d1519; }
+    td { color: var(--muted); }
+    td strong { color: var(--text); }
+    .priority { counter-reset: p; display: grid; gap: 8px; }
+    .priority li { list-style: none; counter-increment: p; display: grid; grid-template-columns: 32px 130px 1fr; gap: 10px; align-items: center; padding: 9px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.025); }
+    .priority li::before { content: counter(p); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #17252b; color: var(--blue); font-weight: 800; }
+    .priority li > span:last-child { grid-column: 2 / 4; color: var(--muted); }
+    .legend { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 14px; }
+    .legend div { border-radius: 12px; padding: 10px; color: #06100d; font-weight: 800; text-align: center; }
+    .legend .gray, .legend .purple { color: white; }
+    .note { border-left: 3px solid var(--blue); padding-left: 12px; color: var(--muted); }
+    footer { color: var(--muted); margin: 22px 0 0; font-size: 12px; }
+    @media (max-width: 1100px) {
+      main { padding: 16px; }
+      .hero, .grid.two, .grid.five { grid-template-columns: 1fr; }
+      .legend { grid-template-columns: repeat(2, 1fr); }
+      .rule { grid-template-columns: 88px 94px 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="panel">
+      <h1>NUT Ledcards: stato attuale</h1>
+      <p>Mappa compatta di <strong>condition</strong>, <strong>visualClass</strong>, <strong>priority/hero</strong> e soglie delle 5 card NUT del firmware CoreS3. La visual class è solo colore renderizzato; la condition canonica resta separata.</p>
+      <div class="chips">
+        <span class="chip"><strong>5 cards</strong>: Battery, Runtime, Load, Input, NUT</span>
+        <span class="chip"><strong>telemetryState</strong>: live / partial / stale / unavailable</span>
+        <span class="chip"><strong>condition</strong>: healthy / warning / critical / stale / unavailable</span>
+        <span class="chip"><strong>missing live metric</strong>: value <code>--</code>, class unavailable/purple per card</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Legenda visualClass</h2>
+      <p>I colori arrivano da <code>ledcardsVisualClassColor()</code>.</p>
+      <div class="legend">
+        <div class="green" style="background:var(--green)">green<br>#14dc78</div>
+        <div class="blue" style="background:var(--blue)">blue<br>#1cb5f0</div>
+        <div class="yellow" style="background:var(--yellow)">yellow<br>#fcca3d</div>
+        <div class="orange" style="background:var(--orange)">orange<br>#ff8a2a</div>
+        <div class="red" style="background:var(--red)">red<br>#ff4e3e</div>
+        <div class="purple" style="background:var(--purple)">purple<br>#9b5cff</div>
+        <div class="gray" style="background:var(--gray)">gray<br>#6c7470</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid two" style="margin-bottom:18px">
+    <div class="panel summary-card">
+      <h2>1. Condition modulo NUT lato backend</h2>
+      <table>
+        <thead><tr><th>Priorità</th><th>Condition</th><th>Trigger</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>critical</strong></td><td><code>would_shutdown</code> oppure <code>runtime_seconds &lt; 60</code> oppure <code>load_percent &gt;= 90</code></td></tr>
+          <tr><td>2</td><td><strong>stale</strong></td><td><code>ups.stale</code> true e UPS ancora disponibile</td></tr>
+          <tr><td>2</td><td><strong>unavailable</strong></td><td><code>ups.stale</code> true e UPS non disponibile; oppure condition assente/non canonica nel page model</td></tr>
+          <tr><td>3</td><td><strong>warning</strong></td><td>server/driver/monitor degradati, 0 client abilitati, on battery, low battery, battery &lt; 90%, runtime &lt; 120s, load &gt;= 70%, input &lt; 210V</td></tr>
+          <tr><td>4</td><td><strong>healthy</strong></td><td>Nessun trigger sopra</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel summary-card">
+      <h2>2. Telemetry state e missing data</h2>
+      <table>
+        <thead><tr><th>Stato</th><th>Regola</th><th>Effetto card</th></tr></thead>
+        <tbody>
+          <tr><td><strong>unavailable</strong></td><td><code>!upsAvailable</code></td><td>Tutte le card: value <code>--</code>, stateText <code>UNAVAILABLE</code>, stateClass <code>unavailable</code>, visualClass <code>purple</code></td></tr>
+          <tr><td><strong>stale</strong></td><td><code>offline || upsStale</code></td><td>Tutte le card: value <code>--</code>, stateText <code>transportStatus</code> se presente altrimenti <code>STALE</code>, visualClass <code>gray</code></td></tr>
+          <tr><td><strong>partial</strong></td><td>Telemetry live ma una metrica manca: battery/runtime/load/input/client</td><td>Solo la metrica mancante diventa <code>UNAVAILABLE</code>/<code>purple</code>; il modello segnala <code>hasMissingMetrics</code></td></tr>
+          <tr><td><strong>live</strong></td><td>Tutte le metriche chiave presenti</td><td>Ogni card applica le soglie sotto</td></tr>
+        </tbody>
+      </table>
+      <p class="note" style="margin-top:12px">Stale/unavailable battono le soglie delle singole metriche: prima si decide la freschezza, poi le card.</p>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-bottom:18px">
+    <h2>3. Hero / priority policy</h2>
+    <ol class="priority">
+      <li><strong>NUT</strong><span class="expr">telemetry missing</span><span>Se la sorgente è stale o unavailable, promuove la card NUT.</span></li>
+      <li><strong>Runtime</strong><span class="expr">onBattery && runtime &lt; 60s</span><span>Runtime critico su batteria: massima urgenza operativa.</span></li>
+      <li><strong>Battery</strong><span class="expr">onBattery && (lowBattery || battery &lt; 20%)</span><span>Batteria bassa su batteria; se non è runtime &lt;60s, vince Battery.</span></li>
+      <li><strong>Runtime</strong><span class="expr">onBattery && runtime known</span><span>Su batteria, Runtime è il default anche se non critico.</span></li>
+      <li><strong>Load</strong><span class="expr">load &gt;= 70%</span><span>Alto carico quando non c'è già un evento batteria più rilevante.</span></li>
+      <li><strong>Input</strong><span class="expr">0V &lt; input &lt; 210V</span><span>Input marginale/basso quando online.</span></li>
+      <li><strong>Battery</strong><span class="expr">default</span><span>Linea sana: Battery è la hero di default.</span></li>
+    </ol>
+    <p class="note" style="margin-top:12px">Touch override: una card toccata resta hero per 60s. Gli swap automatici rispettano cooldown 5s.</p>
+  </section>
+
+  <section class="grid five">
+    <article class="metric-card">
+      <div class="title"><strong>Battery</strong><span>value: %</span></div>
+      <div class="rules">
+        <div class="rule"><span class="badge purple">purple</span><span class="state">unavailable</span><span class="expr">UPS unavailable o battery &lt; 0</span></div>
+        <div class="rule"><span class="badge gray">gray</span><span class="state">stale</span><span class="expr">offline || upsStale</span></div>
+        <div class="rule"><span class="badge red">red</span><span class="state">critical</span><span class="expr">onBattery && battery &lt; 10%</span></div>
+        <div class="rule"><span class="badge orange">orange</span><span class="state">critical/warning</span><span class="expr">line power &lt;40%; onBattery 10–49%</span></div>
+        <div class="rule"><span class="badge yellow">yellow</span><span class="state">warning</span><span class="expr">line power 40–69%; onBattery 50–69%</span></div>
+        <div class="rule"><span class="badge blue">blue</span><span class="state">warning</span><span class="expr">battery 70–89%</span></div>
+        <div class="rule"><span class="badge green">green</span><span class="state">healthy</span><span class="expr">battery ≥90%, anche onBattery</span></div>
+      </div>
+      <p style="margin-top:10px">State text: <code>CRITICAL BATTERY</code>, <code>LOW BATTERY</code>, <code>ON BATTERY</code>, <code>DISCHARGING</code>, <code>FULL</code>, <code>CHARGING</code>, <code>NOT READY</code>.</p>
+    </article>
+
+    <article class="metric-card">
+      <div class="title"><strong>Runtime</strong><span>value: mm:ss / compact m</span></div>
+      <div class="rules">
+        <div class="rule"><span class="badge purple">purple</span><span class="state">unavailable</span><span class="expr">UPS unavailable o runtime &lt; 0</span></div>
+        <div class="rule"><span class="badge gray">gray</span><span class="state">stale</span><span class="expr">offline || upsStale</span></div>
+        <div class="rule"><span class="badge red">red</span><span class="state">critical</span><span class="expr">runtime &lt; 60s</span></div>
+        <div class="rule"><span class="badge orange">orange</span><span class="state">warning</span><span class="expr">60s ≤ runtime &lt; 120s</span></div>
+        <div class="rule"><span class="badge yellow">yellow</span><span class="state">healthy/warning</span><span class="expr">120s ≤ runtime &lt; 240s</span></div>
+        <div class="rule"><span class="badge blue">blue</span><span class="state">healthy/warning</span><span class="expr">runtime ≥240s</span></div>
+      </div>
+      <p style="margin-top:10px">Runtime è tarato homelab: &lt;60s critical; 60–119s warning; 120–239s è riserva visual-depth; ≥240s è normale.</p>
+    </article>
+
+    <article class="metric-card">
+      <div class="title"><strong>Load</strong><span>value: %</span></div>
+      <div class="rules">
+        <div class="rule"><span class="badge purple">purple</span><span class="state">unavailable</span><span class="expr">UPS unavailable o load &lt; 0</span></div>
+        <div class="rule"><span class="badge gray">gray</span><span class="state">stale</span><span class="expr">offline || upsStale</span></div>
+        <div class="rule"><span class="badge red">red</span><span class="state">critical</span><span class="expr">load ≥ 90%</span></div>
+        <div class="rule"><span class="badge orange">orange</span><span class="state">warning</span><span class="expr">70% ≤ load &lt; 90%</span></div>
+        <div class="rule"><span class="badge yellow">yellow</span><span class="state">healthy</span><span class="expr">40% ≤ load &lt; 70%</span></div>
+        <div class="rule"><span class="badge blue">blue</span><span class="state">healthy</span><span class="expr">load &lt; 10%</span></div>
+        <div class="rule"><span class="badge green">green</span><span class="state">healthy</span><span class="expr">10% ≤ load &lt; 40%</span></div>
+      </div>
+      <p style="margin-top:10px">State text: <code>OVERLOAD</code>, <code>HIGH LOAD</code>, <code>LOW</code>, <code>NORMAL</code>.</p>
+    </article>
+
+    <article class="metric-card">
+      <div class="title"><strong>Input</strong><span>value: V</span></div>
+      <div class="rules">
+        <div class="rule"><span class="badge purple">purple</span><span class="state">unavailable</span><span class="expr">UPS unavailable</span></div>
+        <div class="rule"><span class="badge gray">gray</span><span class="state">stale/unavailable</span><span class="expr">offline || upsStale, oppure input ≤0 e non onBattery</span></div>
+        <div class="rule"><span class="badge red">red</span><span class="state">critical</span><span class="expr">input ≤0 && onBattery</span></div>
+        <div class="rule"><span class="badge orange">orange</span><span class="state">warning</span><span class="expr">0V &lt; input &lt; 190V</span></div>
+        <div class="rule"><span class="badge yellow">yellow</span><span class="state">warning</span><span class="expr">190V ≤ input &lt; 210V</span></div>
+        <div class="rule"><span class="badge blue">blue</span><span class="state">healthy</span><span class="expr">210V ≤ input &lt; 220V</span></div>
+        <div class="rule"><span class="badge green">green</span><span class="state">healthy</span><span class="expr">input ≥ 220V</span></div>
+      </div>
+      <p style="margin-top:10px">State text: <code>GRID OFFLINE</code>, <code>INPUT LOW</code>, <code>MARGINAL INPUT</code>, <code>GRID ONLINE</code>.</p>
+    </article>
+
+    <article class="metric-card">
+      <div class="title"><strong>NUT</strong><span>value: clients</span></div>
+      <div class="rules">
+        <div class="rule"><span class="badge purple">purple</span><span class="state">unavailable</span><span class="expr">UPS unavailable o clientCount &lt; 0</span></div>
+        <div class="rule"><span class="badge gray">gray</span><span class="state">stale</span><span class="expr">offline || upsStale</span></div>
+        <div class="rule"><span class="badge orange">orange</span><span class="state">warning</span><span class="expr">clientCount == 0</span></div>
+        <div class="rule"><span class="badge blue">blue</span><span class="state">healthy</span><span class="expr">clientCount == 1</span></div>
+        <div class="rule"><span class="badge green">green</span><span class="state">healthy</span><span class="expr">clientCount ≥ 2</span></div>
+      </div>
+      <p style="margin-top:10px">State text: <code>NO CLIENTS</code> se 0; altrimenti <code>CLIENTS</code>. Se telemetry missing, NUT diventa la hero.</p>
+    </article>
+  </section>
+
+  <section class="panel" style="margin-top:18px">
+    <h2>4. Regole da tenere a mente</h2>
+    <table>
+      <thead><tr><th>Concetto</th><th>Stato attuale</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Visual condition</strong></td><td>Nel codice è <code>visualClass</code>: <code>green/yellow/orange/red/blue/purple/gray</code>. Non è una condition API.</td></tr>
+        <tr><td><strong>Visual depth</strong></td><td>Blue e yellow possono essere profondità estetica healthy/informational; orange e red restano attenzione/urgenza.</td></tr>
+        <tr><td><strong>Shutdown relevant</strong></td><td>True solo se telemetry presente, <code>onBattery && lowBattery</code>. Backend <code>would_shutdown</code> è OB+LB.</td></tr>
+        <tr><td><strong>Module vs card</strong></td><td>Il backend calcola la condition del modulo; il page model la conserva se canonica e calcola card stateClass/visualClass separatamente.</td></tr>
+        <tr><td><strong>Card order</strong></td><td>Ordine stabile: Battery, Runtime, Load, Input, NUT. La hero può promuovere una metrica senza cambiare la semantica delle card.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    Fonti: backend/bin/power-sentinel-api.py, firmware/core-s3-display/src/nut-ambient-page-model.h, firmware/core-s3-display/src/ledcards-graphics.h, docs/architecture/nut-ambient-console-contract.md.
+  </footer>
+</main>
+</body>
+</html>
