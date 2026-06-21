@@ -74,3 +74,106 @@ def test_ambient_console_shell_page_registry_keeps_enabled_pages_in_order_and_hi
         }
     '''))
     assert output == "ok\n"
+
+
+def test_ambient_console_shell_auto_page_focus_follows_condition_changes_and_manual_override():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <iostream>
+        #include "ambient-console-shell.h"
+
+        static SummaryState state_with_conditions(const char *nutCondition, const char *proxmoxCondition) {
+          SummaryState state{};
+          ambientConsoleSafeCopy(state.nut.condition, sizeof(state.nut.condition), nutCondition);
+          state.proxmox.enabled = true;
+          state.proxmox.implemented = true;
+          ambientConsoleSafeCopy(state.proxmox.condition, sizeof(state.proxmox.condition), proxmoxCondition);
+          return state;
+        }
+
+        int main() {
+          AmbientConsoleShell shell{};
+          shell.autoPageFocusCooldownMs = 60000UL;
+
+          SummaryState state = state_with_conditions("healthy", "healthy");
+          if (shell.applyAutoPageFocus(state, 1000UL)) return 1;
+          if (shell.currentPageIndex != 0) return 2;
+
+          state = state_with_conditions("healthy", "warning");
+          if (!shell.applyAutoPageFocus(state, 2000UL)) return 3;
+          if (shell.currentPageIndex != 1) return 4;
+          if (!shell.autoPageFocusActive) return 5;
+          if (shell.autoPageFocusReturnPageIndex != 0) return 6;
+
+          if (shell.applyAutoPageFocus(state, 70000UL)) return 7;
+          if (shell.currentPageIndex != 1) return 8;
+
+          shell.currentPageIndex = 0;
+          shell.cancelAutoPageFocus(71000UL);
+          if (shell.applyAutoPageFocus(state, 132000UL)) return 9;
+          if (shell.currentPageIndex != 0) return 10;
+
+          state = state_with_conditions("healthy", "critical");
+          if (!shell.applyAutoPageFocus(state, 132001UL)) return 11;
+          if (shell.currentPageIndex != 1) return 12;
+
+          state = state_with_conditions("healthy", "healthy");
+          if (!shell.applyAutoPageFocus(state, 133000UL)) return 13;
+          if (shell.currentPageIndex != 0) return 14;
+          if (shell.autoPageFocusActive) return 15;
+
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"
+
+
+def test_ambient_console_shell_auto_page_focus_uses_worst_condition_and_delays_during_cooldown():
+    output = compile_and_run(textwrap.dedent(r'''
+        #include <iostream>
+        #include "ambient-console-shell.h"
+
+        static SummaryState state_with_conditions(const char *nutCondition, const char *proxmoxCondition) {
+          SummaryState state{};
+          ambientConsoleSafeCopy(state.nut.condition, sizeof(state.nut.condition), nutCondition);
+          state.proxmox.enabled = true;
+          state.proxmox.implemented = true;
+          ambientConsoleSafeCopy(state.proxmox.condition, sizeof(state.proxmox.condition), proxmoxCondition);
+          return state;
+        }
+
+        int main() {
+          AmbientConsoleShell shell{};
+          shell.autoPageFocusCooldownMs = 60000UL;
+
+          SummaryState state = state_with_conditions("healthy", "warning");
+          if (!shell.applyAutoPageFocus(state, 1000UL)) return 1;
+          if (shell.currentPageIndex != 1) return 2;
+
+          state = state_with_conditions("warning", "warning");
+          if (shell.applyAutoPageFocus(state, 2000UL)) return 12;
+          if (shell.currentPageIndex != 1) return 13;
+
+          if (!shell.applyAutoPageFocus(state, 61000UL)) return 14;
+          if (shell.currentPageIndex != 0) return 15;
+
+          state = state_with_conditions("healthy", "warning");
+          if (shell.applyAutoPageFocus(state, 62000UL)) return 16;
+          if (shell.currentPageIndex != 0) return 17;
+
+          if (!shell.applyAutoPageFocus(state, 121000UL)) return 18;
+          if (shell.currentPageIndex != 1) return 19;
+
+          state = state_with_conditions("critical", "warning");
+          if (shell.applyAutoPageFocus(state, 122000UL)) return 3;
+          if (shell.currentPageIndex != 1) return 4;
+
+          if (!shell.applyAutoPageFocus(state, 181000UL)) return 5;
+          if (shell.currentPageIndex != 0) return 6;
+          if (shell.autoPageFocusReturnPageIndex != 0) return 7;
+
+          std::cout << "ok\n";
+          return 0;
+        }
+    '''))
+    assert output == "ok\n"

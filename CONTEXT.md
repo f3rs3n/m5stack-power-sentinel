@@ -52,6 +52,10 @@ _Avoid_: Primary workstation, full configuration UI
 The firmware seam that owns cross-page Ambient Console lifecycle. The Shell receives live summaries and transport diagnostics, keeps the page registry/page count/current page index, routes page-level touch intent, runs page transitions, renders the top bar, and applies display mode, standby, snooze, and common refresh policy. It delegates module-specific Page model construction, Ambient Card interpretation, Hero Position policy, and page rendering policy to Module Pages.
 _Avoid_: Module Page, module condition interpreter, generic plugin host
 
+**Auto Page Focus**:
+A Shell behavior that temporarily moves the Ambient Console to the enabled Module Page needing attention when a module Condition becomes warning or critical. Auto Page Focus is attention routing, not a replacement for manual page selection or module-owned Hero Position policy.
+_Avoid_: Auto module switch, alert takeover, automatic remediation
+
 **Backlight Level**:
 A physical brightness step that the CoreS3 display backlight can actually render after display hardware maps requested brightness values to its available output levels. Backlight levels are coarser than the firmware's nominal brightness values.
 _Avoid_: PWM step, brightness value, ALS level

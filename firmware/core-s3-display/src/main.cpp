@@ -342,8 +342,10 @@ void startDisplayFade(DisplayMode targetMode, uint8_t targetBrightness, uint32_t
 void applyDisplayBrightness(uint8_t brightness);
 
 void buildStateSignature(char *dst, size_t dstSize) {
-  snprintf(dst, dstSize, "%s|a%d|s%d|ob%d|lb%d|ch%d|st:%s|clients:%d",
+  snprintf(dst, dstSize, "%s|nut:%s|pve:%s|a%d|s%d|ob%d|lb%d|ch%d|st:%s|clients:%d",
            state.severity,
+           state.nut.condition,
+           state.proxmox.condition,
            state.ups.available ? 1 : 0,
            state.ups.stale ? 1 : 0,
            state.ups.onBattery ? 1 : 0,

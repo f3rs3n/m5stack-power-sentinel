@@ -6,6 +6,10 @@
 #include "ledcards-interface-page.h"
 
 struct AmbientConsoleNutPage {
+  const char *condition(const SummaryState &state) const {
+    return state.nut.condition;
+  }
+
   LedcardsInterfaceNutView makeView(const SummaryState &state,
                                     bool wifiConnected,
                                     int localBatteryPercent,

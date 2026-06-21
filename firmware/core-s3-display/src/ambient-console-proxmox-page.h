@@ -4,6 +4,10 @@
 #include "ledcards-interface-page.h"
 
 struct AmbientConsoleProxmoxPage {
+  const char *condition(const SummaryState &state) const {
+    return state.proxmox.condition;
+  }
+
   ProxmoxAmbientView makeView(const SummaryState &state) const {
     ProxmoxAmbientView view{};
     view.enabled = state.proxmox.enabled;
