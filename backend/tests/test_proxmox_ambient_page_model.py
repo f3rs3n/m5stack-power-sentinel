@@ -71,7 +71,7 @@ def test_proxmox_ambient_page_model_exposes_five_card_vocabulary_and_cpu_default
     assert output == "ok\n"
 
 
-def test_proxmox_ambient_page_model_healthy_observed_cards_use_health_positive_green_except_empty_guests():
+def test_proxmox_ambient_page_model_healthy_observed_cards_use_visual_depth_bands():
     output = compile_and_run(textwrap.dedent(r'''
         #include <cstring>
         #include <iostream>
@@ -82,12 +82,12 @@ def test_proxmox_ambient_page_model_healthy_observed_cards_use_health_positive_g
           view.enabled = true;
           view.implemented = true;
           view.hasLiveData = true;
-          view.cpuPercent = 12;
-          view.ramPercent = 34;
+          view.cpuPercent = 5;
+          view.ramPercent = 10;
           view.guestRunning = 2;
           view.guestTotal = 2;
-          view.storagePercent = 40;
-          view.networkPercent = 5;
+          view.storagePercent = 20;
+          view.networkPercent = 2;
           proxmoxAmbientCopy(view.condition, sizeof(view.condition), "healthy");
           proxmoxAmbientCopy(view.status, sizeof(view.status), "observed");
           proxmoxAmbientCopy(view.cpuCondition, sizeof(view.cpuCondition), "healthy");
@@ -97,16 +97,42 @@ def test_proxmox_ambient_page_model_healthy_observed_cards_use_health_positive_g
           proxmoxAmbientCopy(view.networkCondition, sizeof(view.networkCondition), "healthy");
 
           ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
-          for (int i = 0; i < 5; ++i) {
-            if (std::strcmp(model.cards[i].stateClass, "healthy") != 0) return 1 + i;
-            if (std::strcmp(model.cards[i].visualClass, "green") != 0) return 10 + i;
-          }
+          if (std::strcmp(model.cards[0].stateClass, "healthy") != 0) return 1;
+          if (std::strcmp(model.cards[0].stateText, "IDLE") != 0) return 2;
+          if (std::strcmp(model.cards[0].visualClass, "blue") != 0) return 3;
+          if (std::strcmp(model.cards[1].stateClass, "healthy") != 0) return 4;
+          if (std::strcmp(model.cards[1].stateText, "RAM LOW") != 0) return 5;
+          if (std::strcmp(model.cards[1].visualClass, "blue") != 0) return 6;
+          if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 7;
+          if (std::strcmp(model.cards[2].stateText, "GUEST OK") != 0) return 8;
+          if (std::strcmp(model.cards[2].visualClass, "green") != 0) return 9;
+          if (std::strcmp(model.cards[3].stateClass, "healthy") != 0) return 10;
+          if (std::strcmp(model.cards[3].stateText, "STOR LOW") != 0) return 11;
+          if (std::strcmp(model.cards[3].visualClass, "blue") != 0) return 12;
+          if (std::strcmp(model.cards[4].stateClass, "healthy") != 0) return 13;
+          if (std::strcmp(model.cards[4].stateText, "NET IDLE") != 0) return 14;
+          if (std::strcmp(model.cards[4].visualClass, "blue") != 0) return 15;
+
+          view.cpuPercent = 65;
+          view.ramPercent = 72;
+          view.storagePercent = 75;
+          view.networkPercent = 45;
+          model = makeProxmoxAmbientPageModel(view);
+          if (std::strcmp(model.cards[0].stateText, "CPU BUSY") != 0) return 16;
+          if (std::strcmp(model.cards[0].visualClass, "yellow") != 0) return 17;
+          if (std::strcmp(model.cards[1].stateText, "RAM HIGH") != 0) return 18;
+          if (std::strcmp(model.cards[1].visualClass, "yellow") != 0) return 19;
+          if (std::strcmp(model.cards[3].stateText, "STOR HIGH") != 0) return 20;
+          if (std::strcmp(model.cards[3].visualClass, "yellow") != 0) return 21;
+          if (std::strcmp(model.cards[4].stateText, "NET BUSY") != 0) return 22;
+          if (std::strcmp(model.cards[4].visualClass, "yellow") != 0) return 23;
 
           view.guestRunning = 0;
           view.guestTotal = 0;
           model = makeProxmoxAmbientPageModel(view);
-          if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 20;
-          if (std::strcmp(model.cards[2].visualClass, "blue") != 0) return 21;
+          if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 24;
+          if (std::strcmp(model.cards[2].stateText, "GUEST EMPTY") != 0) return 25;
+          if (std::strcmp(model.cards[2].visualClass, "blue") != 0) return 26;
           std::cout << "ok\n";
           return 0;
         }
@@ -470,7 +496,7 @@ def test_proxmox_ambient_page_model_guests_zero_zero_is_healthy_blue():
           ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
 
           if (std::strcmp(model.cards[2].value, "0/0") != 0) return 1;
-          if (std::strcmp(model.cards[2].stateText, "GUEST OK") != 0) return 2;
+          if (std::strcmp(model.cards[2].stateText, "GUEST EMPTY") != 0) return 2;
           if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 3;
           if (std::strcmp(model.cards[2].visualClass, "blue") != 0) return 4;
           if (model.heroCardIndex != 0) return 5;

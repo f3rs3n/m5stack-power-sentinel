@@ -499,7 +499,7 @@ def test_proxmox_first_healthy_observation_uses_read_only_api_adapter():
 def test_proxmox_cpu_pressure_requires_sustained_threshold_crossing():
     old_get = api.proxmox_api_get
     try:
-        cpu_values = iter([0.90, 0.90, 0.99, 0.99])
+        cpu_values = iter([0.80, 0.80, 0.95, 0.95])
 
         def fake_get(config, path):
             if path == "/cluster/status":
@@ -535,23 +535,23 @@ def test_proxmox_cpu_pressure_requires_sustained_threshold_crossing():
         sustained_critical = api.build_summary(config)["modules"]["proxmox"]
 
         assert first_warning_sample["condition"] == "healthy"
-        assert first_warning_sample["cards"]["cpu"] == {"value_percent": 90, "condition": "healthy"}
+        assert first_warning_sample["cards"]["cpu"] == {"value_percent": 80, "condition": "healthy"}
         assert first_warning_sample["signals"] == []
 
         assert sustained_warning["condition"] == "warning"
-        assert sustained_warning["cards"]["cpu"] == {"value_percent": 90, "condition": "warning"}
+        assert sustained_warning["cards"]["cpu"] == {"value_percent": 80, "condition": "warning"}
         assert sustained_warning["signals"][0]["kind"] == "cpu_pressure"
         assert sustained_warning["signals"][0]["condition"] == "warning"
-        assert sustained_warning["signals"][0]["context"] == {"node": "pve", "cpu_percent": 90, "threshold_percent": 85}
+        assert sustained_warning["signals"][0]["context"] == {"node": "pve", "cpu_percent": 80, "threshold_percent": 80}
 
         assert first_critical_sample["condition"] == "warning"
-        assert first_critical_sample["cards"]["cpu"] == {"value_percent": 99, "condition": "warning"}
+        assert first_critical_sample["cards"]["cpu"] == {"value_percent": 95, "condition": "warning"}
 
         assert sustained_critical["condition"] == "critical"
-        assert sustained_critical["cards"]["cpu"] == {"value_percent": 99, "condition": "critical"}
+        assert sustained_critical["cards"]["cpu"] == {"value_percent": 95, "condition": "critical"}
         assert sustained_critical["signals"][0]["kind"] == "cpu_pressure"
         assert sustained_critical["signals"][0]["condition"] == "critical"
-        assert sustained_critical["signals"][0]["context"] == {"node": "pve", "cpu_percent": 99, "threshold_percent": 98}
+        assert sustained_critical["signals"][0]["context"] == {"node": "pve", "cpu_percent": 95, "threshold_percent": 95}
     finally:
         api.proxmox_api_get = old_get
 
@@ -559,7 +559,7 @@ def test_proxmox_cpu_pressure_requires_sustained_threshold_crossing():
 def test_proxmox_memory_pressure_requires_sustained_threshold_crossing():
     old_get = api.proxmox_api_get
     try:
-        memory_values = iter([91, 91, 99, 99])
+        memory_values = iter([85, 85, 95, 95])
 
         def fake_get(config, path):
             if path == "/cluster/status":
@@ -595,23 +595,23 @@ def test_proxmox_memory_pressure_requires_sustained_threshold_crossing():
         sustained_critical = api.build_summary(config)["modules"]["proxmox"]
 
         assert first_warning_sample["condition"] == "healthy"
-        assert first_warning_sample["cards"]["ram"] == {"value_percent": 91, "condition": "healthy"}
+        assert first_warning_sample["cards"]["ram"] == {"value_percent": 85, "condition": "healthy"}
         assert first_warning_sample["signals"] == []
 
         assert sustained_warning["condition"] == "warning"
-        assert sustained_warning["cards"]["ram"] == {"value_percent": 91, "condition": "warning"}
+        assert sustained_warning["cards"]["ram"] == {"value_percent": 85, "condition": "warning"}
         assert sustained_warning["signals"][0]["kind"] == "memory_pressure"
         assert sustained_warning["signals"][0]["condition"] == "warning"
-        assert sustained_warning["signals"][0]["context"] == {"node": "pve", "memory_percent": 91, "threshold_percent": 90}
+        assert sustained_warning["signals"][0]["context"] == {"node": "pve", "memory_percent": 85, "threshold_percent": 85}
 
         assert first_critical_sample["condition"] == "warning"
-        assert first_critical_sample["cards"]["ram"] == {"value_percent": 99, "condition": "warning"}
+        assert first_critical_sample["cards"]["ram"] == {"value_percent": 95, "condition": "warning"}
 
         assert sustained_critical["condition"] == "critical"
-        assert sustained_critical["cards"]["ram"] == {"value_percent": 99, "condition": "critical"}
+        assert sustained_critical["cards"]["ram"] == {"value_percent": 95, "condition": "critical"}
         assert sustained_critical["signals"][0]["kind"] == "memory_pressure"
         assert sustained_critical["signals"][0]["condition"] == "critical"
-        assert sustained_critical["signals"][0]["context"] == {"node": "pve", "memory_percent": 99, "threshold_percent": 98}
+        assert sustained_critical["signals"][0]["context"] == {"node": "pve", "memory_percent": 95, "threshold_percent": 95}
     finally:
         api.proxmox_api_get = old_get
 
@@ -1035,7 +1035,7 @@ def test_proxmox_network_pressure_requires_sustained_threshold_crossing():
     old_get = api.proxmox_api_get
     api._PROXMOX_NETWORK_STREAKS.clear()
     try:
-        tx_values = iter([850_000_000, 850_000_000, 970_000_000, 970_000_000])
+        tx_values = iter([700_000_000, 700_000_000, 900_000_000, 900_000_000])
 
         def fake_get(config, path):
             if path == "/cluster/status":
@@ -1069,21 +1069,21 @@ def test_proxmox_network_pressure_requires_sustained_threshold_crossing():
         sustained_critical = api.build_summary(config)["modules"]["proxmox"]
 
         assert first_warning_sample["condition"] == "healthy"
-        assert first_warning_sample["cards"]["network"] == {"value_percent": 85, "condition": "healthy"}
+        assert first_warning_sample["cards"]["network"] == {"value_percent": 70, "condition": "healthy"}
         assert first_warning_sample["signals"] == []
 
         assert sustained_warning["condition"] == "warning"
-        assert sustained_warning["cards"]["network"] == {"value_percent": 85, "condition": "warning"}
+        assert sustained_warning["cards"]["network"] == {"value_percent": 70, "condition": "warning"}
         assert sustained_warning["signals"][0]["kind"] == "network_pressure"
-        assert sustained_warning["signals"][0]["context"] == {"node": "pve-a", "iface": "eno1", "saturation_percent": 85, "threshold_percent": 80}
+        assert sustained_warning["signals"][0]["context"] == {"node": "pve-a", "iface": "eno1", "saturation_percent": 70, "threshold_percent": 70}
 
         assert first_critical_sample["condition"] == "warning"
-        assert first_critical_sample["cards"]["network"] == {"value_percent": 97, "condition": "warning"}
+        assert first_critical_sample["cards"]["network"] == {"value_percent": 90, "condition": "warning"}
 
         assert sustained_critical["condition"] == "critical"
-        assert sustained_critical["cards"]["network"] == {"value_percent": 97, "condition": "critical"}
+        assert sustained_critical["cards"]["network"] == {"value_percent": 90, "condition": "critical"}
         assert sustained_critical["signals"][0]["kind"] == "network_pressure"
-        assert sustained_critical["signals"][0]["context"] == {"node": "pve-a", "iface": "eno1", "saturation_percent": 97, "threshold_percent": 95}
+        assert sustained_critical["signals"][0]["context"] == {"node": "pve-a", "iface": "eno1", "saturation_percent": 90, "threshold_percent": 90}
     finally:
         api.proxmox_api_get = old_get
         api._PROXMOX_NETWORK_STREAKS.clear()

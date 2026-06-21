@@ -102,39 +102,88 @@ inline const char *proxmoxAmbientConditionVisualClass(const char *condition) {
   return "green";
 }
 
-inline const char *proxmoxAmbientCpuStateText(const char *condition, bool hasValue) {
+inline const char *proxmoxAmbientCpuVisualClass(const char *condition, int percent) {
+  if (strcmp(condition, "critical") == 0) return "red";
+  if (strcmp(condition, "warning") == 0) return "orange";
+  if (strcmp(condition, "stale") == 0) return "gray";
+  if (strcmp(condition, "unavailable") == 0 || percent < 0) return "purple";
+  if (percent < 10) return "blue";
+  if (percent < 60) return "green";
+  return "yellow";
+}
+
+inline const char *proxmoxAmbientRamVisualClass(const char *condition, int percent) {
+  if (strcmp(condition, "critical") == 0) return "red";
+  if (strcmp(condition, "warning") == 0) return "orange";
+  if (strcmp(condition, "stale") == 0) return "gray";
+  if (strcmp(condition, "unavailable") == 0 || percent < 0) return "purple";
+  if (percent < 25) return "blue";
+  if (percent < 70) return "green";
+  return "yellow";
+}
+
+inline const char *proxmoxAmbientStorageVisualClass(const char *condition, int percent) {
+  if (strcmp(condition, "critical") == 0) return "red";
+  if (strcmp(condition, "warning") == 0) return "orange";
+  if (strcmp(condition, "stale") == 0) return "gray";
+  if (strcmp(condition, "unavailable") == 0 || percent < 0) return "purple";
+  if (percent < 40) return "blue";
+  if (percent < 70) return "green";
+  return "yellow";
+}
+
+inline const char *proxmoxAmbientNetworkVisualClass(const char *condition, int percent) {
+  if (strcmp(condition, "critical") == 0) return "red";
+  if (strcmp(condition, "warning") == 0) return "orange";
+  if (strcmp(condition, "stale") == 0) return "gray";
+  if (strcmp(condition, "unavailable") == 0 || percent < 0) return "purple";
+  if (percent < 5) return "blue";
+  if (percent < 40) return "green";
+  return "yellow";
+}
+
+inline const char *proxmoxAmbientCpuStateText(const char *condition, bool hasValue, int percent) {
   if (!hasValue) return "PLACEHOLDER";
   if (strcmp(condition, "critical") == 0) return "CPU CRIT";
   if (strcmp(condition, "warning") == 0) return "CPU WARN";
+  if (percent < 10) return "IDLE";
+  if (percent >= 60) return "CPU BUSY";
   return "CPU OK";
 }
 
-inline const char *proxmoxAmbientRamStateText(const char *condition, bool hasValue) {
+inline const char *proxmoxAmbientRamStateText(const char *condition, bool hasValue, int percent) {
   if (!hasValue) return "PLACEHOLDER";
   if (strcmp(condition, "critical") == 0) return "RAM CRIT";
   if (strcmp(condition, "warning") == 0) return "RAM WARN";
+  if (percent < 25) return "RAM LOW";
+  if (percent >= 70) return "RAM HIGH";
   return "RAM OK";
 }
 
-inline const char *proxmoxAmbientStorageStateText(const char *condition, bool hasValue) {
+inline const char *proxmoxAmbientStorageStateText(const char *condition, bool hasValue, int percent) {
   if (!hasValue) return "PLACEHOLDER";
   if (strcmp(condition, "critical") == 0) return "STOR CRIT";
   if (strcmp(condition, "warning") == 0) return "STOR WARN";
+  if (percent < 40) return "STOR LOW";
+  if (percent >= 70) return "STOR HIGH";
   return "STOR OK";
 }
 
-inline const char *proxmoxAmbientGuestStateText(const char *condition, bool hasValue) {
+inline const char *proxmoxAmbientGuestStateText(const char *condition, bool hasValue, int running, int total) {
   if (!hasValue) return "PLACEHOLDER";
   if (strcmp(condition, "critical") == 0) return "GUEST CRIT";
   if (strcmp(condition, "warning") == 0) return "GUEST WARN";
+  if (running == 0 && total == 0) return "GUEST EMPTY";
   return "GUEST OK";
 }
 
-inline const char *proxmoxAmbientNetworkStateText(const char *condition, bool hasValue) {
+inline const char *proxmoxAmbientNetworkStateText(const char *condition, bool hasValue, int percent) {
   if (strcmp(condition, "unavailable") == 0) return "NET UNAVAIL";
   if (!hasValue) return "PLACEHOLDER";
   if (strcmp(condition, "critical") == 0) return "NET CRIT";
   if (strcmp(condition, "warning") == 0) return "NET WARN";
+  if (percent < 5) return "NET IDLE";
+  if (percent >= 40) return "NET BUSY";
   return "NET OK";
 }
 
@@ -169,9 +218,9 @@ inline void fillProxmoxAmbientCpuCard(ProxmoxAmbientCard &card, const ProxmoxAmb
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.cpuPercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientCpuStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientCpuStateText(condition, hasValue, view.cpuPercent) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientCpuVisualClass(condition, view.cpuPercent) : proxmoxAmbientCardVisualClass(view));
 }
 
 inline void fillProxmoxAmbientRamCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
@@ -181,9 +230,9 @@ inline void fillProxmoxAmbientRamCard(ProxmoxAmbientCard &card, const ProxmoxAmb
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.ramPercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientRamStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientRamStateText(condition, hasValue, view.ramPercent) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientRamVisualClass(condition, view.ramPercent) : proxmoxAmbientCardVisualClass(view));
 }
 
 inline void fillProxmoxAmbientGuestCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
@@ -193,7 +242,7 @@ inline void fillProxmoxAmbientGuestCard(ProxmoxAmbientCard &card, const ProxmoxA
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d/%d", view.guestRunning, view.guestTotal);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientGuestStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientGuestStateText(condition, hasValue, view.guestRunning, view.guestTotal) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
   if (hasValue && view.guestRunning == 0 && view.guestTotal == 0 && strcmp(condition, "healthy") == 0) {
     proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), "blue");
@@ -209,9 +258,9 @@ inline void fillProxmoxAmbientNetworkCard(ProxmoxAmbientCard &card, const Proxmo
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.networkPercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue || strcmp(condition, "unavailable") == 0 ? proxmoxAmbientNetworkStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue || strcmp(condition, "unavailable") == 0 ? proxmoxAmbientNetworkStateText(condition, hasValue, view.networkPercent) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue || strcmp(condition, "unavailable") == 0 ? condition : proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue || strcmp(condition, "unavailable") == 0 ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue || strcmp(condition, "unavailable") == 0 ? proxmoxAmbientNetworkVisualClass(condition, view.networkPercent) : proxmoxAmbientCardVisualClass(view));
 }
 
 inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const ProxmoxAmbientView &view) {
@@ -221,9 +270,9 @@ inline void fillProxmoxAmbientStorageCard(ProxmoxAmbientCard &card, const Proxmo
   if (hasValue) snprintf(card.value, sizeof(card.value), "%d", view.storagePercent);
   else proxmoxAmbientCopy(card.value, sizeof(card.value), "--");
   proxmoxAmbientCopy(card.unit, sizeof(card.unit), "%");
-  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientStorageStateText(condition, hasValue) : proxmoxAmbientMissingTelemetryStateText(view));
+  proxmoxAmbientCopy(card.stateText, sizeof(card.stateText), hasValue ? proxmoxAmbientStorageStateText(condition, hasValue, view.storagePercent) : proxmoxAmbientMissingTelemetryStateText(view));
   proxmoxAmbientCopy(card.stateClass, sizeof(card.stateClass), hasValue ? condition : proxmoxAmbientCondition(view));
-  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientConditionVisualClass(condition) : proxmoxAmbientCardVisualClass(view));
+  proxmoxAmbientCopy(card.visualClass, sizeof(card.visualClass), hasValue ? proxmoxAmbientStorageVisualClass(condition, view.storagePercent) : proxmoxAmbientCardVisualClass(view));
 }
 
 inline uint8_t proxmoxAmbientHeroPriority(uint8_t cardIndex) {
