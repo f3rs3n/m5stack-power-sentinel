@@ -72,9 +72,49 @@ _Avoid_: Separate status card, page title
 A proposed module that earns product scope by offering glanceable value, staying within the integration boundary, or improving a frequent contextual handoff or lightweight action. Weak candidates should not be added just because data is technically available.
 _Avoid_: Data source, integration idea
 
+**First Public Release User**:
+A technically capable homelab owner who can assemble the supported M5Stack hardware stack, use Linux/SSH on the Module LLM, configure read-only integrations such as NUT or Proxmox, and flash the CoreS3 through a documented USB/PlatformIO path. The first public release should be reproducible and honest about prerequisites, but it does not need consumer-grade onboarding, OTA firmware updates, or on-device administration UI.
+_Avoid_: Consumer user, no-SSH user, app-store install target
+
+**Backend Installer**:
+The Module LLM/Linux installation path for Power Sentinel services, configuration templates, module enablement, systemd units, and backend health verification. It does not own CoreS3 firmware flashing.
+_Avoid_: Firmware flasher, all-in-one product installer
+
+**Firmware Release Path**:
+The documented way to build and flash the CoreS3 firmware for a release. For the first public release this is USB/PlatformIO flashing, optionally with release binaries later; OTA and Module LLM-mediated flashing are future capabilities, not v1 promises.
+_Avoid_: Backend installer, OTA by default, hidden development-only flash recipe
+
+**Public Release Readiness**:
+A release quality bar where an external First Public Release User can install, flash, and verify Power Sentinel from English README/docs without private knowledge. Public release readiness requires documented hardware prerequisites, backend installation, CoreS3 USB firmware flashing, API/display verification, sanitized examples, passing tests/builds, and explicit known limitations.
+_Avoid_: Dev preview, code dump, private README assumptions, undocumented local workflow
+
+**Public Repo Audit**:
+A mandatory release-blocking review before making the repository public. It checks for committed secrets, private IPs/hostnames/users/paths presented as public workflow, unsafe examples, missing license/security guidance, ignored private firmware config, build artifacts, logs, captures, and docs that rely on maintainer-only knowledge.
+_Avoid_: Best-effort cleanup, post-publication secret sweep, assuming local lab docs are public-safe
+
+**Public Documentation**:
+English user-facing documentation that describes the supported install, configuration, firmware flashing, module usage, verification, troubleshooting, security, and limitations for First Public Release Users. Public documentation must not depend on maintainer-only hostnames, IP addresses, credentials, paths, or private lab state.
+_Avoid_: Maintainer notes, private operations log, bilingual quickstart, hidden prerequisites
+
+**Maintainer Operations Notes**:
+Evidence and diagnostics from the maintainer's development unit, such as UART discovery, power-path notes, current-state captures, lab-specific hostnames/IP addresses, and physical validation logs. These notes may remain in the repository only when clearly marked as maintainer/dev-unit evidence rather than the public install path, and only after the Public Repo Audit confirms they contain no secrets.
+_Avoid_: Public quickstart, universal requirement, unsupported private assumption
+
+**Supported Module**:
+An implemented module that the public release documents, tests, and presents as usable by a First Public Release User. For the first public release, NUT Monitor is the default supported module and Proxmox Module is a supported optional module.
+_Avoid_: Roadmap candidate, placeholder integration, undocumented experimental module
+
+**Optional Supported Module**:
+A supported module that is not enabled by default because it needs site-specific configuration, credentials, or external system setup. The public release must document its prerequisites, minimum read-only credentials, configuration shape, expected unavailable/unconfigured states, and basic troubleshooting.
+_Avoid_: Experimental module, default module, hidden feature
+
 **Module Configuration**:
 A module-local configuration section that contains the module's `enabled` flag and integration-specific settings. NUT Monitor may default to enabled for current baseline compatibility; new modules default disabled unless explicitly enabled. Install, update, and configuration scripts may discover module configuration through the shared `enabled: true|false` convention, but the Module owns interpretation and validation of its own settings. The old central `modules` enablement registry is superseded; do not preserve compatibility for it unless a real deployed migration need is identified.
 _Avoid_: Central module registry as source of all settings, scattered global flags, per-module synonyms for enabled, compatibility adapters for superseded config shapes
+
+**Configuration Surface**:
+The supported public way a First Public Release User changes module settings. For the first public release, the configuration surface is the documented `/etc/power-sentinel.json` file plus read-only validation/troubleshooting commands; it is not a mutable CLI, web UI, or CoreS3 options page.
+_Avoid_: On-device setup UI, wizard, duplicated config schema, hidden mutable state
 
 **Not Implemented**:
 A module availability state where the module is declared for roadmap or compatibility reasons but does not exist yet as a real capability. Not implemented modules should not produce fake telemetry. The ModuleRuntime should normally register only real implemented modules; Not Implemented is for roadmap or explicit compatibility needs, not a placeholder pattern.

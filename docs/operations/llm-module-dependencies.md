@@ -1,5 +1,9 @@
 # LLM Module dependencies
 
+Maintainer Operations Notes: this file records dependency evidence for the
+maintainer/dev-unit baseline and is not the public install path. First Public
+Release Users should start with `README.md` and `docs/quickstart.md`.
+
 Clean NUT Monitor baseline dependencies for a fresh M5Stack LLM Module.
 
 ## Debian/Ubuntu packages

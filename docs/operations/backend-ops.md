@@ -1,5 +1,9 @@
 # Backend operations
 
+Maintainer Operations Notes: this file records maintainer/dev-unit backend
+commands and is not the public install path. First Public Release Users should
+start with `README.md`, `docs/quickstart.md`, and `docs/backend-installer.md`.
+
 ## Local one-shot summary
 
 ```bash

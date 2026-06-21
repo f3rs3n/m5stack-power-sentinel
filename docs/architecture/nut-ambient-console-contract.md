@@ -128,7 +128,8 @@ Full local validation:
 python3 tools/run_tests.py
 python3 tools/check_core_s3_ui.py
 git diff --check
-/home/martino/.platformio/penv/bin/pio run -e m5stack-cores3
+cd firmware/core-s3-display
+pio run -e m5stack-cores3
 ```
 
 Use `m5stack-cores3` for production/live validation. The `m5stack-cores3-ledcards-interface` environment remains a static visual fixture for layout checks only and is not a live transport validation seam.

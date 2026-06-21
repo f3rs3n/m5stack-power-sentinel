@@ -1,5 +1,9 @@
 # Current state
 
+Maintainer Operations Notes: this file records maintainer/dev-unit evidence and
+is not the public install path. First Public Release Users should start with
+`README.md` and `docs/quickstart.md` instead.
+
 Power Sentinel has been reframed as a local homelab companion with independently scoped Ambient Console modules.
 
 Implemented now:

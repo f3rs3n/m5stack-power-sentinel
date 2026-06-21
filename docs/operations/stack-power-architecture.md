@@ -1,5 +1,9 @@
 # Stack power architecture notes
 
+Maintainer Operations Notes: this file records maintainer/dev-unit power-path
+evidence and is not the public install path. First Public Release Users should
+start with `README.md` and `docs/hardware.md`.
+
 These notes capture the observed and schematic-backed power behavior of the current Power Sentinel hardware stack.
 
 ## Physical stack

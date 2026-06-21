@@ -1,5 +1,9 @@
 # CoreS3 <-> LLM Module internal UART discovery
 
+Maintainer Operations Notes: this file records maintainer/dev-unit hardware
+discovery evidence and is not the public install path. First Public Release
+Users should start with `README.md` and `docs/hardware.md`.
+
 Stack currently assembled by Martino, bottom to top:
 
 ```text

@@ -36,6 +36,7 @@ def main() -> int:
     for check in [
         ROOT / "tools" / "check_core_s3_ui.py",
         ROOT / "tools" / "check_core_s3_architecture.py",
+        ROOT / "tools" / "check_public_release_docs.py",
     ]:
         if check.exists():
             cp = subprocess.run([sys.executable, str(check)], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)

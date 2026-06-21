@@ -18,6 +18,8 @@ run/
 *.pid
 *.sock
 *.log
+*.capture
+*.serial
 .cache/
 
 # Python
@@ -48,3 +50,4 @@ Thumbs.db
 # Local generated artifacts
 artifacts/
 .hermes/
+.tmp-tests/
