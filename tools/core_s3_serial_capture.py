@@ -90,8 +90,8 @@ def open_serial(port: str, baud: int, read_timeout: float):
         import serial  # type: ignore[import-not-found]
     except ImportError as exc:
         raise SystemExit(
-            "pyserial is required. Run with the PlatformIO venv Python, e.g. "
-            "/home/martino/.platformio/penv/bin/python tools/core_s3_serial_capture.py"
+            "pyserial is required. Install it in the Python environment used for "
+            "this helper, e.g. `python3 -m pip install pyserial`."
         ) from exc
     return serial.Serial(port=port, baudrate=baud, timeout=read_timeout)
 

@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=${ROOT:-/home/martino/projects/m5stack-power-sentinel}
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+ROOT=${ROOT:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}
 SPIKE="$ROOT/assets/lvgl-spike"
-REMOTE=${REMOTE:-C:/Users/marti/Progetti/lvgl-spike-work}
-REMOTE_HOST=${REMOTE_HOST:-doomtrain}
+REMOTE=${REMOTE:-C:/Users/Public/power-sentinel-lvgl-spike-work}
+REMOTE_HOST=${REMOTE_HOST:-remote-lvgl-mcp-host}
 
-python3 - <<'PY'
+SPIKE_PATH="$SPIKE" python3 - <<'PY'
 from pathlib import Path
+import os
 import re
-root = Path('/home/martino/projects/m5stack-power-sentinel/assets/lvgl-spike')
+root = Path(os.environ['SPIKE_PATH'])
 fixture = (root / 'power-sentinel-nut-ledcards-interface-fixture.c').read_text()
 fixture = fixture.replace('#include "ps_font_ddin_condensed_bold_60.c"\n#include "ps_font_ddin_condensed_bold_40.c"\n#include "ps_icon_chart_32.c"\n#include "ps_icon_status_14.c"\n', '')
 # The LVGL MCP simulator currently exposes Montserrat 12+, while firmware also
@@ -60,13 +62,14 @@ for name in nominal onbattery lowbattery stale highload inputlow; do
   scp "$REMOTE_HOST:$REMOTE/results/nut-ledcards-interface-$name-widget-tree.json" "$SPIKE/results/nut-ledcards-interface-$name-widget-tree.json" >/dev/null || true
 done
 
-python3 - <<'PY' || true
+RESULTS_PATH="$SPIKE/results" python3 - <<'PY' || true
 from pathlib import Path
+import os
 try:
     from PIL import Image, ImageDraw, ImageFont
 except Exception:
     raise SystemExit('Pillow is unavailable; skipped contact-sheet generation after copying individual MCP PNGs.')
-root = Path('/home/martino/projects/m5stack-power-sentinel/assets/lvgl-spike/results')
+root = Path(os.environ['RESULTS_PATH'])
 try:
     font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 10)
 except Exception:
@@ -117,7 +120,7 @@ if [ ! -f "$SPIKE/results/nut-ledcards-interface-mcp-6state-contact-sheet.png" ]
     "$SPIKE/results/nut-ledcards-interface-mcp-6state-contact-sheet.png" >/dev/null 2>&1 || true
 fi
 
-printf 'Rendered NUT Ledcards Interface fixture via DOOMTRAIN MCP. Individual PNGs:\n'
+printf 'Rendered NUT Ledcards Interface fixture via remote LVGL MCP host. Individual PNGs:\n'
 printf '  %s\n' \
   "$SPIKE/results/nut-ledcards-interface-nominal.png" \
   "$SPIKE/results/nut-ledcards-interface-onbattery.png" \

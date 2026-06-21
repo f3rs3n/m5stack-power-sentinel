@@ -1,4 +1,4 @@
 # Power Sentinel NUT daemon listeners.
-# Expose only localhost plus the trusted homelab LAN address on this appliance.
+# Expose only localhost plus this appliance's trusted homelab LAN address.
 LISTEN 127.0.0.1 3493
-LISTEN 192.168.2.202 3493
+LISTEN 192.0.2.10 3493

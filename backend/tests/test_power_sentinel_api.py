@@ -83,14 +83,14 @@ def test_summary_includes_module_lan_status_and_local_time():
     try:
         def fake_run(cmd, *args, **kwargs):
             if cmd[:5] == ["ip", "-4", "-o", "addr", "show"]:
-                return (0, "2: eth0    inet 192.168.2.123/24 brd 192.168.2.255 scope global eth0\n", "")
+                return (0, "2: eth0    inet 192.0.2.123/24 brd 192.0.2.255 scope global eth0\n", "")
             return (1, "", "no ups")
 
         setattr(api, "run_text_command", fake_run)
         setattr(api, "systemd_active", lambda unit: None)
         summary = api.build_summary({})
         assert summary["module"]["lan_connected"] is True
-        assert summary["module"]["lan_ip"] == "192.168.2.123"
+        assert summary["module"]["lan_ip"] == "192.0.2.123"
         assert re.match(r"^\d{2}:\d{2}$", summary["module"]["time_hhmm"])
     finally:
         setattr(api, "run_text_command", old_run)
@@ -156,7 +156,7 @@ def test_nut_summary_payload_counts_local_primary_and_configured_clients():
     old_systemd = api.systemd_active
     try:
         setattr(api, "load_nut_clients", lambda: [
-            {"name": "pve", "host": "192.168.2.99", "role": "secondary", "enabled": True}
+            {"name": "pve", "host": "192.0.2.99", "role": "secondary", "enabled": True}
         ])
         setattr(api, "run_text_command", lambda *args, **kwargs: (0, "ups.status: OL\nbattery.charge: 97", ""))
         setattr(api, "systemd_active", lambda unit: True)

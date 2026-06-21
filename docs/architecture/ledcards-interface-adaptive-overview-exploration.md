@@ -205,7 +205,7 @@ The current firmware-test candidate is a real LVGL MCP fixture render, not a PIL
 - `assets/lvgl-spike/power-sentinel-nut-ledcards-interface-fixture.c` — focused exploratory LVGL fixture for the fullscreen NUT/UPS adaptive overview.
 - `assets/lvgl-spike/ps_font_ddin_condensed_bold_60.c` — D-DIN metric font subset for the hero value.
 - `assets/lvgl-spike/ps_font_ddin_condensed_bold_40.c` — D-DIN metric font subset for mini-card numeric values, reduced from the earlier 42 px subset to prevent Runtime clipping while staying close to the reference sample. The current mini-card LED is 28 px high at local `x=7, y=8`; with the 12 px outer margin the left mini-card LED sits at absolute `x=19`, aligned with the hero LED. The numeric value uses D-DIN 40 px at local `y=8`. Main mini-card labels use Montserrat 12 at local `y=6`; sub/unit labels also use Montserrat 12 at local `y=23` so the size matches the reference while weight/color provide hierarchy. Hero side label and hero unit also use Montserrat 12, matching the mini-card label/sub-label size.
-- `assets/lvgl-spike/render-nut-ledcards-interface-via-doomtrain.sh` — fallback renderer that builds the MCP-compatible combined source, renders six states on DOOMTRAIN, and copies the PNGs back.
+- `assets/lvgl-spike/render-nut-ledcards-interface-via-remote.sh` — fallback renderer that builds the MCP-compatible combined source, renders six states on a configured remote LVGL MCP host, and copies the PNGs back.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-contact-sheet.png` — current six-state render sheet: nominal, on-battery, low-battery, stale, high-load, and input-low.
 - `assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-vs-reference.png` — current six-state render sheet compared against the Ledcards Interface sample.
 
@@ -216,8 +216,8 @@ The live-test threshold used: no clipping in the rendered states, runtime label 
 Regenerate with:
 
 ```bash
-cd /home/martino/projects/m5stack-power-sentinel
-assets/lvgl-spike/render-nut-ledcards-interface-via-doomtrain.sh
+cd <repo-checkout>
+assets/lvgl-spike/render-nut-ledcards-interface-via-remote.sh
 ```
 
 The selected state coverage is sufficient for an initial live firmware test:

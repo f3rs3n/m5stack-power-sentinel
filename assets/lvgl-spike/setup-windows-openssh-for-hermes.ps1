@@ -2,7 +2,7 @@
 # Purpose: enable OpenSSH Server for Hermes LXC access, restricted to Hermes LXC IP.
 
 param(
-    [string]$HermesLxcIp = "192.168.2.101",
+    [string]$HermesLxcIp = "192.0.2.101",
     [string]$HermesPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAblSTZAg1h+BdXXJFrdOChpI2J+OTIAbDbQkaNW7kHn hermes@windows-dev-lvgl"
 )
 
@@ -102,4 +102,4 @@ Get-NetIPAddress -AddressFamily IPv4 |
     Format-Table -AutoSize
 Write-Host ""
 Write-Host "From Hermes LXC, test with:"
-Write-Host "ssh -i /home/martino/.ssh/windows_dev_ed25519 -o IdentitiesOnly=yes $env:USERNAME@<WINDOWS_IP> powershell -NoProfile -Command \"`$PSVersionTable.PSVersion; hostname; whoami\""
+Write-Host "ssh -i ~/.ssh/windows_dev_ed25519 -o IdentitiesOnly=yes $env:USERNAME@<WINDOWS_IP> powershell -NoProfile -Command \"`$PSVersionTable.PSVersion; hostname; whoami\""

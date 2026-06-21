@@ -20,7 +20,7 @@ def test_redact_nut_config_hides_password_directives_and_monitor_secret():
     password = primary-secret
     upsmon master
 MONITOR homelab_ups@localhost 1 upsmon_primary monitor-secret master
-MONITOR homelab_ups@192.168.2.202 1 upsmon_secondary other-secret slave
+MONITOR homelab_ups@192.0.2.10 1 upsmon_secondary other-secret slave
 """
 
     redacted = detect.redact_nut_config(raw)
@@ -30,4 +30,4 @@ MONITOR homelab_ups@192.168.2.202 1 upsmon_secondary other-secret slave
     assert "other-secret" not in redacted
     assert "password = [REDACTED]" in redacted
     assert "MONITOR homelab_ups@localhost 1 upsmon_primary [REDACTED] master" in redacted
-    assert "MONITOR homelab_ups@192.168.2.202 1 upsmon_secondary [REDACTED] slave" in redacted
+    assert "MONITOR homelab_ups@192.0.2.10 1 upsmon_secondary [REDACTED] slave" in redacted

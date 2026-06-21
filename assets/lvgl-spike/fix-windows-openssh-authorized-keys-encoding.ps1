@@ -15,7 +15,7 @@
 $ErrorActionPreference = "Stop"
 
 $HermesPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAblSTZAg1h+BdXXJFrdOChpI2J+OTIAbDbQkaNW7kHn hermes@windows-dev-lvgl"
-$HermesLxcIp = "192.168.2.101"
+$HermesLxcIp = "192.0.2.101"
 
 function Assert-Admin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
