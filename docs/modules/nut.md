@@ -43,6 +43,10 @@ Unavailable and stale states are data-flow/configuration conditions, not fake te
 
 The NUT Module Page shows five Ambient Cards: battery, runtime, load, input, and NUT details. The Hero Position is chosen by condition priority, default policy, or touch focus. Touch focus is presentation-only and does not trigger shutdown or remediation.
 
+![NUT Monitor six-state LVGL render contact sheet](../../assets/lvgl-spike/results/nut-ledcards-interface-mcp-6state-contact-sheet.png)
+
+This contact sheet is a fresh LVGL MCP fixture render of representative NUT states: nominal, on battery, low battery, stale, high load, and marginal input. It is visual/layout evidence, not a pixel-perfect emulator of the physical CoreS3 TFT.
+
 ## Verification evidence
 
 The repo regression suite includes NUT summary, condition mapping, shutdown-rule, and NUT Ambient Page model tests. Run:

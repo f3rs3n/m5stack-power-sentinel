@@ -4,6 +4,16 @@ Power Sentinel is a local homelab companion for the M5Stack CoreS3 + Module LLM 
 
 The public v1 release target is a **First Public Release User**: a technically capable homelab owner who can assemble the supported M5Stack hardware stack, use Linux/SSH on the Module LLM, edit `/etc/power-sentinel.json`, configure read-only integrations, and flash the CoreS3 through USB/PlatformIO.
 
+## Screenshots
+
+Fresh LVGL MCP fixture renders of the two public v1 Module Pages:
+
+| NUT Monitor | Proxmox Module |
+| --- | --- |
+| ![NUT Monitor Ambient Console render](assets/lvgl-spike/results/nut-ledcards-interface-nominal.png) | ![Proxmox Module Ambient Console render](assets/lvgl-spike/results/proxmox-ledcards-nominal.png) |
+
+The MCP renders are visual/layout evidence, not a claim of pixel-perfect CoreS3 panel emulation. See the module docs for multi-state contact sheets.
+
 ## What is supported in public v1
 
 - **NUT Monitor**: supported default module. Power Sentinel observes UPS/NUT state and displays power readiness. NUT and upsmon own real shutdown behavior.

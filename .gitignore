@@ -51,3 +51,4 @@ Thumbs.db
 artifacts/
 .hermes/
 .tmp-tests/
+assets/lvgl-spike/*-combined.c

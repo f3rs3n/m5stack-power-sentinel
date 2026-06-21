@@ -25,6 +25,13 @@ PUBLIC_DOCS = [
     ROOT / "NOTICE",
 ]
 
+PUBLIC_REQUIRED_ASSETS = [
+    ROOT / "assets" / "lvgl-spike" / "results" / "nut-ledcards-interface-nominal.png",
+    ROOT / "assets" / "lvgl-spike" / "results" / "nut-ledcards-interface-mcp-6state-contact-sheet.png",
+    ROOT / "assets" / "lvgl-spike" / "results" / "proxmox-ledcards-nominal.png",
+    ROOT / "assets" / "lvgl-spike" / "results" / "proxmox-ledcards-4state-contact-sheet.png",
+]
+
 PUBLIC_PLACEHOLDER_NEEDLES = [
     "First Public Release User",
     "Backend Installer",
@@ -48,6 +55,8 @@ README_LINKS = [
     "SECURITY.md",
     "LICENSE",
     "NOTICE",
+    "assets/lvgl-spike/results/nut-ledcards-interface-nominal.png",
+    "assets/lvgl-spike/results/proxmox-ledcards-nominal.png",
 ]
 
 PRIVATE_PUBLIC_PATTERNS = [
@@ -85,6 +94,9 @@ def assert_public_safe(path: pathlib.Path, text: str) -> None:
 def main() -> int:
     try:
         docs = {path: read(path) for path in PUBLIC_DOCS}
+        for asset in PUBLIC_REQUIRED_ASSETS:
+            if not asset.is_file():
+                raise AssertionError(f"missing {asset.relative_to(ROOT)}")
         readme = docs[ROOT / "README.md"]
         for needle in README_LINKS:
             assert_contains(readme, needle, "README public navigation")
@@ -144,6 +156,8 @@ def main() -> int:
             "OL ... LB",
             "upsmon",
             "shutdown remains owned by NUT",
+            "nut-ledcards-interface-mcp-6state-contact-sheet.png",
+            "not a pixel-perfect emulator",
         ]:
             assert_contains(nut, phrase, "NUT docs")
 
@@ -158,6 +172,8 @@ def main() -> int:
             "not_observed",
             "api_unavailable",
             "no SSH",
+            "proxmox-ledcards-4state-contact-sheet.png",
+            "not a pixel-perfect emulator",
         ]:
             assert_contains(proxmox, phrase, "Proxmox docs")
 

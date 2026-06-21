@@ -62,6 +62,10 @@ The CoreS3 Proxmox Module Page uses five Ambient Cards:
 
 The Hero Position is selected by condition priority, default policy, or touch focus. Touch focus is presentation-only and does not control Proxmox.
 
+![Proxmox Module four-state LVGL render contact sheet](../../assets/lvgl-spike/results/proxmox-ledcards-4state-contact-sheet.png)
+
+This contact sheet is a fresh LVGL MCP fixture render of representative Proxmox states: nominal, storage warning, guest critical, and unconfigured. It is visual/layout evidence, not a pixel-perfect emulator of the physical CoreS3 TFT.
+
 ## Expected states
 
 - `disabled`: Proxmox exists but is not enabled; it does not expose an active page or affect aggregate condition.
