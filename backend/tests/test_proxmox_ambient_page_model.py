@@ -101,16 +101,16 @@ def test_proxmox_ambient_page_model_healthy_observed_cards_use_visual_depth_band
           if (std::strcmp(model.cards[0].stateText, "IDLE") != 0) return 2;
           if (std::strcmp(model.cards[0].visualClass, "blue") != 0) return 3;
           if (std::strcmp(model.cards[1].stateClass, "healthy") != 0) return 4;
-          if (std::strcmp(model.cards[1].stateText, "RAM LOW") != 0) return 5;
+          if (std::strcmp(model.cards[1].stateText, "MOSTLY FREE") != 0) return 5;
           if (std::strcmp(model.cards[1].visualClass, "blue") != 0) return 6;
           if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 7;
-          if (std::strcmp(model.cards[2].stateText, "GUEST OK") != 0) return 8;
+          if (std::strcmp(model.cards[2].stateText, "ALL RUNNING") != 0) return 8;
           if (std::strcmp(model.cards[2].visualClass, "green") != 0) return 9;
           if (std::strcmp(model.cards[3].stateClass, "healthy") != 0) return 10;
-          if (std::strcmp(model.cards[3].stateText, "STOR LOW") != 0) return 11;
+          if (std::strcmp(model.cards[3].stateText, "LOTS FREE") != 0) return 11;
           if (std::strcmp(model.cards[3].visualClass, "blue") != 0) return 12;
           if (std::strcmp(model.cards[4].stateClass, "healthy") != 0) return 13;
-          if (std::strcmp(model.cards[4].stateText, "NET IDLE") != 0) return 14;
+          if (std::strcmp(model.cards[4].stateText, "IDLE") != 0) return 14;
           if (std::strcmp(model.cards[4].visualClass, "blue") != 0) return 15;
 
           view.cpuPercent = 65;
@@ -118,20 +118,20 @@ def test_proxmox_ambient_page_model_healthy_observed_cards_use_visual_depth_band
           view.storagePercent = 75;
           view.networkPercent = 45;
           model = makeProxmoxAmbientPageModel(view);
-          if (std::strcmp(model.cards[0].stateText, "CPU BUSY") != 0) return 16;
+          if (std::strcmp(model.cards[0].stateText, "MEDIUM LOAD") != 0) return 16;
           if (std::strcmp(model.cards[0].visualClass, "yellow") != 0) return 17;
-          if (std::strcmp(model.cards[1].stateText, "RAM HIGH") != 0) return 18;
+          if (std::strcmp(model.cards[1].stateText, "HIGH USE") != 0) return 18;
           if (std::strcmp(model.cards[1].visualClass, "yellow") != 0) return 19;
-          if (std::strcmp(model.cards[3].stateText, "STOR HIGH") != 0) return 20;
+          if (std::strcmp(model.cards[3].stateText, "FILLING UP") != 0) return 20;
           if (std::strcmp(model.cards[3].visualClass, "yellow") != 0) return 21;
-          if (std::strcmp(model.cards[4].stateText, "NET BUSY") != 0) return 22;
+          if (std::strcmp(model.cards[4].stateText, "BUSY") != 0) return 22;
           if (std::strcmp(model.cards[4].visualClass, "yellow") != 0) return 23;
 
           view.guestRunning = 0;
           view.guestTotal = 0;
           model = makeProxmoxAmbientPageModel(view);
           if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 24;
-          if (std::strcmp(model.cards[2].stateText, "GUEST EMPTY") != 0) return 25;
+          if (std::strcmp(model.cards[2].stateText, "NO GUESTS") != 0) return 25;
           if (std::strcmp(model.cards[2].visualClass, "blue") != 0) return 26;
           std::cout << "ok\n";
           return 0;
@@ -292,12 +292,12 @@ def test_proxmox_ambient_page_model_cpu_card_uses_latest_percent_and_condition()
           if (model.heroCardIndex != 0) return 1;
           if (std::strcmp(model.heroTitle, "CPU") != 0) return 2;
           if (std::strcmp(model.heroDisplayValue, "90") != 0) return 3;
-          if (std::strcmp(model.heroDetail, "CPU WARN") != 0) return 4;
+          if (std::strcmp(model.heroDetail, "HIGH LOAD") != 0) return 4;
           if (std::strcmp(model.visualClass, "orange") != 0) return 5;
           if (std::strcmp(model.cards[0].label, "CPU") != 0) return 6;
           if (std::strcmp(model.cards[0].value, "90") != 0) return 7;
           if (std::strcmp(model.cards[0].unit, "%") != 0) return 8;
-          if (std::strcmp(model.cards[0].stateText, "CPU WARN") != 0) return 9;
+          if (std::strcmp(model.cards[0].stateText, "HIGH LOAD") != 0) return 9;
           if (std::strcmp(model.cards[0].stateClass, "warning") != 0) return 10;
           if (std::strcmp(model.cards[0].visualClass, "orange") != 0) return 11;
           std::cout << "ok\n";
@@ -328,12 +328,12 @@ def test_proxmox_ambient_page_model_ram_card_uses_latest_percent_and_condition()
           if (model.heroCardIndex != 1) return 1;
           if (std::strcmp(model.heroTitle, "RAM") != 0) return 2;
           if (std::strcmp(model.heroDisplayValue, "91") != 0) return 3;
-          if (std::strcmp(model.heroDetail, "RAM WARN") != 0) return 4;
+          if (std::strcmp(model.heroDetail, "LOW HEADROOM") != 0) return 4;
           if (std::strcmp(model.visualClass, "orange") != 0) return 5;
           if (std::strcmp(model.cards[1].label, "RAM") != 0) return 6;
           if (std::strcmp(model.cards[1].value, "91") != 0) return 7;
           if (std::strcmp(model.cards[1].unit, "%") != 0) return 8;
-          if (std::strcmp(model.cards[1].stateText, "RAM WARN") != 0) return 9;
+          if (std::strcmp(model.cards[1].stateText, "LOW HEADROOM") != 0) return 9;
           if (std::strcmp(model.cards[1].stateClass, "warning") != 0) return 10;
           if (std::strcmp(model.cards[1].visualClass, "orange") != 0) return 11;
           std::cout << "ok\n";
@@ -365,7 +365,7 @@ def test_proxmox_ambient_page_model_cpu_has_priority_over_ram_within_same_tier()
 
           if (model.heroCardIndex != 0) return 1;
           if (std::strcmp(model.heroTitle, "CPU") != 0) return 2;
-          if (std::strcmp(model.heroDetail, "CPU WARN") != 0) return 3;
+          if (std::strcmp(model.heroDetail, "HIGH LOAD") != 0) return 3;
           std::cout << "ok\n";
           return 0;
         }
@@ -394,12 +394,12 @@ def test_proxmox_ambient_page_model_storage_card_uses_worst_percent_and_conditio
           if (model.heroCardIndex != 3) return 1;
           if (std::strcmp(model.heroTitle, "Storage") != 0) return 2;
           if (std::strcmp(model.heroDisplayValue, "96") != 0) return 3;
-          if (std::strcmp(model.heroDetail, "STOR CRIT") != 0) return 4;
+          if (std::strcmp(model.heroDetail, "CRITICALLY FULL") != 0) return 4;
           if (std::strcmp(model.visualClass, "red") != 0) return 5;
           if (std::strcmp(model.cards[3].label, "Storage") != 0) return 6;
           if (std::strcmp(model.cards[3].value, "96") != 0) return 7;
           if (std::strcmp(model.cards[3].unit, "%") != 0) return 8;
-          if (std::strcmp(model.cards[3].stateText, "STOR CRIT") != 0) return 9;
+          if (std::strcmp(model.cards[3].stateText, "CRITICALLY FULL") != 0) return 9;
           if (std::strcmp(model.cards[3].stateClass, "critical") != 0) return 10;
           if (std::strcmp(model.cards[3].visualClass, "red") != 0) return 11;
           std::cout << "ok\n";
@@ -433,7 +433,7 @@ def test_proxmox_ambient_page_model_storage_outranks_cpu_and_ram_within_same_tie
 
           if (model.heroCardIndex != 3) return 1;
           if (std::strcmp(model.heroTitle, "Storage") != 0) return 2;
-          if (std::strcmp(model.heroDetail, "STOR WARN") != 0) return 3;
+          if (std::strcmp(model.heroDetail, "ALMOST FULL") != 0) return 3;
           std::cout << "ok\n";
           return 0;
         }
@@ -463,7 +463,7 @@ def test_proxmox_ambient_page_model_guests_card_renders_running_over_total():
           if (std::strcmp(model.cards[2].label, "Guests") != 0) return 1;
           if (std::strcmp(model.cards[2].value, "2/3") != 0) return 2;
           if (std::strcmp(model.cards[2].unit, "") != 0) return 3;
-          if (std::strcmp(model.cards[2].stateText, "GUEST WARN") != 0) return 4;
+          if (std::strcmp(model.cards[2].stateText, "SOME STOPPED") != 0) return 4;
           if (std::strcmp(model.cards[2].stateClass, "warning") != 0) return 5;
           if (std::strcmp(model.cards[2].visualClass, "orange") != 0) return 6;
           if (model.heroCardIndex != 2) return 7;
@@ -496,7 +496,7 @@ def test_proxmox_ambient_page_model_guests_zero_zero_is_healthy_blue():
           ProxmoxAmbientPageModel model = makeProxmoxAmbientPageModel(view);
 
           if (std::strcmp(model.cards[2].value, "0/0") != 0) return 1;
-          if (std::strcmp(model.cards[2].stateText, "GUEST EMPTY") != 0) return 2;
+          if (std::strcmp(model.cards[2].stateText, "NO GUESTS") != 0) return 2;
           if (std::strcmp(model.cards[2].stateClass, "healthy") != 0) return 3;
           if (std::strcmp(model.cards[2].visualClass, "blue") != 0) return 4;
           if (model.heroCardIndex != 0) return 5;
@@ -528,11 +528,11 @@ def test_proxmox_ambient_page_model_network_card_uses_saturation_and_condition()
           if (model.heroCardIndex != 4) return 1;
           if (std::strcmp(model.heroTitle, "Network") != 0) return 2;
           if (std::strcmp(model.heroDisplayValue, "85") != 0) return 3;
-          if (std::strcmp(model.heroDetail, "NET WARN") != 0) return 4;
+          if (std::strcmp(model.heroDetail, "SATURATED") != 0) return 4;
           if (std::strcmp(model.cards[4].label, "Network") != 0) return 5;
           if (std::strcmp(model.cards[4].value, "85") != 0) return 6;
           if (std::strcmp(model.cards[4].unit, "%") != 0) return 7;
-          if (std::strcmp(model.cards[4].stateText, "NET WARN") != 0) return 8;
+          if (std::strcmp(model.cards[4].stateText, "SATURATED") != 0) return 8;
           if (std::strcmp(model.cards[4].stateClass, "warning") != 0) return 9;
           if (std::strcmp(model.cards[4].visualClass, "orange") != 0) return 10;
           std::cout << "ok\n";
@@ -562,7 +562,7 @@ def test_proxmox_ambient_page_model_network_unavailable_promotes_when_no_critica
           if (model.heroCardIndex != 4) return 1;
           if (std::strcmp(model.heroTitle, "Network") != 0) return 2;
           if (std::strcmp(model.heroDisplayValue, "--") != 0) return 3;
-          if (std::strcmp(model.heroDetail, "NET UNAVAIL") != 0) return 4;
+          if (std::strcmp(model.heroDetail, "UNAVAILABLE") != 0) return 4;
           if (std::strcmp(model.cards[4].stateClass, "unavailable") != 0) return 5;
           if (std::strcmp(model.cards[4].visualClass, "purple") != 0) return 6;
           std::cout << "ok\n";

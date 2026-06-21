@@ -144,47 +144,47 @@ inline const char *proxmoxAmbientNetworkVisualClass(const char *condition, int p
 
 inline const char *proxmoxAmbientCpuStateText(const char *condition, bool hasValue, int percent) {
   if (!hasValue) return "PLACEHOLDER";
-  if (strcmp(condition, "critical") == 0) return "CPU CRIT";
-  if (strcmp(condition, "warning") == 0) return "CPU WARN";
+  if (strcmp(condition, "critical") == 0) return "OVERLOAD";
+  if (strcmp(condition, "warning") == 0) return "HIGH LOAD";
   if (percent < 10) return "IDLE";
-  if (percent >= 60) return "CPU BUSY";
-  return "CPU OK";
+  if (percent >= 60) return "MEDIUM LOAD";
+  return "LIGHT LOAD";
 }
 
 inline const char *proxmoxAmbientRamStateText(const char *condition, bool hasValue, int percent) {
   if (!hasValue) return "PLACEHOLDER";
-  if (strcmp(condition, "critical") == 0) return "RAM CRIT";
-  if (strcmp(condition, "warning") == 0) return "RAM WARN";
-  if (percent < 25) return "RAM LOW";
-  if (percent >= 70) return "RAM HIGH";
-  return "RAM OK";
+  if (strcmp(condition, "critical") == 0) return "NO HEADROOM";
+  if (strcmp(condition, "warning") == 0) return "LOW HEADROOM";
+  if (percent < 25) return "MOSTLY FREE";
+  if (percent >= 70) return "HIGH USE";
+  return "NORMAL USE";
 }
 
 inline const char *proxmoxAmbientStorageStateText(const char *condition, bool hasValue, int percent) {
   if (!hasValue) return "PLACEHOLDER";
-  if (strcmp(condition, "critical") == 0) return "STOR CRIT";
-  if (strcmp(condition, "warning") == 0) return "STOR WARN";
-  if (percent < 40) return "STOR LOW";
-  if (percent >= 70) return "STOR HIGH";
-  return "STOR OK";
+  if (strcmp(condition, "critical") == 0) return "CRITICALLY FULL";
+  if (strcmp(condition, "warning") == 0) return "ALMOST FULL";
+  if (percent < 40) return "LOTS FREE";
+  if (percent >= 70) return "FILLING UP";
+  return "NORMAL USE";
 }
 
 inline const char *proxmoxAmbientGuestStateText(const char *condition, bool hasValue, int running, int total) {
   if (!hasValue) return "PLACEHOLDER";
-  if (strcmp(condition, "critical") == 0) return "GUEST CRIT";
-  if (strcmp(condition, "warning") == 0) return "GUEST WARN";
-  if (running == 0 && total == 0) return "GUEST EMPTY";
-  return "GUEST OK";
+  if (strcmp(condition, "critical") == 0) return "ALL STOPPED";
+  if (strcmp(condition, "warning") == 0) return "SOME STOPPED";
+  if (running == 0 && total == 0) return "NO GUESTS";
+  return "ALL RUNNING";
 }
 
 inline const char *proxmoxAmbientNetworkStateText(const char *condition, bool hasValue, int percent) {
-  if (strcmp(condition, "unavailable") == 0) return "NET UNAVAIL";
+  if (strcmp(condition, "unavailable") == 0) return "UNAVAILABLE";
   if (!hasValue) return "PLACEHOLDER";
-  if (strcmp(condition, "critical") == 0) return "NET CRIT";
-  if (strcmp(condition, "warning") == 0) return "NET WARN";
-  if (percent < 5) return "NET IDLE";
-  if (percent >= 40) return "NET BUSY";
-  return "NET OK";
+  if (strcmp(condition, "critical") == 0) return "OVERLOADED";
+  if (strcmp(condition, "warning") == 0) return "SATURATED";
+  if (percent < 5) return "IDLE";
+  if (percent >= 40) return "BUSY";
+  return "LIGHT TRAFFIC";
 }
 
 inline const char *proxmoxAmbientMissingTelemetryStateText(const ProxmoxAmbientView &view) {

@@ -2,6 +2,8 @@
 
 This is the working proposal from the Proxmox Ledcards visual-class grilling session. It separates user-facing condition from visual depth: visual classes can use blue/green/yellow for healthy or informational depth, while orange/red remain attention semantics. Stale and unavailable keep the shared treatment.
 
+Label style follows the NUT page: state text should be readable status copy, not implementation vocabulary. Avoid repeating the card label in the state text when the hero/card already says `CPU`, `RAM`, `Guests`, `Storage`, or `Network`; prefer phrases like `LIGHT LOAD`, `ALMOST FULL`, or `ALL RUNNING` over acronyms such as `CPU WARN` or `STOR CRIT`.
+
 ## Global rules
 
 | Case | stateClass / condition | visualClass | Notes |
@@ -15,10 +17,10 @@ This is the working proposal from the Proxmox Ledcards visual-class grilling ses
 | CPU | stateClass | visualClass | stateText |
 |---|---|---|---|
 | 0-9% | `healthy` | `blue` | `IDLE` |
-| 10-59% | `healthy` | `green` | `CPU OK` |
-| 60-79% | `healthy` | `yellow` | `CPU BUSY` |
-| 80-94%, sustained for 2 samples | `warning` | `orange` | `CPU WARN` |
-| >=95%, sustained for 2 samples | `critical` | `red` | `CPU CRIT` |
+| 10-59% | `healthy` | `green` | `LIGHT LOAD` |
+| 60-79% | `healthy` | `yellow` | `MEDIUM LOAD` |
+| 80-94%, sustained for 2 samples | `warning` | `orange` | `HIGH LOAD` |
+| >=95%, sustained for 2 samples | `critical` | `red` | `OVERLOAD` |
 
 Rationale: sustained high CPU should surface earlier than the current 85/98 split on a homelab node, but medium-high CPU remains visual depth rather than attention.
 
@@ -26,11 +28,11 @@ Rationale: sustained high CPU should surface earlier than the current 85/98 spli
 
 | RAM | stateClass | visualClass | stateText |
 |---|---|---|---|
-| 0-24% | `healthy` | `blue` | `RAM LOW` |
-| 25-69% | `healthy` | `green` | `RAM OK` |
-| 70-84% | `healthy` | `yellow` | `RAM HIGH` |
-| 85-94%, sustained for 2 samples | `warning` | `orange` | `RAM WARN` |
-| >=95%, sustained for 2 samples | `critical` | `red` | `RAM CRIT` |
+| 0-24% | `healthy` | `blue` | `MOSTLY FREE` |
+| 25-69% | `healthy` | `green` | `NORMAL USE` |
+| 70-84% | `healthy` | `yellow` | `HIGH USE` |
+| 85-94%, sustained for 2 samples | `warning` | `orange` | `LOW HEADROOM` |
+| >=95%, sustained for 2 samples | `critical` | `red` | `NO HEADROOM` |
 
 Rationale: blue means a mostly idle/empty node rather than medium usage; Proxmox memory use can be cache-heavy, so 70-84% is visual depth but not attention. Sustained 85%+ becomes warning because it reduces headroom for guests and reclaim.
 
@@ -38,10 +40,10 @@ Rationale: blue means a mostly idle/empty node rather than medium usage; Proxmox
 
 | Guests | stateClass | visualClass | stateText |
 |---|---|---|---|
-| 0/0 | `healthy` | `blue` | `GUEST EMPTY` |
-| running == total and total > 0 | `healthy` | `green` | `GUEST OK` |
-| 0 < running < total | `warning` | `orange` | `GUEST WARN` |
-| running == 0 and total > 0 | `critical` | `red` | `GUEST CRIT` |
+| 0/0 | `healthy` | `blue` | `NO GUESTS` |
+| running == total and total > 0 | `healthy` | `green` | `ALL RUNNING` |
+| 0 < running < total | `warning` | `orange` | `SOME STOPPED` |
+| running == 0 and total > 0 | `critical` | `red` | `ALL STOPPED` |
 
 Rationale: Guests is a discrete inventory summary rather than a continuous utilization gauge. Blue remains the neutral healthy empty environment; any configured/visible guest stopped is attention-worthy.
 
@@ -49,11 +51,11 @@ Rationale: Guests is a discrete inventory summary rather than a continuous utili
 
 | Storage used | stateClass | visualClass | stateText |
 |---|---|---|---|
-| 0-39% | `healthy` | `blue` | `STOR LOW` |
-| 40-69% | `healthy` | `green` | `STOR OK` |
-| 70-84% | `healthy` | `yellow` | `STOR HIGH` |
-| 85-94% | `warning` | `orange` | `STOR WARN` |
-| >=95% | `critical` | `red` | `STOR CRIT` |
+| 0-39% | `healthy` | `blue` | `LOTS FREE` |
+| 40-69% | `healthy` | `green` | `NORMAL USE` |
+| 70-84% | `healthy` | `yellow` | `FILLING UP` |
+| 85-94% | `warning` | `orange` | `ALMOST FULL` |
+| >=95% | `critical` | `red` | `CRITICALLY FULL` |
 
 Rationale: storage pressure is slow-moving, so the existing 85/95 attention thresholds remain appropriate. Blue and yellow add capacity-depth cues without turning normal fill levels into attention.
 
@@ -61,11 +63,11 @@ Rationale: storage pressure is slow-moving, so the existing 85/95 attention thre
 
 | Uplink saturation | stateClass | visualClass | stateText |
 |---|---|---|---|
-| 0-4% | `healthy` | `blue` | `NET IDLE` |
-| 5-39% | `healthy` | `green` | `NET OK` |
-| 40-69% | `healthy` | `yellow` | `NET BUSY` |
-| 70-89%, sustained for 2 samples | `warning` | `orange` | `NET WARN` |
-| >=90%, sustained for 2 samples | `critical` | `red` | `NET CRIT` |
+| 0-4% | `healthy` | `blue` | `IDLE` |
+| 5-39% | `healthy` | `green` | `LIGHT TRAFFIC` |
+| 40-69% | `healthy` | `yellow` | `BUSY` |
+| 70-89%, sustained for 2 samples | `warning` | `orange` | `SATURATED` |
+| >=90%, sustained for 2 samples | `critical` | `red` | `OVERLOADED` |
 
 Rationale: sustained uplink saturation above 70% is already useful attention for a homelab node. Medium saturation is visual depth only; missing uplink or speed remains unavailable rather than fake zero traffic.
 
