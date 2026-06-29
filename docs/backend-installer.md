@@ -11,6 +11,7 @@ It is not a CoreS3 firmware flasher.
 - `/usr/local/bin/m5stack-ups-detect` when NUT is selected
 - `power-sentinel-api.service`
 - `power-sentinel-stackflow-unit.service`
+- `power-sentinel-stackflow-healthcheck.service` and `.timer`
 - `/etc/power-sentinel.json`
 - service enable/start and backend health verification during real installs
 
@@ -64,9 +65,14 @@ NUT-plus-Proxmox dry-run was also run. It printed the same install operations, e
 
 Unsupported module dry-run was run with `bogus`; it returned exit code 2 and printed `Unsupported module: bogus`.
 
+Real installs preserve an existing `/etc/power-sentinel.json` so read-only Proxmox credentials and local module settings are not overwritten. If the file is missing, the installer creates a root-only placeholder config.
+
 ## Post-install checks
 
 ```bash
 systemctl is-active power-sentinel-api.service power-sentinel-stackflow-unit.service
 curl -fsS 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1' | python3 -m json.tool
+power-sentinel-stackflow-healthcheck --timeout 5
 ```
+
+The StackFlow healthcheck verifies the backend summary, a synthetic StackFlow TCP summary, and whether the CoreS3 firmware has recently sent its own `ps-nut-*` poll request through the live StackFlow unit.

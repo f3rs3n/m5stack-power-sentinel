@@ -2,6 +2,7 @@ import importlib.util
 import json
 import pathlib
 import sys
+import tempfile
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -128,3 +129,44 @@ def test_unknown_action_returns_stackflow_error():
 
     assert payload["error"]["code"] == -7
     assert payload["data"]["error"] == "unknown_action"
+
+
+def test_core_s3_poll_detection_uses_firmware_request_id_prefix():
+    unit = load_module()
+
+    assert unit.is_core_s3_poll_request(
+        unit.StackFlowRequest("ipc:///tmp/cb", "{}", "summary", "ps-nut-42", "sentinel", "None", None)
+    )
+    assert not unit.is_core_s3_poll_request(
+        unit.StackFlowRequest("ipc:///tmp/cb", "{}", "summary", "hc-1782759808", "sentinel", "None", None)
+    )
+    assert not unit.is_core_s3_poll_request(
+        unit.StackFlowRequest("ipc:///tmp/cb", "{}", "ping", "ps-nut-43", "sentinel", "None", None)
+    )
+
+
+def test_core_s3_poll_telemetry_records_last_seen_success_and_failure():
+    unit = load_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "core-s3-poll.json"
+        req = unit.StackFlowRequest("ipc:///tmp/cb", "{}", "summary", "ps-nut-99", "sentinel", "None", None)
+
+        unit.record_core_s3_poll(path, req, ok=True, message="pushed", now=123.25)
+        success = json.loads(path.read_text(encoding="utf-8"))
+
+        assert success["schema"] == "power-sentinel.core-s3-poll.v1"
+        assert success["last_request_id"] == "ps-nut-99"
+        assert success["last_seen_epoch"] == 123.25
+        assert success["last_success_epoch"] == 123.25
+        assert success["ok_count"] == 1
+        assert success["fail_count"] == 0
+
+        unit.record_core_s3_poll(path, req, ok=False, message="push failed", now=130.0)
+        failure = json.loads(path.read_text(encoding="utf-8"))
+
+        assert failure["last_seen_epoch"] == 130.0
+        assert failure["last_success_epoch"] == 123.25
+        assert failure["last_failure_epoch"] == 130.0
+        assert failure["last_error"] == "push failed"
+        assert failure["ok_count"] == 1
+        assert failure["fail_count"] == 1

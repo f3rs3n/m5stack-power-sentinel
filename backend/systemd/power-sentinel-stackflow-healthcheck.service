@@ -1,0 +1,8 @@
+[Unit]
+Description=Power Sentinel StackFlow route healthcheck and repair
+After=network-online.target power-sentinel-api.service llm-sys.service power-sentinel-stackflow-unit.service
+Wants=network-online.target power-sentinel-api.service llm-sys.service power-sentinel-stackflow-unit.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/power-sentinel-stackflow-healthcheck --repair --timeout 5 --cooldown-seconds 180

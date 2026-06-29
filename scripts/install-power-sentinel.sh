@@ -84,8 +84,13 @@ PY
     cat "$tmp"
     rm -f "$tmp"
   else
-    install -m 600 "$tmp" "$ETC_DIR/power-sentinel.json"
-    rm -f "$tmp"
+    if [[ -f "$ETC_DIR/power-sentinel.json" ]]; then
+      echo "Preserving existing $ETC_DIR/power-sentinel.json; edit it manually for module/credential changes."
+      rm -f "$tmp"
+    else
+      install -m 600 "$tmp" "$ETC_DIR/power-sentinel.json"
+      rm -f "$tmp"
+    fi
   fi
 }
 
@@ -108,19 +113,24 @@ fi
 run install -d -m 755 "$PREFIX/bin" "$SYSTEMD_DIR"
 run install -m 755 "$repo_root/backend/bin/power-sentinel-api.py" "$PREFIX/bin/power-sentinel-api"
 run install -m 755 "$repo_root/backend/bin/power-sentinel-stackflow-unit.py" "$PREFIX/bin/power-sentinel-stackflow-unit"
+run install -m 755 "$repo_root/backend/bin/power-sentinel-stackflow-healthcheck.py" "$PREFIX/bin/power-sentinel-stackflow-healthcheck"
 if have_module nut; then
   run install -m 755 "$repo_root/backend/bin/m5stack-ups-detect.py" "$PREFIX/bin/m5stack-ups-detect"
 fi
 run install -m 644 "$repo_root/backend/systemd/power-sentinel-api.service" "$SYSTEMD_DIR/power-sentinel-api.service"
 run install -m 644 "$repo_root/backend/systemd/power-sentinel-stackflow-unit.service" "$SYSTEMD_DIR/power-sentinel-stackflow-unit.service"
+run install -m 644 "$repo_root/backend/systemd/power-sentinel-stackflow-healthcheck.service" "$SYSTEMD_DIR/power-sentinel-stackflow-healthcheck.service"
+run install -m 644 "$repo_root/backend/systemd/power-sentinel-stackflow-healthcheck.timer" "$SYSTEMD_DIR/power-sentinel-stackflow-healthcheck.timer"
 write_modules_config
 
 if [[ "$DRY_RUN" == 0 ]]; then
   systemctl daemon-reload
   systemctl enable --now power-sentinel-api.service
   systemctl enable --now power-sentinel-stackflow-unit.service
-  systemctl --no-pager --full status power-sentinel-api.service power-sentinel-stackflow-unit.service || true
+  systemctl enable --now power-sentinel-stackflow-healthcheck.timer
+  systemctl --no-pager --full status power-sentinel-api.service power-sentinel-stackflow-unit.service power-sentinel-stackflow-healthcheck.timer || true
   curl -fsS 'http://127.0.0.1:8088/api/v1/summary?stackflow_safe=1' >/dev/null
+  "$PREFIX/bin/power-sentinel-stackflow-healthcheck" --timeout 5 >/dev/null
   echo "Power Sentinel installed/updated for modules: $MODULES"
 else
   echo "Dry-run complete for modules: $MODULES"
