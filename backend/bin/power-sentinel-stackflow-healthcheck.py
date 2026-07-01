@@ -141,11 +141,17 @@ def main(argv: list[str] | None = None) -> int:
 
     core_s3_ok, core_s3_msg = check_core_s3_poll(args.core_s3_poll_state_path, args.core_s3_max_age_seconds)
     print(core_s3_msg)
-    if args.require_core_s3_fresh and not core_s3_ok:
-        return 4
-
-    if sf_ok:
+    if sf_ok and core_s3_ok:
         return 0
+
+    if sf_ok and not core_s3_ok:
+        if args.require_core_s3_fresh and not args.repair:
+            return 4
+        if not args.repair:
+            return 0
+        repaired, repair_msg = repair(args.state_path, args.cooldown_seconds)
+        print(f"CoreS3 poll stale while synthetic StackFlow is healthy; {repair_msg}")
+        return 1 if repaired else 3
 
     if not args.repair:
         return 1
